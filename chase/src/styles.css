@@ -1,0 +1,326 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #8fd8ff;
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  /* The stage owns every touch: no scroll, no pinch-zoom, no pull-to-refresh. A tap is a jump. */
+  touch-action: none;
+}
+
+/* Everything written over the picture. Nothing here takes a pointer except the corner buttons. */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  font-weight: 600;
+  /* Every glyph wears a dark border, so the words stay readable over sky and grass alike. */
+  paint-order: stroke fill;
+  -webkit-text-stroke: 6px #2a2f45;
+  text-shadow: 0 4px 0 rgba(42, 47, 69, 0.35);
+}
+
+.score {
+  position: absolute;
+  top: 18px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: clamp(36px, 5vw, 72px);
+  line-height: 1;
+}
+
+.score svg {
+  filter: drop-shadow(0 3px 0 rgba(42, 47, 69, 0.35));
+}
+
+/* The turbo tank: three bolts under the score, grey when spent, gold when there, flaring while the turbo pushes. */
+.bolts {
+  position: absolute;
+  top: 74px;
+  left: 28px;
+  display: flex;
+  gap: 2px;
+  font-size: clamp(22px, 2.6vw, 40px);
+  line-height: 1;
+  -webkit-text-stroke: 0;
+  text-shadow: 0 3px 0 rgba(42, 47, 69, 0.35);
+}
+
+.bolts span {
+  filter: grayscale(1) brightness(0.55);
+  transition: filter 0.2s;
+}
+
+.bolts span.lit {
+  filter: none;
+}
+
+.bolts.is-on span.lit {
+  animation: flare 0.25s ease-in-out infinite alternate;
+}
+
+@keyframes flare {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.25);
+  }
+}
+
+/* Two thumb pedals in the bottom corners for a tablet; a keyboard never needs them but they do no harm. */
+.pedals {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 18px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.pedals .pedal {
+  pointer-events: auto;
+  width: clamp(64px, 9vw, 110px);
+  height: clamp(64px, 9vw, 110px);
+  border: 0;
+  border-radius: 50%;
+  font: inherit;
+  font-size: clamp(26px, 3.6vw, 48px);
+  color: #2a2f45;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 6px 0 rgba(42, 47, 69, 0.35);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.pedals .pedal:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(42, 47, 69, 0.35);
+  background: #ffd23f;
+}
+
+.hint .sep {
+  opacity: 0.6;
+  padding: 0 0.3em;
+}
+
+.card {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: clamp(48px, 9vw, 140px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #ffd23f;
+}
+
+.card p {
+  margin: 0.5em 0 0;
+  font-size: clamp(24px, 3.6vw, 56px);
+  animation: bounce 0.9s ease-in-out infinite;
+}
+
+.card p.small {
+  font-size: clamp(16px, 2vw, 30px);
+  -webkit-text-stroke: 4px #2a2f45;
+  animation: none;
+}
+
+/* The pause menu: big friendly buttons a small finger can hit, over a dimmed picture. The start screen shares the buttons, not the dimming. */
+.hud:has(.menu:not(.start)) {
+  background: rgba(42, 47, 69, 0.45);
+}
+
+.menu {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.menu h1 {
+  margin-bottom: 0.2em;
+}
+
+.menu button {
+  font: inherit;
+  font-weight: 600;
+  color: #2a2f45;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.35em 1.1em;
+  background: #fff;
+  box-shadow: 0 6px 0 rgba(42, 47, 69, 0.35);
+  cursor: pointer;
+  font-size: clamp(18px, 2.2vw, 34px);
+}
+
+.menu button.big {
+  font-size: clamp(28px, 4.2vw, 64px);
+  padding: 0.3em 1.2em;
+  background: #ffd23f;
+  box-shadow: 0 8px 0 #b8860b;
+}
+
+.menu button:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(42, 47, 69, 0.35);
+}
+
+/* The car you picked: gold, and a little bigger. */
+.menu button.is-active {
+  background: #ffd23f;
+  box-shadow: 0 6px 0 #b8860b;
+  transform: scale(1.12);
+}
+
+.menu .row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.menu p.small {
+  margin-top: 0.4em;
+}
+
+kbd {
+  font: inherit;
+  padding: 0 0.3em;
+  border-radius: 0.25em;
+  background: #ffd23f;
+  color: #2a2f45;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  box-shadow: 0 4px 0 #b8860b;
+}
+
+.shout {
+  position: absolute;
+  left: 50%;
+  top: 26%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(56px, 11vw, 180px);
+  line-height: 1;
+  white-space: nowrap;
+  animation: pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.shout.win {
+  color: #ffd23f;
+}
+
+.shout.lose {
+  color: #ff6b6b;
+  animation: pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both, wiggle 0.15s ease-in-out 4;
+}
+
+.shout.turbo {
+  color: #c084fc;
+  font-size: clamp(40px, 7vw, 110px);
+}
+
+.shout.bonk {
+  color: #ff6b6b;
+  animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both, wiggle 0.15s ease-in-out 4;
+}
+
+.shout.eek {
+  color: #ff9ecb;
+  font-size: clamp(40px, 7vw, 110px);
+  animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both, wiggle 0.12s ease-in-out 6;
+}
+
+.hint.urgent {
+  color: #ff9ecb;
+  font-size: clamp(22px, 3vw, 44px);
+  animation: bounce 0.5s ease-in-out infinite;
+}
+
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  font-size: clamp(16px, 2vw, 30px);
+  -webkit-text-stroke: 4px #2a2f45;
+  opacity: 0.9;
+}
+
+/* Pause and sound live top right; the bottom corners belong to the pedals. */
+.corner {
+  position: absolute;
+  right: 20px;
+  top: 18px;
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.corner button {
+  font-size: 28px;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 0 rgba(42, 47, 69, 0.35);
+  cursor: pointer;
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: translate(-50%, -50%) scale(0.2) rotate(-8deg);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1) rotate(-4deg);
+    opacity: 1;
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    margin-left: 0;
+  }
+  50% {
+    margin-left: 12px;
+  }
+}
