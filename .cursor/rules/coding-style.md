@@ -13,8 +13,8 @@
 ## Stack and tooling
 
 - **Stack**: TypeScript, React 19, Vite, react-three-fiber/drei; tests with vitest.
-- **One folder per game, each an independent package**: a new game copies an existing game's `package.json`, `tsconfig.json` and `vite.config.ts` rather than sharing a workspace. Pin `react` to the range `@react-three/fiber` accepts (`~19.2.x` for fiber 9.7).
-- **Commands** (run in the game's folder, e.g. `chase/`): `npm run dev` (port 3002), `npm run typecheck`, `npm test`, `npm run build`.
+- **One package, one page per game**: the root holds the only `package.json`, `vite.config.ts` and `tsconfig.json`; a game is `<game>/index.html` plus `<game>/src/` and nothing else of its own. Every game is added to the directory: a card on the root `index.html` and its folder name in `GAMES` in `vite.config.ts`. Pin `react` to the range `@react-three/fiber` accepts (`~19.2.x` for fiber 9.7).
+- **Commands** (at the repo root): `npm run dev` (port 3002: the directory and every game), `npm run typecheck`, `npm test`, `npm run build`; `npx vitest run <game>` for one game's tests.
 - **Game logic stays pure**: the sim is plain numbers with no three.js, driven once per frame, so vitest can run it for minutes; the scene reads it and never mutates it.
 
 ## Code formatting

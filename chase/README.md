@@ -10,10 +10,10 @@ The day turns in a minute: sunrise on the left, sunset on the right, then stars,
 Vite, React, TypeScript, react-three-fiber and drei, vitest: the same scaffolding as the presentation deck it started in.
 
 ```
-npm install
-npm run dev        # https://localhost:3002 (also https://$DEV_HOST:3002 over the VPN)
-npm test           # the sim under three kinds of driver
-npm run build      # typecheck + static build in dist/, runs from disk
+npm install             # at the repo root, once for every game
+npm run dev             # https://localhost:3002/chase/ (also https://$DEV_HOST:3002/chase/ over the VPN)
+npx vitest run chase    # the sim under three kinds of driver
+npm run build           # typecheck + static build of every game in dist/, runs from disk
 ```
 
 ## Keys

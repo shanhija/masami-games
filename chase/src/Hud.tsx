@@ -118,6 +118,9 @@ export function Hud({ game }: { game: Game }) {
             <button type="button" onClick={toggleFullscreen}>
               ⛶ Full screen
             </button>
+            <button type="button" onClick={() => location.assign('../index.html')}>
+              🎮 More games
+            </button>
           </div>
           <p className="small">
             <kbd>ESC</kbd> to keep going

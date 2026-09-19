@@ -1,0 +1,398 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #ffd58f;
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  /* The stage owns every touch: no scroll, no pinch-zoom, no pull-to-refresh. A tap is a jump for whichever side it lands on. */
+  touch-action: none;
+}
+
+/* Everything written over the picture. Nothing here takes a pointer except the buttons. */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  font-weight: 600;
+  /* Every glyph wears a dark border, so the words stay readable over sky and grass alike. */
+  paint-order: stroke fill;
+  -webkit-text-stroke: 6px #2a2f45;
+  text-shadow: 0 4px 0 rgba(42, 47, 69, 0.35);
+}
+
+/* Each player's corner: the police top left, the robber top right, score over sprint bolts. */
+.player {
+  position: absolute;
+  top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.player.police {
+  left: 24px;
+  align-items: flex-start;
+}
+
+.player.robber {
+  right: 24px;
+  align-items: flex-end;
+}
+
+.score {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: clamp(36px, 5vw, 72px);
+  line-height: 1;
+}
+
+.player.robber .score {
+  flex-direction: row-reverse;
+}
+
+.score svg {
+  filter: drop-shadow(0 3px 0 rgba(42, 47, 69, 0.35));
+}
+
+/* The sprint tank: three bolts, grey when spent, gold when there, flaring while the sprint pushes. */
+.bolts {
+  display: flex;
+  gap: 2px;
+  font-size: clamp(22px, 2.6vw, 40px);
+  line-height: 1;
+  -webkit-text-stroke: 0;
+  text-shadow: 0 3px 0 rgba(42, 47, 69, 0.35);
+}
+
+.bolts span {
+  filter: grayscale(1) brightness(0.55);
+  transition: filter 0.2s;
+}
+
+.bolts span.lit {
+  filter: none;
+}
+
+.bolts.is-on span.lit {
+  animation: flare 0.25s ease-in-out infinite alternate;
+}
+
+@keyframes flare {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.25);
+  }
+}
+
+/* Thumb pedals for a tablet: the police's pair in the bottom left corner, the robber's in the bottom right. A keyboard never needs them but they do no harm. */
+.pedals {
+  position: absolute;
+  bottom: 18px;
+  display: flex;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.pedals.police {
+  left: 20px;
+}
+
+.pedals.robber {
+  right: 20px;
+}
+
+.pedals .pedal {
+  pointer-events: auto;
+  width: clamp(60px, 8vw, 100px);
+  height: clamp(60px, 8vw, 100px);
+  border: 0;
+  border-radius: 50%;
+  font: inherit;
+  font-size: clamp(24px, 3.2vw, 44px);
+  color: #2a2f45;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 6px 0 rgba(42, 47, 69, 0.35);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.pedals.police .pedal {
+  background: rgba(200, 220, 255, 0.8);
+}
+
+.pedals.robber .pedal {
+  background: rgba(230, 210, 255, 0.8);
+}
+
+.pedals .pedal:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(42, 47, 69, 0.35);
+  background: #ffd23f;
+}
+
+.hint .sep {
+  opacity: 0.6;
+  padding: 0 0.3em;
+}
+
+.card {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: clamp(48px, 9vw, 140px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #ffd23f;
+}
+
+.card p {
+  margin: 0.5em 0 0;
+  font-size: clamp(24px, 3.6vw, 56px);
+  animation: bounce 0.9s ease-in-out infinite;
+}
+
+.card p.small {
+  font-size: clamp(16px, 2vw, 30px);
+  -webkit-text-stroke: 4px #2a2f45;
+  animation: none;
+}
+
+/* The two players' keys side by side on the start screen, each in its own colour. */
+.keys {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.keys .who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.4em 0.9em;
+  border-radius: 20px;
+  background: rgba(42, 47, 69, 0.35);
+}
+
+.keys .who b {
+  font-size: clamp(22px, 3vw, 44px);
+}
+
+.keys .who.police b {
+  color: #9ec2ff;
+}
+
+.keys .who.robber b {
+  color: #d9b8ff;
+}
+
+.keys .who p {
+  font-size: clamp(18px, 2.4vw, 36px);
+  animation: none;
+  margin-top: 0.3em;
+}
+
+.keys .who p.small {
+  margin-top: 0.2em;
+  opacity: 0.85;
+}
+
+/* The pause menu: big friendly buttons a small finger can hit, over a dimmed picture. The start screen shares the buttons, not the dimming. */
+.hud:has(.menu:not(.start)) {
+  background: rgba(42, 47, 69, 0.45);
+}
+
+.menu {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.menu h1 {
+  margin-bottom: 0.2em;
+}
+
+.menu button {
+  font: inherit;
+  font-weight: 600;
+  color: #2a2f45;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.35em 1.1em;
+  background: #fff;
+  box-shadow: 0 6px 0 rgba(42, 47, 69, 0.35);
+  cursor: pointer;
+  font-size: clamp(18px, 2.2vw, 34px);
+}
+
+.menu button.big {
+  font-size: clamp(28px, 4.2vw, 64px);
+  padding: 0.3em 1.2em;
+  background: #ffd23f;
+  box-shadow: 0 8px 0 #b8860b;
+}
+
+.menu button:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(42, 47, 69, 0.35);
+}
+
+.menu .row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.menu p.small {
+  margin-top: 0.4em;
+}
+
+kbd {
+  font: inherit;
+  padding: 0 0.3em;
+  border-radius: 0.25em;
+  background: #ffd23f;
+  color: #2a2f45;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  box-shadow: 0 4px 0 #b8860b;
+}
+
+.shout {
+  position: absolute;
+  left: 50%;
+  top: 24%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(56px, 11vw, 180px);
+  line-height: 1;
+  white-space: nowrap;
+  animation: pop 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.shout.win {
+  color: #ffd23f;
+}
+
+.shout.turbo {
+  color: #c084fc;
+  font-size: clamp(40px, 7vw, 110px);
+}
+
+/* A runner's own shout sits over its side of the picture: the police's left of centre, the robber's right. */
+.shout.side {
+  top: 42%;
+  font-size: clamp(34px, 6vw, 96px);
+}
+
+.shout.side.police {
+  left: 27%;
+}
+
+.shout.side.robber {
+  left: 73%;
+}
+
+.shout.bonk {
+  color: #ff6b6b;
+  animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both, wiggle 0.15s ease-in-out 4;
+}
+
+.shout.eek {
+  color: #ff9ecb;
+  animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both, wiggle 0.12s ease-in-out 6;
+}
+
+.shout.got {
+  color: #ffd23f;
+}
+
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: 30px;
+  transform: translateX(-50%);
+  font-size: clamp(16px, 2vw, 30px);
+  -webkit-text-stroke: 4px #2a2f45;
+  opacity: 0.9;
+  white-space: nowrap;
+}
+
+/* Pause and sound live top centre; the corners belong to the players. */
+.corner {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.corner button {
+  font-size: 28px;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 4px 0 rgba(42, 47, 69, 0.35);
+  cursor: pointer;
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: translate(-50%, -50%) scale(0.2) rotate(-8deg);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1) rotate(-4deg);
+    opacity: 1;
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    margin-left: 0;
+  }
+  50% {
+    margin-left: 12px;
+  }
+}

@@ -1,0 +1,455 @@
+/* Castle Builder's HUD: a few big friendly pictures over a bright noon diorama. Cream, castle blue and gold, ink lines around everything, like the 3D toys below. */
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #d6eeff;
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  /* The stage owns every touch: no scroll, no pinch-zoom, no pull-to-refresh. A tap is a tap on whatever is under the finger. */
+  touch-action: none;
+}
+
+/* Everything drawn over the picture. Nothing here takes a pointer except the buttons. */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  /* The room the three round buttons keep for themselves in the bottom right corner. */
+  --corner-room: 236px;
+  color: #fff;
+  font-weight: 600;
+  /* Every glyph wears a dark border, so the few words stay readable over sky and grass alike. */
+  paint-order: stroke fill;
+  -webkit-text-stroke: 5px #2b2b30;
+  text-shadow: 0 3px 0 rgba(43, 43, 48, 0.3);
+}
+
+.hud button {
+  pointer-events: auto;
+  font: inherit;
+  font-weight: 600;
+  color: #2b2b30;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  border: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hud button:focus-visible {
+  outline: 4px solid #f2c14e;
+}
+
+.hud .icon {
+  display: block;
+  overflow: visible;
+}
+
+/* ------------------------------------------------------------------ the King's wish, top left */
+
+.wish {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  min-width: 64px;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 10px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 5px 0 rgba(43, 43, 48, 0.3);
+}
+
+.wish:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(43, 43, 48, 0.3);
+}
+
+.wish .crown {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.wish .crown.big {
+  font-size: clamp(34px, 4vw, 48px);
+  padding: 4px 6px;
+}
+
+.wish .pips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-width: 60px;
+}
+
+.wish .pips i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d9d0bc;
+  border: 2px solid #2b2b30;
+  box-sizing: border-box;
+}
+
+.wish .pips i.lit {
+  background: #f2c14e;
+}
+
+/* A wish just done: the card bounces for a moment with a big sparkle on its shoulder. */
+.wish.done {
+  animation: bounce 0.5s ease-in-out 5;
+  background: #fff1b8;
+}
+
+.wish .spark {
+  position: absolute;
+  right: -14px;
+  top: -18px;
+  font-size: 40px;
+  line-height: 1;
+  animation: twinkle 0.5s ease-in-out infinite alternate;
+}
+
+/* ------------------------------------------------------------------ the yard's goods, top right */
+
+/* Raw goods on the top row, made goods under them, the same order as the piles in the yard. */
+.store {
+  position: absolute;
+  right: 16px;
+  top: 14px;
+  display: grid;
+  grid-template-columns: repeat(5, clamp(38px, 4.4vw, 50px));
+  gap: 2px 4px;
+  padding: 6px 8px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.good {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-size: clamp(16px, 2vw, 24px);
+  -webkit-text-stroke: 4px #2b2b30;
+}
+
+.good .icon {
+  filter: drop-shadow(0 2px 0 rgba(43, 43, 48, 0.25));
+}
+
+.good.bump {
+  animation: bump 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+/* ------------------------------------------------------------------ pause, sound and look, bottom right */
+
+/* The one corner that is open water in every layout: no tree, rock or sheep is ever under these three. */
+.corner {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 12px;
+}
+
+.hud button.round {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  font-size: 30px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 4px 0 rgba(43, 43, 48, 0.3);
+}
+
+.hud button.round:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(43, 43, 48, 0.3);
+}
+
+/* ------------------------------------------------------------------ the build bar, along the bottom */
+
+/* The bar takes the room left of the corner buttons and sits in the middle of it. */
+.bar {
+  position: absolute;
+  left: 8px;
+  right: var(--corner-room);
+  bottom: 2px;
+  display: flex;
+  justify-content: center;
+}
+
+/*
+ * One row, always: the buttons shrink as the screen narrows, and once they are as small as
+ * they go a finger swipes the row sideways to reach the rest.
+ */
+.pieces {
+  pointer-events: auto;
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+  /* Room inside the row for the shadows and for the hop of the chosen button. */
+  padding: 12px 6px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.pieces::-webkit-scrollbar {
+  display: none;
+}
+
+.hud button.piece {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  box-sizing: border-box;
+  width: clamp(64px, 5.6vw, 76px);
+  min-height: 64px;
+  padding: 6px 4px 8px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 5px 0 rgba(43, 43, 48, 0.3);
+  transition:
+    transform 0.15s,
+    background 0.15s,
+    opacity 0.15s;
+}
+
+.piece .pic {
+  display: block;
+}
+
+/* The picture shrinks with the button, never below a size a small finger can aim at. */
+.piece .pic .icon {
+  width: clamp(44px, 4vw, 52px);
+  height: clamp(44px, 4vw, 52px);
+}
+
+/* The price as repeated little pictures, three to a row: one row per kind of good. */
+.piece .cost {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px;
+  max-width: 54px;
+  min-height: 16px;
+}
+
+.hud button.piece.selected {
+  background: #f2c14e;
+  box-shadow: 0 5px 0 #c99a2e;
+  transform: translateY(-6px) scale(1.08);
+}
+
+/* The yard cannot pay for it yet: dimmed, and still a button, so the tap can point at what is missing. */
+.hud button.piece.poor {
+  opacity: 0.6;
+}
+
+.hud button.piece:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(43, 43, 48, 0.3);
+}
+
+/* The maker that would make the missing good, and is not built yet: it wiggles for a moment. */
+.hud button.piece.wiggle {
+  animation: wiggle 0.3s ease-in-out infinite;
+}
+
+/* Just became affordable: a little pop and a gold glow. */
+.hud button.piece.ding .pic {
+  animation: ding 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.hud button.piece.ding {
+  box-shadow:
+    0 5px 0 rgba(43, 43, 48, 0.3),
+    0 0 0 6px rgba(242, 193, 78, 0.7);
+}
+
+/* ------------------------------------------------------------------ the start card and the pause menu */
+
+.card {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  max-width: min(90vw, 760px);
+}
+
+.card h1 {
+  margin: 0;
+  font-size: clamp(44px, 8vw, 120px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #f2c14e;
+  -webkit-text-stroke: 7px #2b2b30;
+}
+
+.card p {
+  margin: 0;
+  font-size: clamp(24px, 3.6vw, 52px);
+}
+
+.card p.tap {
+  animation: bounce 0.9s ease-in-out infinite;
+}
+
+.card p.small {
+  font-size: clamp(16px, 2vw, 28px);
+  -webkit-text-stroke: 4px #2b2b30;
+  line-height: 1.3;
+}
+
+/* The start card floats over a live picture and lets every tap through to it; only the Play button is solid. */
+.card.start {
+  pointer-events: none;
+}
+
+/* The pause menu dims the picture and takes every tap. */
+.hud:has(.menu) {
+  background: rgba(31, 47, 107, 0.45);
+}
+
+.card.menu {
+  pointer-events: auto;
+}
+
+.card button {
+  min-height: 64px;
+  border-radius: 999px;
+  padding: 0.35em 1.1em;
+  background: #fff;
+  box-shadow: 0 6px 0 rgba(43, 43, 48, 0.3);
+  font-size: clamp(18px, 2.2vw, 32px);
+}
+
+.card button.big {
+  min-height: 72px;
+  font-size: clamp(28px, 4.2vw, 60px);
+  padding: 0.3em 1.2em;
+  background: #f2c14e;
+  box-shadow: 0 8px 0 #c99a2e;
+}
+
+.card button.big.armed {
+  background: #e8503f;
+  color: #fff;
+  box-shadow: 0 8px 0 #9b2f24;
+}
+
+.card button:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(43, 43, 48, 0.3);
+}
+
+.card .row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ------------------------------------------------------------------ small screens: everything a little tighter */
+
+@media (max-width: 720px) {
+  .hud {
+    --corner-room: 224px;
+  }
+
+  .wish {
+    left: 8px;
+    top: 8px;
+    padding: 4px 10px 4px 8px;
+  }
+
+  .store {
+    right: 8px;
+    top: 8px;
+    padding: 4px 6px;
+  }
+
+  .corner {
+    right: 8px;
+    gap: 8px;
+  }
+
+  .bar {
+    left: 4px;
+  }
+
+  .pieces {
+    gap: 6px;
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes bump {
+  from {
+    transform: scale(1.5);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes ding {
+  from {
+    transform: scale(1.35) rotate(-6deg);
+  }
+  to {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes twinkle {
+  from {
+    transform: scale(0.8) rotate(-10deg);
+  }
+  to {
+    transform: scale(1.2) rotate(10deg);
+  }
+}

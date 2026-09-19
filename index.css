@@ -1,0 +1,126 @@
+@import '@fontsource-variable/fredoka';
+
+/* The game directory: big cards a small finger can hit, in the games' own colours and letters. */
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* A cartoon sky over a green hill. */
+  background: linear-gradient(180deg, #6fc8ff 0%, #c6ecff 66%, #7ed957 66%, #58b845 100%);
+  color: #fff;
+  font-weight: 600;
+  /* Every glyph wears a dark border, so the words stay readable over sky and grass alike. */
+  paint-order: stroke fill;
+  -webkit-text-stroke: 6px #2a2f45;
+  text-shadow: 0 4px 0 rgba(42, 47, 69, 0.35);
+}
+
+.sun {
+  position: fixed;
+  top: 5vh;
+  right: 6vw;
+  width: 14vmin;
+  height: 14vmin;
+  border-radius: 50%;
+  background: #ffd23f;
+  box-shadow: 0 0 0 2.5vmin rgba(255, 210, 63, 0.35);
+}
+
+.directory {
+  position: relative;
+  padding: 4vh 16px;
+  text-align: center;
+}
+
+h1 {
+  margin: 0 0 0.5em;
+  font-size: clamp(44px, 8vw, 120px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #ffd23f;
+}
+
+.games {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 28px;
+}
+
+/* One card per game: its picture, its name, what to do in it, and how many can play. */
+.game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: clamp(220px, 34vw, 360px);
+  padding: 28px 20px 24px;
+  border-radius: 36px;
+  box-shadow: 0 10px 0 rgba(42, 47, 69, 0.35);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.game.chase {
+  background: #8fd8ff;
+}
+
+.game.foot-chase {
+  background: #ffd58f;
+}
+
+.game.castle-builder {
+  background: #b4e59a;
+}
+
+.game:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 0 rgba(42, 47, 69, 0.35);
+}
+
+.game:active {
+  transform: translateY(6px);
+  box-shadow: 0 2px 0 rgba(42, 47, 69, 0.35);
+}
+
+.picture {
+  font-size: clamp(72px, 12vw, 140px);
+  line-height: 1.1;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  filter: drop-shadow(0 6px 0 rgba(42, 47, 69, 0.35));
+}
+
+.name {
+  font-size: clamp(30px, 4.5vw, 56px);
+  line-height: 1.1;
+  color: #ffd23f;
+}
+
+.blurb {
+  font-size: clamp(16px, 2.2vw, 26px);
+  -webkit-text-stroke: 4px #2a2f45;
+}
+
+.players {
+  margin-top: 6px;
+  padding: 0.2em 0.9em;
+  border-radius: 999px;
+  background: rgba(42, 47, 69, 0.35);
+  font-size: clamp(14px, 1.8vw, 22px);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+}
