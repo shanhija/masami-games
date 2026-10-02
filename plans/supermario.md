@@ -1,0 +1,29 @@
+# Pia Jump (`supermario/`)
+
+The brief is [`supermario/design.md`](../supermario/design.md): a game that plays and feels like Super Mario but looks different, with a hero in the spirit of the cat-ear girl from the dollhouse cartoon, drawn in true 2D. A five-lens panel (child development, platformer feel, 2D art and IP, engineering, a co-playing parent) reviewed the first draft; its changes are folded in below.
+
+## Decisions
+
+- **True 2D on the browser's canvas, with our own sim.** The bot that proves every room finishable clones and steps the whole game state thousands of times a second, so the state must be plain data stepped by our own code. Phaser, Kaplay and Excalibur keep state in object graphs and own the loop, so beside our sim they would only be renderers; PixiJS is only a renderer to begin with. Canvas 2D wins that last comparison: it antialiases vector paths at any scale, its API is stable for art written without looking, a fake context runs it in node, it has no WebGL context loss on iOS, and it adds nothing to the bundle (the page loads only the shared React chunk). React draws the HUD and menus. Headless Chromium screenshots check the looks.
+- **The IP line.** It plays like Mario and looks like neither Mario nor the show. The hero is Pia (Mimi is a Super Paper Mario villain). She keeps the recognition cues, a pink cat-ear headband, a cloud of dark curls, warm skin and pastels, and moves away from everything else: a violet dress with a white collar, grape shoes, a solid pink tail with a white tip, no stripes, no star on her. There is no dollhouse: the rooms are an ordinary house over one day (Garden at sunrise, Kitchen in the morning, Bath at noon, Toy Room in the afternoon, Roof at night), and the start screen is five room cards. Kittens are plain kittens told apart by their coats, waiting in felt dome beds; the ending is a picnic under the moon. Only living things have faces, only Pia and the kittens have cat ears. No question marks, mortar bricks, lipped green pipes, biting plants, spinning coins, flag and castle, lollipop of invincibility or colour-cycling body; the invincibility item is a rainbow ball with a halo. No borrowed tune, jingle or level layout.
+- **Mario's feel, sized for a five-year-old.** The constants live in `src/game/model.ts`. She walks at 5 and runs at 7.5 tiles/s after holding a direction for a second, with no run button. Jumps take off faster at speed and rise under gentle gravity only while held, but every jump counts as held for 0.1 s, so a tap is a 2.3-tile hop. Springs and stomp bounces rise gently whatever the button does. No air drag; coyote time 0.12 s, jump buffer 0.2 s; a head that clips a corner slides past it and a toe that misses a ledge by a little is lifted onto it. A stomp is judged by her feet on the previous step against the enemy's middle, with a stomp box wider and a hurt box narrower than the art. Stomps before landing chain for 1 to 5 stars.
+- **Nothing punishes.** No timer, no lives, no game over, and the star count only goes up. A hit takes one form away (bubble, big, small); a hit while small is half a second of dizziness. A fall is a bubble ride back to safe ground, and the third fall into the same gap carries her across it. A kicked shell never hurts her and pops into stars at the first wall. The Big Grumble never hurts her and hops off as a little bunny after three stomps or bubbles; the gate behind its arena is seven blocks tall, because at four a held jump with the toe assist climbed it. Every room starts with her small and a cupcake in its first box.
+- **One new thing per room.** Garden: grumbles, gift boxes, the cupcake, pots, 2-tile gaps. Kitchen: snails and shells, cookie blocks, the bubble wand. Bath: bees, ferry lifts over the water. Toy Room: springs, moving lifts, the rainbow ball, 3-tile gaps. Roof at night: a remix, then the Big Grumble. Rooms are 120 to 170 columns (Garden 120, Kitchen 130, Bath 140, Toy Room 150, the Roof 170 with the Big Grumble's 24-column arena), two to four minutes for her. Enemies sleep until she is 13 tiles away and yawn before they move, and never more than three are awake within 13 tiles of any spot, so a room holds five or six grumbles, two or three snails and, from the Bath on, two to four bees. The ABC stairs before each pole spell the room's kitten.
+- **Proof without playing.** A bot that plays like a child (a decision every 0.15 s, jumps only from a standstill, each a tap or a hold) finishes every room as small Pia without a hit or a fall. Lints check gaps, rises, tunnels and holes per room, a seeded fuzz checks the invariants for minutes, and a fake 2D context runs every draw function in every state.
+- **For the parent.** Sound and Music are two switches, both saved. The game pauses when the page hides, the window blurs or nobody touches it for a minute. Holding for 3 seconds starts fresh or opens a locked room. `?room`, `&x`, `&form`, `?all`, `?debug`, `?autoplay` and `?sheet` start anywhere, show hitboxes, let the bot play, and lay out every sprite.
+
+## Build order
+
+1. Contract: `model.ts`, `room.ts`, `draw/look.ts`, stubs for every module, the sprite sheet host and the draw smoke test.
+2. In parallel, on disjoint files: the sim; Pia, the kittens and the enemies; the world and the things in it; the stage, camera and effects; the game, HUD and save; the sounds.
+3. The five rooms and the bot.
+4. Integration with screenshots, then an adversarial review.
+
+## Left to build
+
+- A look at the frame rate on the real iPad. On this machine's software rasterizer the backdrop is about two thirds of a frame at 2360x1640; if the iPad drops frames, cache its far layers first.
+- Dress colours bought with stars.
+- A midway bow per room to resume a half-done room.
+- Hidden gift boxes and secret star rooms.
+- A parent stats card (falls per gap, jump holds, where the thumbs land) to tune by measurement.
+- A gamepad.

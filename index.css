@@ -86,6 +86,10 @@ h1 {
   background: #b4e59a;
 }
 
+.game.supermario {
+  background: #ffc2e2;
+}
+
 .game:hover {
   transform: translateY(-6px);
   box-shadow: 0 16px 0 rgba(42, 47, 69, 0.35);

@@ -7,15 +7,15 @@
 - **Simplify**: Prefer the smallest change that matches types and architecture.
 - **Prevent silent failures**: Design solutions to not have silent failures if not necessary or requested, but raise exceptions when assumptions are not met. Make code specialized and not generalized, having assumptions and accepting exceptions when assumptions are not met. Prefer union/enum types over free strings so the compiler already checks validity. Avoid defensive optional-chaining/`if (x != null)` guards that silently skip logic; access directly so missing values surface immediately.
 - **Strict arguments, no optional by default**: Function parameters should be required and non-nullable unless the current code path genuinely has callers that legitimately pass nothing. Don't widen a signature to `arg?: T` just because the only caller "might not" pass it, or to keep tests / scaffolding compiling; a forgotten argument in a future caller then becomes a silent no-op instead of a compile error. Add optionality only when a real call site has nothing to pass (and document why at the call site).
-- **Visual testing is the user's**: never launch a game or drive a browser for screenshots; verify with `npm run typecheck` and `npm test`, then describe what to look at. Eyeballed 3D placements are fine to ship for the user to tune.
+- **Screenshots yes, the user's browser no**: check that a game boots and how it looks with a headless Chromium (Playwright from the terminal, the script kept outside the repo); never drive the user's own browser (no Claude in Chrome). Logic is still proven by `npm run typecheck` and `npm test`; the user has the last look and tunes. For games this overrides the general "visual checks are the user's".
 - **Audience-visible text reads human-written**: no em-dashes, plain sentences, few and big words for a five-year-old.
 
 ## Stack and tooling
 
-- **Stack**: TypeScript, React 19, Vite, react-three-fiber/drei; tests with vitest.
+- **Stack**: TypeScript, React 19, Vite, vitest. 3D games draw with react-three-fiber/drei; a 2D game draws on the canvas 2D context with its own pure sim (no game engine: the sim must stay cloneable for its tests), React only for the HUD.
 - **One package, one page per game**: the root holds the only `package.json`, `vite.config.ts` and `tsconfig.json`; a game is `<game>/index.html` plus `<game>/src/` and nothing else of its own. Every game is added to the directory: a card on the root `index.html` and its folder name in `GAMES` in `vite.config.ts`. Pin `react` to the range `@react-three/fiber` accepts (`~19.2.x` for fiber 9.7).
 - **Commands** (at the repo root): `npm run dev` (port 3002: the directory and every game), `npm run typecheck`, `npm test`, `npm run build`; `npx vitest run <game>` for one game's tests.
-- **Game logic stays pure**: the sim is plain numbers with no three.js, driven once per frame, so vitest can run it for minutes; the scene reads it and never mutates it.
+- **Game logic stays pure**: the sim is plain numbers with no three.js or canvas, driven once per frame, so vitest can run it for minutes; the scene reads it and never mutates it.
 
 ## Code formatting
 

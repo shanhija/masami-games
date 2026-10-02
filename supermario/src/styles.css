@@ -1,0 +1,928 @@
+/* Pia Jump's HUD: few words and big ones, white with an ink outline like the canvas art, cream cards with an ink border, pink for the one thing to press. */
+
+:root {
+  --ink: #3b2245;
+  --paper: #fff6fb;
+  --pink: #ff6fae;
+  --pink-deep: #c2477f;
+  --pressed: #ffb3d6;
+  --shadow: rgba(59, 34, 69, 0.35);
+  --gold: #ffd447;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* No selecting, no long-press callout, no grey flash on a tap, no pinch or pull: the page is the game. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* Everything over the picture. Nothing here takes a pointer except the buttons and the thumbs' zones. */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  font-weight: 600;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 6px var(--ink);
+  text-shadow: 0 4px 0 var(--shadow);
+}
+
+.hud button {
+  pointer-events: auto;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  border: 0;
+  margin: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hud .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* A picture's box; its canvas fills it, or spills past it (a night bed's glow) for whatever holds it to clip. */
+.portrait {
+  display: block;
+  position: relative;
+}
+
+.portrait canvas {
+  position: absolute;
+  display: block;
+}
+
+/* ------------------------------------------------------------------ the corners: star counter or jar top left, buttons top right */
+
+/* The star icon's centre sits at exactly (44, 44): the stage flies the stars she takes to that point. */
+.counter,
+.jar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 88px;
+  display: flex;
+  align-items: center;
+  font-size: 46px;
+  line-height: 1;
+}
+
+.counter .star,
+.jar .star {
+  position: absolute;
+  left: 9px;
+  top: 9px;
+  width: 70px;
+  height: 70px;
+}
+
+.counter .count,
+.jar .count {
+  margin-left: 84px;
+}
+
+/* A new star pops the number. */
+.counter .count {
+  animation: bump 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.corner {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  display: flex;
+  gap: 10px;
+}
+
+.hud button.round {
+  width: 56px;
+  height: 56px;
+  padding: 11px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 4px 0 var(--shadow);
+}
+
+.hud button.round:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--shadow);
+}
+
+/* ------------------------------------------------------------------ the rooms screen */
+
+.rooms {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3.5vmin;
+  padding: 80px 16px 11vh;
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(52px, 12vmin, 128px);
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  color: var(--pink);
+  -webkit-text-stroke: 9px var(--ink);
+  text-shadow: 0 6px 0 var(--shadow);
+}
+
+.cards {
+  /* One card's width: five fit in a row on a landscape screen. */
+  --w: min(25vmin, calc((100vw - 56px - 4 * 2.4vmin) / 5), 214px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2.4vmin;
+}
+
+/* The button is a still box for the finger; its face is the card, and it is the face that moves. */
+.hud button.room {
+  width: var(--w);
+  height: calc(var(--w) * 1.28);
+  padding: 0;
+  background: none;
+}
+
+.room .face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(var(--w) * 0.06) 4px calc(var(--w) * 0.07);
+  background: var(--card);
+  border: 6px solid var(--ink);
+  border-radius: calc(var(--w) * 0.16);
+  box-shadow: 0 8px 0 var(--shadow);
+  overflow: hidden;
+}
+
+/* The words and stars stay over a picture that spills behind them. */
+.room .name,
+.room .best {
+  position: relative;
+  z-index: 1;
+}
+
+.hud button.room:active .face {
+  translate: 0 4px;
+  box-shadow: 0 4px 0 var(--shadow);
+}
+
+.room .name {
+  color: #fff;
+  font-size: calc(var(--w) * 0.15);
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-text-stroke: 5px var(--ink);
+  text-shadow: 0 3px 0 var(--shadow);
+}
+
+.room .pic {
+  width: 100%;
+  height: 58%;
+}
+
+.room .best {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: #fff;
+  font-size: calc(var(--w) * 0.14);
+  line-height: 1;
+  -webkit-text-stroke: 5px var(--ink);
+  text-shadow: 0 3px 0 var(--shadow);
+}
+
+.room .best .star {
+  width: calc(var(--w) * 0.2);
+  height: calc(var(--w) * 0.2);
+}
+
+/* A locked room: its face dimmed under a padlock. */
+.room.locked .name,
+.room.locked .pic,
+.room.locked .best {
+  opacity: 0.45;
+  filter: grayscale(0.8);
+}
+
+.room .lock {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 4px 0 var(--shadow));
+}
+
+/* The room to play next breathes. */
+.room.next .face {
+  animation: breathe 0.9s ease-in-out infinite alternate;
+}
+
+/* The keyboard's card wears a white ring. */
+.room.lit .face {
+  outline: 6px solid #fff;
+  outline-offset: 5px;
+}
+
+/* The homecoming: the kitten pops into its card. */
+.room.home .pic {
+  animation: kittenHome 0.7s 0.15s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+/* The card the kitten opened: the padlock pops off, the face lights up, then it breathes. */
+.room.opening .lock {
+  animation: unlock 0.6s var(--open-at) ease-in both;
+}
+
+.room.opening .name,
+.room.opening .pic,
+.room.opening .best {
+  animation: undim 0.4s calc(var(--open-at) + 0.2s) both;
+}
+
+.room.opening.next .face {
+  animation: breathe 0.9s calc(var(--open-at) + 0.6s) ease-in-out infinite alternate;
+}
+
+/* The title gives its place to "You found Sunny!" for a moment. */
+.title.say {
+  font-size: clamp(40px, min(12vmin, 9vw), 120px);
+  color: var(--gold);
+  white-space: nowrap;
+  animation: sayIn 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+/* A star on its way from a card to the jar. */
+.flight {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  pointer-events: none;
+}
+
+.flight .star {
+  width: 100%;
+  height: 100%;
+}
+
+.hud button.fresh {
+  position: absolute;
+  left: calc(12px + env(safe-area-inset-left));
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 17px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 3px 0 var(--shadow);
+  touch-action: none;
+}
+
+/* The parent gate's ring, around the finger that holds. */
+.ring {
+  position: fixed;
+  width: 124px;
+  height: 124px;
+  margin: -62px 0 0 -62px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 12;
+}
+
+.ring .track {
+  stroke: rgba(255, 255, 255, 0.75);
+}
+
+.ring .fill {
+  stroke: var(--pink);
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  animation: fillRing linear forwards;
+}
+
+/* ------------------------------------------------------------------ in a room */
+
+/* Pia's head travels from the start to the kitten's bed. */
+.ribbon {
+  position: absolute;
+  left: 50%;
+  top: calc(18px + env(safe-area-inset-top));
+  width: min(36vw, 440px);
+  height: 52px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ribbon .track {
+  position: relative;
+  flex: 1;
+  height: 14px;
+  box-sizing: border-box;
+  border: 4px solid var(--ink);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.ribbon .fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: var(--pink);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.ribbon .runner {
+  position: absolute;
+  inset: 0;
+}
+
+.ribbon .head {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 50px;
+  height: 50px;
+  transform: translate(-50%, -54%);
+}
+
+.ribbon .bed {
+  flex: none;
+  width: 58px;
+  height: 50px;
+}
+
+.shout {
+  position: absolute;
+  left: 50%;
+  top: 25%;
+  font-size: clamp(56px, 12vmin, 140px);
+  line-height: 1;
+  white-space: nowrap;
+  -webkit-text-stroke: 9px var(--ink);
+  text-shadow: 0 6px 0 var(--shadow);
+  animation:
+    pop 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) both,
+    fadeAway 0.25s 0.65s ease-in forwards;
+}
+
+.shout.wow {
+  color: var(--gold);
+}
+
+.shout.boing {
+  color: #8ce99a;
+}
+
+.shout.oops {
+  color: #ff9ebb;
+}
+
+.shout.yay {
+  color: var(--pink);
+}
+
+.card {
+  background: var(--paper);
+  border: 6px solid var(--ink);
+  border-radius: 36px;
+  box-shadow: 0 8px 0 var(--shadow);
+}
+
+/* "Find Sunny!" over the room as it starts; taps go through it to the controls. */
+.card.start {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2vmin 6vmin 3vmin;
+  animation: cardIn 0.35s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.card.start .pic {
+  width: 24vmin;
+  height: 24vmin;
+}
+
+.card.start p {
+  margin: 0;
+  font-size: clamp(40px, 8vmin, 96px);
+  line-height: 1.05;
+  color: var(--pink);
+}
+
+/* The pause menu dims the picture and takes every tap: one outside the buttons goes back to the room. */
+.dim {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(59, 34, 69, 0.5);
+  pointer-events: auto;
+}
+
+.card.menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.2vmin;
+  max-width: 92vw;
+  padding: 2.4vmin 5vmin 3.4vmin;
+  box-sizing: border-box;
+  animation: menuIn 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.menu .top {
+  display: flex;
+  align-items: center;
+  gap: 2vmin;
+}
+
+.menu h1 {
+  margin: 0;
+  font-size: clamp(40px, 9vmin, 100px);
+  line-height: 1;
+  color: var(--pink);
+}
+
+.menu .top .pic {
+  width: 13vmin;
+  height: 13vmin;
+}
+
+.card.menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  border: 5px solid var(--ink);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.card.menu button .icon {
+  width: 1em;
+  height: 1em;
+}
+
+.card.menu button:active {
+  transform: translateY(4px);
+}
+
+.hud button.primary {
+  font-size: clamp(30px, 6.4vmin, 68px);
+  padding: 0.18em 0.9em 0.22em 0.7em;
+  color: #fff;
+  background: var(--pink);
+  box-shadow: 0 8px 0 var(--pink-deep);
+  -webkit-text-stroke: 6px var(--ink);
+  paint-order: stroke fill;
+}
+
+.hud button.primary:active {
+  box-shadow: 0 4px 0 var(--pink-deep);
+}
+
+.hud button.secondary {
+  font-size: clamp(22px, 4.4vmin, 46px);
+  padding: 0.2em 0.8em 0.24em 0.6em;
+  background: #fff;
+  box-shadow: 0 6px 0 var(--shadow);
+}
+
+.menu .pair,
+.menu .row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.6vmin;
+}
+
+.hud button.small {
+  font-size: clamp(16px, 2.8vmin, 28px);
+  padding: 0.25em 0.75em 0.3em 0.55em;
+  background: #fff;
+  box-shadow: 0 5px 0 var(--shadow);
+}
+
+.hud button.small.off {
+  background: #e9dfe8;
+}
+
+/* ------------------------------------------------------------------ the thumbs' controls */
+
+.controls .zone {
+  position: absolute;
+  top: 90px;
+  bottom: 0;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* The left 40% steers, from 40 px in: iPad Safari's back swipe lives at the edge. */
+.controls .zone.steer {
+  left: calc(40px + env(safe-area-inset-left));
+  width: calc(40% - 40px - env(safe-area-inset-left));
+}
+
+.controls .zone.leap {
+  left: 50%;
+  right: 0;
+}
+
+.controls .pad,
+.controls .jump,
+.controls .blow {
+  position: absolute;
+  bottom: calc(3vmin + env(safe-area-inset-bottom));
+}
+
+.controls .pad {
+  left: calc(max(3vmin, 40px) + env(safe-area-inset-left));
+  display: flex;
+  gap: 1vmin;
+  pointer-events: none;
+}
+
+.controls .half,
+.controls .jump,
+.controls .blow {
+  box-sizing: border-box;
+  border: max(3px, 0.5vmin) solid var(--ink);
+  opacity: 0.35;
+  transition: opacity 0.08s;
+}
+
+.controls .half {
+  width: 14vmin;
+  height: 14vmin;
+  padding: 3.6vmin;
+  border-radius: 3.5vmin;
+}
+
+.controls .jump {
+  right: calc(3vmin + env(safe-area-inset-right));
+  width: 18vmin;
+  height: 18vmin;
+  padding: 4.4vmin;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.controls .blow {
+  right: calc(6vmin + env(safe-area-inset-right));
+  bottom: calc(23vmin + env(safe-area-inset-bottom));
+  width: 12vmin;
+  height: 12vmin;
+  padding: 1.6vmin;
+  border-radius: 50%;
+  pointer-events: auto;
+  touch-action: none;
+  /* It pulses for 3 s when the wand gives it to her. */
+  animation: learn 0.5s ease-in-out 6 alternate;
+}
+
+.controls .on {
+  opacity: 0.7;
+  background: var(--pressed);
+}
+
+/* Until each has been used once, the pad's halves and the jump pulse gently. */
+.controls .learn {
+  animation: learn 0.9s ease-in-out infinite alternate;
+}
+
+/* The ghost hand shows the pad (left, then right), then the jump, over HELP_FOR (6 s). Its fingertip is the top centre of its box. */
+.controls .ghost {
+  --pad: calc(max(3vmin, 40px) + env(safe-area-inset-left));
+  position: absolute;
+  width: 10vmin;
+  height: 13vmin;
+  margin-left: -5vmin;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 0 var(--shadow));
+  animation: ghost 6s ease-in-out both;
+}
+
+/* ------------------------------------------------------------------ the picnic */
+
+.picnic {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(5vmin + env(safe-area-inset-top)) 16px calc(4vmin + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.picnic .words {
+  margin: 0;
+  font-size: clamp(40px, min(10vmin, 8vw), 120px);
+  white-space: nowrap;
+  line-height: 1;
+  color: var(--gold);
+  -webkit-text-stroke: 9px var(--ink);
+  text-shadow: 0 6px 0 var(--shadow);
+  animation: sayIn 0.6s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.picnic .kittens {
+  display: flex;
+  gap: 2vmin;
+}
+
+.picnic .kittens .pic {
+  width: 15vmin;
+  height: 15vmin;
+  border: 5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 6px 0 var(--shadow);
+}
+
+/* ------------------------------------------------------------------ a bad URL switch */
+
+.oops {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 32px;
+  font: 600 22px/1.4 ui-monospace, monospace;
+  color: var(--ink);
+  background: var(--paper);
+  white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------------ small screens */
+
+/* Portrait: the cards wrap three and two, and grow. */
+@media (orientation: portrait) {
+  .cards {
+    --w: min(28vmin, 230px);
+  }
+}
+
+/* A phone on its side: everything a little tighter, the cards as big as the height allows. */
+@media (max-height: 500px) {
+  .rooms {
+    gap: 2.5vmin;
+    padding: 60px 12px 36px;
+  }
+
+  .cards {
+    --w: min(34vmin, calc((100vw - 56px - 4 * 2.4vmin) / 5));
+  }
+
+  .corner {
+    gap: 8px;
+  }
+
+  .hud button.round {
+    width: 48px;
+    height: 48px;
+    padding: 9px;
+  }
+
+  .hud button.fresh {
+    font-size: 14px;
+    padding: 6px 12px;
+  }
+
+  .menu .top .pic {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ motion */
+
+@keyframes pop {
+  from {
+    transform: translate(-50%, -50%) scale(0.2) rotate(-8deg);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1) rotate(-4deg);
+    opacity: 1;
+  }
+}
+
+@keyframes sayIn {
+  from {
+    scale: 0.3;
+    rotate: -8deg;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    rotate: -3deg;
+    opacity: 1;
+  }
+}
+
+@keyframes fadeAway {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes cardIn {
+  from {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes menuIn {
+  from {
+    scale: 0.7;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes bump {
+  from {
+    transform: scale(1.4);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes breathe {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: 1.06;
+  }
+}
+
+@keyframes learn {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: 1.1;
+  }
+}
+
+@keyframes kittenHome {
+  from {
+    transform: scale(0) rotate(-20deg);
+  }
+  to {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes unlock {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  35% {
+    transform: translate(-50%, -62%) scale(1.25) rotate(-10deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -90%) scale(0.4) rotate(20deg);
+    opacity: 0;
+  }
+}
+
+@keyframes undim {
+  from {
+    opacity: 0.45;
+    filter: grayscale(0.8);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+@keyframes fillRing {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The hand's fingertip: onto the pad's left half, press, slide to the right half, press, over to the jump, press twice. */
+@keyframes ghost {
+  0% {
+    left: calc(var(--pad) + 7vmin);
+    top: calc(100% - 3vmin - 7vmin + 2vmin);
+    opacity: 0;
+    transform: scale(1);
+  }
+  8% {
+    left: calc(var(--pad) + 7vmin);
+    top: calc(100% - 3vmin - 7vmin);
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(0.88);
+  }
+  20% {
+    left: calc(var(--pad) + 7vmin);
+    transform: scale(0.88);
+  }
+  32% {
+    left: calc(var(--pad) + 22vmin);
+    top: calc(100% - 3vmin - 7vmin);
+    transform: scale(0.88);
+  }
+  38% {
+    transform: scale(1);
+  }
+  52% {
+    left: calc(100% - 12vmin);
+    top: calc(100% - 12vmin);
+    transform: scale(1);
+  }
+  58% {
+    transform: scale(0.85);
+  }
+  64% {
+    transform: scale(1);
+  }
+  72% {
+    transform: scale(0.85);
+  }
+  78% {
+    transform: scale(1);
+  }
+  90% {
+    left: calc(100% - 12vmin);
+    top: calc(100% - 12vmin);
+    opacity: 0.9;
+  }
+  100% {
+    left: calc(100% - 12vmin);
+    top: calc(100% - 12vmin + 2vmin);
+    opacity: 0;
+  }
+}
