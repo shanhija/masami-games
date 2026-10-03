@@ -1,6 +1,6 @@
-# Pia Jump (`supermario/`)
+# Pia Jump (`pia-jump/`)
 
-The brief is [`supermario/design.md`](../supermario/design.md): a game that plays and feels like Super Mario but looks different, with a hero in the spirit of the cat-ear girl from the dollhouse cartoon, drawn in true 2D. A five-lens panel (child development, platformer feel, 2D art and IP, engineering, a co-playing parent) reviewed the first draft; its changes are folded in below.
+The brief is [`pia-jump/design.md`](../pia-jump/design.md): a game that plays and feels like Super Mario but looks different, with a hero in the spirit of the cat-ear girl from the dollhouse cartoon, drawn in true 2D. A five-lens panel (child development, platformer feel, 2D art and IP, engineering, a co-playing parent) reviewed the first draft; its changes are folded in below.
 
 ## Decisions
 

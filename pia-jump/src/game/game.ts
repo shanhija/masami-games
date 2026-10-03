@@ -47,7 +47,7 @@ const IDLE_FOR = 60
 /** First-time help in the first room: the ghost hand shows for HELP_FOR at the start and again after HELP_IDLE with no input. */
 export const HELP_FOR = 6
 const HELP_IDLE = 10
-const SAVE_KEY = 'supermario'
+const SAVE_KEY = 'pia-jump'
 
 /**
  * The homecoming on the rooms screen, in seconds from its start: "You found Sunny!" until

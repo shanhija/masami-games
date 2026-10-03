@@ -194,7 +194,7 @@ describe('the room screens', () => {
     finish(g, 7)
     expect(g.save.found).toEqual([ROOMS[0]!.id])
     expect(g.save.jar).toBe(7)
-    expect(parseSave(storage.items.get('supermario') ?? null)).toEqual(g.save)
+    expect(parseSave(storage.items.get('pia-jump') ?? null)).toEqual(g.save)
     expect(g.screen).toBe('rooms')
     expect(g.generation).toBeGreaterThan(generation)
     expect(g.homecoming).toMatchObject({ index: 0, stars: 7, jarFrom: 0, opened: 1 })
@@ -214,7 +214,7 @@ describe('the room screens', () => {
 
   it('goes to the picnic after the fifth kitten, and back to the cards after it', () => {
     const four: Save = { ...parseSave(null), found: ROOMS.slice(0, 4).map((r) => r.id) }
-    storage.items.set('supermario', serializeSave(four))
+    storage.items.set('pia-jump', serializeSave(four))
     const g = new Game('')
     expect(g.nextRoom()).toBe(4)
     g.openRoom(4)
@@ -237,7 +237,7 @@ describe('the room screens', () => {
     g.toggleMusic()
     g.startFresh()
     expect(g.save).toEqual({ ...parseSave(null), music: false })
-    expect(parseSave(storage.items.get('supermario') ?? null)).toEqual(g.save)
+    expect(parseSave(storage.items.get('pia-jump') ?? null)).toEqual(g.save)
   })
 })
 
@@ -261,7 +261,7 @@ describe('first-time help', () => {
     g.openRoom(1)
     expect(g.teaching).toBe(false)
     expect(g.ghost).toBe(false)
-    storage.items.set('supermario', serializeSave({ ...parseSave(null), found: [ROOMS[0]!.id] }))
+    storage.items.set('pia-jump', serializeSave({ ...parseSave(null), found: [ROOMS[0]!.id] }))
     const again = inRoom()
     expect(again.teaching).toBe(false)
     expect(again.ghost).toBe(false)
@@ -311,7 +311,7 @@ describe('the save in the browser', () => {
     const g = new Game('')
     g.toggleSound()
     g.toggleMusic()
-    expect(parseSave(storage.items.get('supermario') ?? null)).toEqual(g.save)
+    expect(parseSave(storage.items.get('pia-jump') ?? null)).toEqual(g.save)
     const again = new Game('')
     expect(again.save).toEqual(g.save)
     expect(again.audio.sound).toBe(false)
@@ -319,13 +319,13 @@ describe('the save in the browser', () => {
   })
 
   it('reads but never writes in a tuning run', () => {
-    storage.items.set('supermario', serializeSave({ ...parseSave(null), jar: 5 }))
+    storage.items.set('pia-jump', serializeSave({ ...parseSave(null), jar: 5 }))
     const g = inRoom('?room=garden')
     expect(g.save.jar).toBe(5)
     g.toggleSound()
     finish(g, 4)
     expect(g.save.jar).toBe(9)
-    expect(parseSave(storage.items.get('supermario') ?? null).jar).toBe(5)
+    expect(parseSave(storage.items.get('pia-jump') ?? null).jar).toBe(5)
   })
 
   it('keeps the save in memory and warns once when the storage throws', () => {

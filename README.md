@@ -12,6 +12,6 @@ npm run build      # typecheck + static build of the directory and every game in
 - [`chase/`](chase/README.md): a side-view cartoon police chase. Jump the rocks, cakes and worms; play as the police or the robber.
 - [`foot-chase/`](foot-chase/README.md): the same chase on foot, for two players on one keyboard. The robber grabs the money bags, the police catches the robber; fences, dogs, cars and surprise crates in between.
 - [`castle-builder/`](castle-builder/README.md): a toy castle on a meadow island. Gather wood, stone, ore, wool and flowers, let the workshop people make better things out of them, build the castle piece by piece, and hammer back what the grumpy cloud knocks off.
-- [`supermario/`](supermario/README.md): Pia Jump, a platformer that plays like Super Mario in true 2D. Run, jump, stomp the grumpy dust bunnies, bump gift boxes and find the five lost kittens, from the garden at sunrise to the roof at night.
+- [`pia-jump/`](pia-jump/README.md): Pia Jump, a platformer that plays like Super Mario in true 2D. Run, jump, stomp the grumpy dust bunnies, bump gift boxes and find the five lost kittens, from the garden at sunrise to the roof at night.
 
 A game is a folder with an `index.html` and a `src/`, nothing else of its own. It joins the directory with a card on the root [`index.html`](index.html) and its folder name in `GAMES` in [`vite.config.ts`](vite.config.ts). What the games share (react, and three and drei for the 3D ones) builds into chunks the browser keeps from one game to the next; each game's own code is a small chunk of its own.

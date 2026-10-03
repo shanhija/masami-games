@@ -4,12 +4,12 @@ A platformer that plays like Super Mario, for a five-year-old, drawn in true 2D 
 
 Nothing punishes. There are no lives, no timer and no game over, and the star count only goes up. A hit takes one form away (bubble Pia to big, big to small) or makes small Pia dizzy for half a second; a fall into a hole is a bubble ride back to safe ground, and the third fall into the same hole carries her across it. Kicked shells never hurt her, and the Big Grumble at the end never hurts her either: it only pushes her back.
 
-The brief is [`design.md`](design.md); the decisions and what is left are in [`plans/supermario.md`](../plans/supermario.md). It shares only the repo's tech with the other games: the one Vite + React project at the repo root, a pure numeric sim under vitest, synthesised sounds and a DOM HUD. It draws on the plain canvas 2D context with its own sim instead of a game engine, so a bot can clone and step the whole game thousands of times a second to prove every room can be finished.
+The brief is [`design.md`](design.md); the decisions and what is left are in [`plans/pia-jump.md`](../plans/pia-jump.md). It shares only the repo's tech with the other games: the one Vite + React project at the repo root, a pure numeric sim under vitest, synthesised sounds and a DOM HUD. It draws on the plain canvas 2D context with its own sim instead of a game engine, so a bot can clone and step the whole game thousands of times a second to prove every room can be finished.
 
 ```
 npm install                    # at the repo root, once for every game
-npm run dev                    # https://localhost:3002/supermario/
-npx vitest run supermario      # the sim's rules, every room's lints and the bot, a fuzz, every draw function on a fake context
+npm run dev                    # https://localhost:3002/pia-jump/
+npx vitest run pia-jump      # the sim's rules, every room's lints and the bot, a fuzz, every draw function on a fake context
 npm run build                  # typecheck + static build of every game in dist/
 ```
 
@@ -52,7 +52,7 @@ The rooms open one by one: a room is open once the kitten of the room before it 
 - **Hold to start fresh** (bottom left of the rooms screen): hold it 3 seconds and the kittens, best stars and the jar are wiped. Sound and music stay.
 - **Hold a locked card** 3 seconds and it opens, for a child stuck on a room.
 - The game pauses itself when the page hides, the window loses focus, full screen ends, the page comes back from the browser's back-forward cache, or nobody touches it for a minute.
-- The progress lives in the browser's `localStorage` under `supermario`.
+- The progress lives in the browser's `localStorage` under `pia-jump`.
 - Touch controls show only on a touch screen.
 
 URL switches, read once when the page loads (a bad value shows its message on the page):
@@ -86,7 +86,7 @@ So from a standstill at the edge she clears a 1.7-tile gap with a tap and 3.3 wi
 ## Adding or changing a room
 
 1. The rooms are in [`src/game/levels.ts`](src/game/levels.ts). A room is 15 rows of text, written a screen at a time with `join(...)`, one character per tile. The legend is at the top of [`src/game/room.ts`](src/game/room.ts): `#` ground, `=` shelf, `|` column, capitals are ABC blocks, `c` cookie block, `?` `$` `p` `r` gift boxes, `x` gate, `*` star, `^` spring, `@` start, `!` the pole, `h` the bed, `g` `s` `b` `k` enemies. Lifts are listed beside the map.
-2. Run `npx vitest run supermario/src/game/levels.test.ts`. Its lints check the design rules (gap widths, run-ups and landings, rises, holes, headroom, box heights, where enemies may stand, bees and springs, the ending) and name the room, row and column with the map around it. Then the bot plays the room as small Pia with no hit and no fall; if it gets stuck, the test prints the map around the furthest column it reached.
+2. Run `npx vitest run pia-jump/src/game/levels.test.ts`. Its lints check the design rules (gap widths, run-ups and landings, rises, holes, headroom, box heights, where enemies may stand, bees and springs, the ending) and name the room, row and column with the map around it. Then the bot plays the room as small Pia with no hit and no fall; if it gets stuck, the test prints the map around the furthest column it reached.
 3. Look at it: `?room=<id>` and walk, `&x=<column>` to start near the change, `?autoplay` to watch the bot.
 
 ## Layout

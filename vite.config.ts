@@ -7,7 +7,7 @@ import { defineConfig } from 'vitest/config'
  * is the game directory; a tap there navigates to a game, so only that game's code loads.
  * A new game goes here and gets a card on the root page.
  */
-const GAMES = ['chase', 'foot-chase', 'castle-builder', 'supermario'] as const
+const GAMES = ['chase', 'foot-chase', 'castle-builder', 'pia-jump'] as const
 
 export default defineConfig({
   // Relative asset paths: the build runs from disk.
