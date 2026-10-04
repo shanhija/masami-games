@@ -26,3 +26,6 @@ Desktop.ini
 
 .claude/worktrees/
 temp/
+
+# Python
+__pycache__/
