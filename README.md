@@ -15,3 +15,11 @@ npm run build      # typecheck + static build of the directory and every game in
 - [`pia-jump/`](pia-jump/README.md): Pia Jump, a platformer that plays like Super Mario in true 2D. Run, jump, stomp the grumpy dust bunnies, bump gift boxes and find the five lost kittens, from the garden at sunrise to the roof at night.
 
 A game is a folder with an `index.html` and a `src/`, nothing else of its own. It joins the directory with a card on the root [`index.html`](index.html) and its folder name in `GAMES` in [`vite.config.ts`](vite.config.ts). What the games share (react, and three and drei for the 3D ones) builds into chunks the browser keeps from one game to the next; each game's own code is a small chunk of its own.
+
+## Hosting
+
+[`hosting/Dockerfile`](hosting/Dockerfile) builds one image with the directory and every game: typecheck, every test and the build, then `dist/` (gzipped beside itself) under unprivileged nginx on port 8080 ([`hosting/nginx.conf`](hosting/nginx.conf)). A red test means no image. Any host that runs a container can serve it: `docker build -f hosting/Dockerfile -t games .` and `docker run -p 8080:8080 games`.
+
+```
+docker build -f hosting/Dockerfile -t games . && docker run --rm -p 8080:8080 games   # http://localhost:8080: what the pod serves
+```

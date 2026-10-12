@@ -8,7 +8,7 @@ Canonical project rules are the same as for Cursor: **`.cursor/rules/`** (plus r
 - `.cursor/rules/coding-style.md`: languages, tooling, engineering defaults
 - `.cursor/rules/plans.md`: where plan files live and how they evolve
 
-Games for a five-year-old, one folder per game, all pages of the one Vite + React + TypeScript project at the repo root: the 3D ones on react-three-fiber, the 2D one on the browser's canvas. The root `index.html` is the game directory: a tap on a card navigates to `<game>/index.html`, so only that game loads. Commands run at the root: `npm run dev` (port 3002), `npm run typecheck`, `npm test`, `npm run build`.
+Games for a five-year-old, one folder per game, all pages of the one Vite + React + TypeScript project at the repo root: the 3D ones on react-three-fiber, the 2D one on the browser's canvas. The root `index.html` is the game directory: a tap on a card navigates to `<game>/index.html`, so only that game loads. Commands run at the root: `npm run dev` (port 3002), `npm run typecheck`, `npm test`, `npm run build`. `hosting/Dockerfile` builds the image that serves them (`README.md`, Hosting).
 
 - **`chase/`**: the side-view cartoon police chase (see `chase/README.md`).
 - **`foot-chase/`**: the two-player chase on foot (see `foot-chase/README.md`, brief in `foot-chase/design.md`).

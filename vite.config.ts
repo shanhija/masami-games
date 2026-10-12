@@ -9,7 +9,7 @@ import { defineConfig } from 'vitest/config'
  */
 const GAMES = ['chase', 'foot-chase', 'castle-builder', 'pia-jump'] as const
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => ({
   // Relative asset paths: the build runs from disk.
   base: './',
   // No SPA fallback: each page is its own HTML file, so a wrong URL is a 404, not the directory.
@@ -18,11 +18,15 @@ export default defineConfig({
   server: {
     // A tablet reaches the dev server over the VPN as https://dev.example.com:3002. .dev is
     // HSTS-preloaded, so browsers demand real TLS: a Let's Encrypt cert issued via Bunny DNS-01
-    // (acme.sh) lives at ~/certs/dev.example.com/.
-    https: {
-      key: fs.readFileSync(`${process.env.HOME}/certs/dev.example.com/key.pem`),
-      cert: fs.readFileSync(`${process.env.HOME}/certs/dev.example.com/fullchain.pem`),
-    },
+    // (acme.sh) lives at ~/certs/dev.example.com/. Only the dev server reads it: builds and
+    // tests also run in the image build (hosting/Dockerfile), where the laptop's files are not.
+    https:
+      command === 'serve' && mode !== 'test'
+        ? {
+            key: fs.readFileSync(`${process.env.HOME}/certs/dev.example.com/key.pem`),
+            cert: fs.readFileSync(`${process.env.HOME}/certs/dev.example.com/fullchain.pem`),
+          }
+        : undefined,
     allowedHosts: ['dev.example.com'],
   },
   build: {
@@ -31,4 +35,4 @@ export default defineConfig({
     rolldownOptions: { input: ['index.html', ...GAMES.map((game) => `${game}/index.html`)] },
   },
   test: { environment: 'node', include: ['*/src/**/*.test.ts'] },
-})
+}))

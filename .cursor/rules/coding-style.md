@@ -14,6 +14,7 @@
 
 - **Stack**: TypeScript, React 19, Vite, vitest. 3D games draw with react-three-fiber/drei; a 2D game draws on the canvas 2D context with its own pure sim (no game engine: the sim must stay cloneable for its tests), React only for the HUD.
 - **One package, one page per game**: the root holds the only `package.json`, `vite.config.ts` and `tsconfig.json`; a game is `<game>/index.html` plus `<game>/src/` and nothing else of its own. Every game is added to the directory: a card on the root `index.html` and its folder name in `GAMES` in `vite.config.ts`. Pin `react` to the range `@react-three/fiber` accepts (`~19.2.x` for fiber 9.7).
+- **Hosting**: `hosting/Dockerfile` builds the image that serves the directory and every game (`README.md`, Hosting). The image build runs typecheck, tests and build without the laptop's files, so nothing outside the dev server may read from `$HOME` (the certificate in `vite.config.ts` is read only for `serve` outside tests).
 - **Commands** (at the repo root): `npm run dev` (port 3002: the directory and every game), `npm run typecheck`, `npm test`, `npm run build`; `npx vitest run <game>` for one game's tests.
 - **Game logic stays pure**: the sim is plain numbers with no three.js or canvas, driven once per frame, so vitest can run it for minutes; the scene reads it and never mutates it.
 
