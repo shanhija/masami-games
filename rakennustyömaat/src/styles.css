@@ -1,0 +1,1212 @@
+/* Cat Hat Builder's HUD: big picture buttons, few words, cream panels with a navy ink border, safety yellow for go. Buttons are blocks with a darker bottom face that collapses when pressed. */
+
+:root {
+  --ink: #1f2a48;
+  --paper: #fff4dc;
+  --paper-side: #e3c991;
+  --yellow: #ffc21a;
+  --yellow-side: #db9a00;
+  --cobalt: #2e6be6;
+  --cobalt-side: #1e4fb5;
+  --green: #5cbf4e;
+  --shadow: rgba(31, 42, 72, 0.35);
+  --dim: rgba(31, 42, 72, 0.5);
+  --night: rgba(16, 22, 48, 0.62);
+  /* The same colours as draw/look.ts: the day sky's middle band (SKY.day.bands[1]), the window glass (C.glassTint), a short count in the red's dark (WEAR_LOOK.red.dark), and a switched-off button in the kerb's grey (C.kerb). */
+  --sky: #8ed0f5;
+  --sky-light: #bde5f8;
+  --short: #b52e26;
+  --white: #fff;
+  --glow: rgba(255, 255, 255, 0.8);
+  --off: #e2e5ec;
+  --off-side: #c9cfda;
+  /* The developer's ?sheet page: a pale ground and a thin line round each drawing. */
+  --sheet-bg: #e9f4fb;
+  --sheet-line: #cfd8e3;
+  /* A block button's bottom face, and its ink line under it. */
+  --face: 6px;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--sky);
+  font-family: ui-rounded, 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* No selecting, no long-press callout, no grey flash on a tap, no pinch or pull: the page is the game. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* Everything over the picture. Nothing here takes a pointer except the buttons and the dimmed layers under a card. */
+.hud {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.hud button {
+  pointer-events: auto;
+  position: relative;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+  border: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hud .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* A picture's box; its canvas fills it. */
+.portrait {
+  position: relative;
+  display: block;
+}
+
+.portrait canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ the block button */
+
+.hud .btn {
+  --side: var(--paper-side);
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  box-shadow:
+    0 var(--face) 0 var(--side),
+    0 calc(var(--face) + 3px) 0 var(--ink);
+  transition:
+    transform 0.06s,
+    box-shadow 0.06s;
+}
+
+/* The pedal looks pressed only while the game counts the finger on it (.down), never by :active, so a pause that lets go of it shows it let go. */
+.hud .btn:not(.pedal):active,
+.hud .btn.pedal.tool:active,
+.hud .btn.down {
+  transform: translateY(var(--face));
+  box-shadow: none;
+}
+
+/* The pick, raised a step above the rest. */
+.hud .btn.on {
+  --side: var(--yellow-side);
+  background: var(--yellow);
+  transform: translateY(-6px);
+  box-shadow:
+    0 calc(var(--face) + 6px) 0 var(--side),
+    0 calc(var(--face) + 9px) 0 var(--ink);
+}
+
+.hud .btn.on:active {
+  transform: translateY(var(--face));
+  box-shadow: none;
+}
+
+.hud .btn.round {
+  width: 76px;
+  height: 76px;
+  padding: 13px;
+  border-radius: 50%;
+}
+
+.btn .pic {
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ the corners: back top left, the moon and pause top right */
+
+.hud .btn.back {
+  position: absolute;
+  left: calc(16px + env(safe-area-inset-left));
+  top: calc(8px + env(safe-area-inset-top));
+  width: 76px;
+  height: 76px;
+  padding: 12px;
+  overflow: hidden;
+}
+
+/* On the street the back button is the builder's face, filling it, on a bit of sky. */
+.hud .btn.back.face {
+  padding: 2px;
+  background: var(--sky-light);
+}
+
+.corner {
+  position: absolute;
+  top: calc(8px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
+  display: flex;
+  gap: 12px;
+}
+
+.hud .btn.moon {
+  --side: var(--cobalt-side);
+  background: var(--cobalt);
+  padding: 12px;
+}
+
+/* ------------------------------------------------------------------ cream panels */
+
+.wardrobe,
+.tray,
+.card {
+  box-sizing: border-box;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+}
+
+/* ------------------------------------------------------------------ the mirror's wardrobe */
+
+.wardrobe {
+  position: absolute;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  pointer-events: auto;
+  box-shadow: 0 6px 0 var(--shadow);
+}
+
+/* Wardrobe.tsx fits the panel: the tabs' size (--tab), nine or five to a line (--tab-line), the options' size (--o) and columns (--o-cols), and the colours' size (--c). */
+.wardrobe .tabs {
+  display: grid;
+  gap: 6px;
+  justify-content: center;
+  align-content: start;
+}
+
+/* Landscape: the panel down the right, the tabs one or two columns head to toe, the pause button over its top right corner. */
+.wardrobe.wide {
+  margin: 10px 10px 16px 0;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.wardrobe.wide .tabs {
+  grid-auto-flow: column;
+  grid-template-rows: repeat(var(--tab-line), var(--tab));
+}
+
+.wardrobe.wide .main {
+  padding-top: 84px;
+}
+
+/* Portrait: the panel along the bottom, the tabs one or two rows head (left) to toe (right). */
+.wardrobe.tall {
+  margin: 0 10px 16px;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.wardrobe.tall .tabs {
+  grid-template-columns: repeat(var(--tab-line), var(--tab));
+}
+
+.hud .wardrobe .tab {
+  width: var(--tab);
+  height: var(--tab);
+  padding: 3px;
+  border-radius: 14px;
+  --face: 4px;
+}
+
+.wardrobe .main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  min-height: 0;
+}
+
+/* The options and the colour row: on a window too small for them they scroll, above the foot, which always shows. */
+.wardrobe .pick {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 0 10px;
+  box-sizing: border-box;
+}
+
+.wardrobe .options {
+  display: grid;
+  grid-template-columns: repeat(var(--o-cols), var(--o));
+  justify-content: center;
+  gap: 14px 10px;
+  width: 100%;
+}
+
+.hud .wardrobe .option {
+  aspect-ratio: 1;
+  padding: 4px;
+}
+
+.wardrobe .colours {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 8px;
+  max-width: 100%;
+}
+
+.hud .wardrobe .colour {
+  width: var(--c);
+  height: var(--c);
+  padding: 8px;
+  border-radius: 50%;
+  --face: 4px;
+}
+
+.wardrobe .colour .dot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  box-sizing: border-box;
+  background: var(--swatch);
+}
+
+.wardrobe .foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: auto;
+}
+
+.hud .wardrobe .foot .round {
+  flex: none;
+}
+
+.hud .wardrobe .undo.off {
+  opacity: 0.35;
+}
+
+/* A narrow panel: Go! over the dice and the undo. */
+.wardrobe.stacked .foot {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.hud .wardrobe.stacked .btn.go {
+  order: -1;
+  flex-basis: 100%;
+  height: 64px;
+  margin-left: 0;
+  font-size: 36px;
+}
+
+/* Go! in safety yellow, the biggest button on the panel; it pulses when the child has dressed up a while. */
+.hud .btn.go {
+  --side: var(--yellow-side);
+  flex: 1;
+  height: 84px;
+  max-width: 260px;
+  margin-left: auto;
+  background: var(--yellow);
+  font-size: 46px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.hud .btn.go.pulse {
+  animation: pulse 0.8s ease-in-out infinite alternate;
+}
+
+/* ------------------------------------------------------------------ the trays along the bottom */
+
+.tray {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  border-bottom: 0;
+  border-radius: 18px 18px 0 0;
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+  pointer-events: auto;
+}
+
+/* The build tray: five materials, four shapes, and the roof, the hand and the bell, each a square --b wide, in one row where twelve 64 px squares fit. */
+.tray.build {
+  --b: clamp(64px, calc((100vw - 2 * 16px - 9 * 6px - 2 * 18px) / 12), 104px);
+  gap: 18px;
+  align-items: flex-end;
+}
+
+/* Narrower: two rows, the materials over the shapes and the tools. */
+@media (max-width: 889px) {
+  .tray.build {
+    --b: 64px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding-top: 8px;
+  }
+
+  .tray.build .materials {
+    flex-basis: 100%;
+    justify-content: center;
+  }
+}
+
+.tray.build .group {
+  display: flex;
+  gap: 6px;
+}
+
+.hud .tray.build .btn {
+  width: var(--b);
+  height: var(--b);
+  padding: 4px;
+}
+
+.hud .tray.build .hand,
+.hud .tray.build .bell {
+  padding: calc(var(--b) * 0.16);
+}
+
+.hud .tray.build .roof {
+  padding: 6px;
+}
+
+/* A material and the bubble that may stand over it. */
+.tray.build .slot {
+  position: relative;
+  display: block;
+}
+
+.tray.build .mat .pic {
+  height: 78%;
+}
+
+/* A material's count, big, bottom right. */
+.tray.build .count {
+  position: absolute;
+  right: 4px;
+  bottom: 0;
+  font-size: calc(var(--b) * 0.3);
+  line-height: 1;
+}
+
+.tray.build .poor .pic {
+  opacity: 0.45;
+}
+
+.tray.build .poor .count {
+  color: var(--short);
+}
+
+/* What the room needs next bounces: a material or a smaller shape that pays, or the missing material under a bubble with the machine or the truck; a tap on the bubble goes to it. */
+.hud .tray.build .missing {
+  animation: bounce 0.5s ease-out 3;
+}
+
+.hud .tray.build .bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 16px);
+  width: calc(var(--b) * 1.2);
+  height: calc(var(--b) * 1.2);
+  translate: -50% 0;
+  padding: 8px;
+  border-radius: 50%;
+  animation: popIn 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+/* The room tray: the shown theme's items, the paint pots and the theme button above; every open theme below, flat. */
+.tray.room {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px calc(6px + env(safe-area-inset-bottom));
+}
+
+.tray.room .row {
+  display: flex;
+  gap: 8px;
+  max-width: 100%;
+}
+
+/* Five items, two paint pots and the swap button, each a square --t wide: as big as fits in one row inside the tray's padding and border, never under 64 px. */
+.hud .tray.room .things .btn {
+  --t: clamp(64px, calc((100vw - 2 * 12px - 6px - 7 * 8px - 16px) / 8), 80px);
+  width: var(--t);
+  height: var(--t);
+  padding: 6px;
+  flex: none;
+}
+
+.hud .tray.room .pot,
+.hud .tray.room .swap {
+  padding: 12px;
+}
+
+/* The pots stand a step apart from the items. */
+.hud .tray.room .item + .pot {
+  margin-left: 16px;
+}
+
+/* Too narrow for one line (camera.ts roomTray): two lines of 64 px buttons, centred, with no step before the pots. */
+.tray.room .things.two {
+  flex-wrap: wrap;
+  justify-content: center;
+  row-gap: 12px;
+}
+
+.hud .tray.room .things.two .pot {
+  margin-left: 0;
+}
+
+.tray.room .pot.floor .paint {
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  top: 46%;
+  height: 16%;
+}
+
+.hud .tray.room .swap {
+  --side: var(--cobalt-side);
+  background: var(--cobalt);
+}
+
+/* A room with no theme yet: one big button with a few rooms on it, which asks which room, pulsing gently. */
+.hud .tray.room .pick {
+  --side: var(--cobalt-side);
+  display: flex;
+  gap: 10px;
+  height: 128px;
+  margin-bottom: 10px;
+  padding: 12px 16px;
+  background: var(--cobalt);
+  animation: pulse 0.9s ease-in-out infinite alternate;
+}
+
+.tray.room .pick .pic {
+  width: 104px;
+  height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  box-sizing: border-box;
+}
+
+.tray.room .tick {
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  width: 34px;
+  height: 34px;
+}
+
+.tray.room .themes {
+  overflow-x: auto;
+  touch-action: pan-x;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+/* On an upright window that holds them the strip wraps into two rows of at most seven, so every theme shows (camera.ts roomTray, which keeps the room view's bottom for them); elsewhere it is one row, which RoomTray.tsx ends halfway through a picture when it scrolls. */
+.tray.room .themes.two {
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(7 * 64px + 6 * 8px);
+  overflow-x: visible;
+}
+
+.hud .tray.room .theme {
+  --face: 0px;
+  width: 64px;
+  height: 64px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.hud .tray.room .theme.on {
+  transform: none;
+  box-shadow: 0 0 0 3px var(--yellow);
+}
+
+/* ------------------------------------------------------------------ the road */
+
+.hud .road .horn,
+.hud .road .pedal {
+  position: absolute;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+}
+
+.hud .road .horn {
+  left: calc(24px + env(safe-area-inset-left));
+  width: 96px;
+  height: 96px;
+  padding: 16px;
+  border-radius: 50%;
+}
+
+/* The pedal: held to drive, 140 px of safety yellow under the right thumb. */
+.hud .road .pedal {
+  --side: var(--yellow-side);
+  --face: 10px;
+  right: calc(24px + env(safe-area-inset-right));
+  width: 140px;
+  height: 140px;
+  padding: 30px;
+  border-radius: 32px;
+  background: var(--yellow);
+  touch-action: none;
+}
+
+.hud .road .pedal.pulse {
+  animation: pulse 0.7s ease-in-out infinite alternate;
+}
+
+/* At a boulder the pedal is the tool: the builder's hand and tool, bouncing to be hit. */
+.hud .road .pedal.tool {
+  --side: var(--paper-side);
+  padding: 8px;
+  background: var(--paper);
+  animation: bounce 0.6s ease-out infinite;
+}
+
+.road.over .horn,
+.road.over .pedal {
+  visibility: hidden;
+}
+
+/* The trip strip between the back button and pause: a dotted road, the stops and the present ahead, the truck, the house at the end. */
+.trip {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  left: calc(124px + env(safe-area-inset-left));
+  right: calc(124px + env(safe-area-inset-right));
+  height: 72px;
+}
+
+.trip .line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  border-bottom: 6px dotted var(--ink);
+}
+
+.trip .stop,
+.trip .end,
+.trip .runner {
+  position: absolute;
+  bottom: 14px;
+  translate: -50% 0;
+}
+
+.trip .stop {
+  width: 44px;
+  height: 44px;
+}
+
+.trip .stop.surprise {
+  width: 54px;
+  height: 54px;
+}
+
+.trip .end {
+  left: 100%;
+  width: 40px;
+  height: 64px;
+}
+
+.trip .runner {
+  left: 0;
+  width: 80px;
+  height: 46px;
+  z-index: 1;
+}
+
+.trip .pic {
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ the cards over the picture */
+
+.dim {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  background: var(--dim);
+  animation: fadeIn 0.2s ease-out both;
+}
+
+.dim .cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: 22px 18px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  animation: popIn 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.hud .card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 10px 8px;
+}
+
+.card .word {
+  font-size: 30px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.ask.house .card {
+  width: min(38vw, max(34vh, 170px), 320px);
+}
+
+.ask.house .card .pic {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.ask.theme .cards {
+  max-width: min(100vw - 32px, 960px);
+}
+
+/* AskCards fits the theme cards to the window: --pic is a picture's width, --word its word's size. */
+.ask.theme .card {
+  width: calc(var(--pic) + 26px);
+}
+
+.ask.theme .card .pic {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ask.theme .card .word {
+  font-size: var(--word);
+}
+
+.ask.road .card {
+  width: min(29vw, 300px);
+}
+
+.ask.road .card .pic {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* "New!" and what the present held, under the top bar; taps go through it to the street. */
+.card.present {
+  position: absolute;
+  left: 50%;
+  top: calc(100px + env(safe-area-inset-top));
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 26px 16px;
+  box-shadow: 0 8px 0 var(--shadow);
+  animation:
+    popIn 0.4s cubic-bezier(0.2, 1.6, 0.4, 1) both,
+    fadeOut 0.3s 3.2s ease-in forwards;
+}
+
+.card.present .new {
+  font-size: 54px;
+  line-height: 1;
+  color: var(--yellow);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 8px var(--ink);
+}
+
+.card.present .pic {
+  width: 170px;
+  height: 170px;
+}
+
+/* Good night: the street dark behind one still card. */
+.dim.night {
+  background: var(--night);
+  animation: fadeIn 1.2s ease-in both;
+}
+
+.card.goodnight {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 26px 44px;
+  box-shadow: 0 8px 0 var(--shadow);
+}
+
+.card.goodnight .moon {
+  width: 96px;
+  height: 96px;
+}
+
+.card.goodnight .word {
+  font-size: clamp(44px, 8vmin, 84px);
+}
+
+/* The hint hand: its fingertip on the target, two taps. */
+.hint {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.hint .finger {
+  position: absolute;
+  left: -32px;
+  top: 0;
+  width: 64px;
+  height: 84px;
+  filter: drop-shadow(0 4px 0 var(--shadow));
+  animation: tapTwice 2s ease-in-out both;
+}
+
+/* ------------------------------------------------------------------ the pause menu */
+
+.card.menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  max-width: calc(100vw - 32px);
+  padding: 26px 30px 28px;
+  border-radius: 24px;
+  box-shadow: 0 8px 0 var(--shadow);
+  animation: popIn 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.card.menu .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.card.menu .btn .icon {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.hud .btn.primary {
+  --side: var(--yellow-side);
+  background: var(--yellow);
+  min-height: 64px;
+  font-size: clamp(32px, 6vmin, 52px);
+  padding: 0.2em 0.9em 0.24em 0.7em;
+}
+
+.hud .btn.secondary {
+  --side: var(--cobalt-side);
+  background: var(--cobalt);
+  color: var(--white);
+  font-size: clamp(24px, 4.2vmin, 36px);
+  min-height: 64px;
+  padding: 0.24em 0.9em 0.28em 0.7em;
+}
+
+.menu .row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+}
+
+.hud .btn.small {
+  min-height: 64px;
+  font-size: clamp(18px, 2.8vmin, 24px);
+  padding: 0.3em 0.9em 0.34em 0.7em;
+}
+
+.hud .btn.small.off {
+  --side: var(--off-side);
+  background: var(--off);
+}
+
+/* A short window: Keep going and Good night side by side, the rest closer together. */
+@media (max-height: 520px) {
+  .card.menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 14px;
+    padding: 14px 18px 18px;
+  }
+
+  .menu .row {
+    flex-basis: 100%;
+    gap: 8px;
+  }
+
+  .hud .btn.fresh {
+    margin-top: 0;
+  }
+}
+
+/* Start again: a parent's button, quiet, behind a 3 s hold. */
+.hud .btn.fresh {
+  margin-top: 8px;
+  opacity: 0.8;
+  touch-action: none;
+}
+
+.ring {
+  position: fixed;
+  width: 124px;
+  height: 124px;
+  margin: -62px 0 0 -62px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 12;
+}
+
+.ring .track {
+  stroke: var(--glow);
+}
+
+.ring .fill {
+  stroke: var(--yellow);
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  animation: fillRing linear forwards;
+}
+
+/* ------------------------------------------------------------------ a bad URL switch */
+
+.oops {
+  position: fixed;
+  inset: 0;
+  margin: 24px;
+  padding: 16px;
+  white-space: pre-wrap;
+  font: 600 22px/1.4 ui-monospace, monospace;
+  color: var(--ink);
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+}
+
+/* ------------------------------------------------------------------ ?sheet: a grid of every drawing in a group, on a light checker so the edges show */
+
+.sheet {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--sheet-bg);
+  touch-action: auto;
+  user-select: text;
+}
+
+.sheet-cell {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--white);
+  border: 1px solid var(--sheet-line);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.sheet-cell figcaption {
+  font: 12px system-ui, sans-serif;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ small screens */
+
+/* A short laptop window: the corner buttons and the trays a little smaller. */
+@media (max-height: 640px) {
+  .hud .btn.round,
+  .hud .btn.back {
+    width: 64px;
+    height: 64px;
+  }
+
+  .hud .tray.room .things .btn {
+    --t: clamp(64px, calc((100vw - 2 * 12px - 6px - 7 * 8px - 16px) / 8), 72px);
+  }
+}
+
+/* A short window, at most 520 px tall: the present's card smaller and higher, clear of the opening present and the tipping truck. */
+@media (max-height: 520px) {
+  .card.present {
+    top: calc(84px + env(safe-area-inset-top));
+    padding: 6px 18px 10px;
+  }
+
+  .card.present .new {
+    font-size: 36px;
+    -webkit-text-stroke-width: 6px;
+  }
+
+  .card.present .pic {
+    width: 96px;
+    height: 96px;
+  }
+}
+
+/* A phone on its side (camera.ts isShort, which also sets the picture's insets for it): every tray one row, the build tray's tools a column under the pause button, a smaller pedal and horn under the road, the wardrobe's pause button beside the back button. */
+.hud.short.mirror .corner {
+  right: auto;
+  left: calc(16px + 64px + 12px + env(safe-area-inset-left));
+}
+
+.hud.short .wardrobe.wide {
+  margin: 8px 8px 8px 0;
+  padding: 8px;
+  gap: 10px;
+}
+
+.hud.short .wardrobe.wide .main {
+  padding-top: 0;
+}
+
+.hud.short .wardrobe .main,
+.hud.short .wardrobe .pick {
+  gap: 10px;
+}
+
+.hud.short .wardrobe .colours {
+  gap: 8px 4px;
+}
+
+.hud.short .wardrobe .colour {
+  padding: 6px;
+}
+
+.hud.short .wardrobe .btn.go {
+  height: 64px;
+  font-size: 36px;
+}
+
+/* The materials and the shapes in one row beside the tools' column; camera.ts keeps 88 px on the right and at the bottom. */
+.hud.short .tray.build {
+  --b: clamp(44px, calc((100vw - 88px - 2 * 8px - 6px - 7 * 5px - 12px) / 9), 64px);
+  right: 88px;
+  flex-wrap: nowrap;
+  gap: 12px;
+  padding: 8px 8px calc(10px + env(safe-area-inset-bottom));
+}
+
+.hud.short .tray.build .materials {
+  flex-basis: auto;
+}
+
+.hud.short .tray.build .materials,
+.hud.short .tray.build .shapes {
+  gap: 5px;
+}
+
+.hud.short .tray.build .tools {
+  --b: 64px;
+  position: fixed;
+  top: calc(8px + 64px + 12px + env(safe-area-inset-top));
+  right: calc(16px + env(safe-area-inset-right));
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The room's things alone (RoomTray.tsx shows no theme strip): "Another room" offers every theme. */
+.hud.short .tray.room {
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+}
+
+.hud.short .tray.room .things .btn {
+  --t: clamp(52px, calc((100vw - 2 * 12px - 6px - 7 * 8px - 16px) / 8), 64px);
+}
+
+.hud.short .tray.room .pick {
+  height: 64px;
+  margin-bottom: 0;
+  padding: 6px 12px;
+}
+
+.hud.short .tray.room .pick .pic {
+  width: 72px;
+}
+
+.hud.short .road .horn,
+.hud.short .road .pedal {
+  bottom: calc(10px + env(safe-area-inset-bottom));
+}
+
+.hud.short .road .horn {
+  left: calc(16px + env(safe-area-inset-left));
+  width: 72px;
+  height: 72px;
+  padding: 12px;
+}
+
+.hud.short .road .pedal {
+  --face: 8px;
+  right: calc(16px + env(safe-area-inset-right));
+  width: 88px;
+  height: 88px;
+  padding: 18px;
+  border-radius: 24px;
+}
+
+.hud.short .road .pedal.tool {
+  padding: 6px;
+}
+
+/* ------------------------------------------------------------------ motion */
+
+@keyframes pulse {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: 1.08;
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  35% {
+    translate: 0 -16px;
+  }
+  60% {
+    translate: 0 0;
+  }
+  78% {
+    translate: 0 -5px;
+  }
+}
+
+@keyframes popIn {
+  from {
+    scale: 0.6;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fillRing {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* The hint hand comes in, taps twice and goes. */
+@keyframes tapTwice {
+  0% {
+    opacity: 0;
+    translate: 0 24px;
+    scale: 1;
+  }
+  15% {
+    opacity: 1;
+    translate: 0 6px;
+  }
+  28% {
+    translate: 0 0;
+    scale: 0.88;
+  }
+  40% {
+    translate: 0 8px;
+    scale: 1;
+  }
+  55% {
+    translate: 0 0;
+    scale: 0.88;
+  }
+  70% {
+    translate: 0 8px;
+    scale: 1;
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 24px;
+  }
+}
