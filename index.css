@@ -94,6 +94,10 @@ h1 {
   background: #d5c3ff;
 }
 
+.game.rocket-factory {
+  background: #9fe3cf;
+}
+
 .game:hover {
   transform: translateY(-6px);
   box-shadow: 0 16px 0 rgba(42, 47, 69, 0.35);
@@ -110,6 +114,14 @@ h1 {
   -webkit-text-stroke: 0;
   text-shadow: none;
   filter: drop-shadow(0 6px 0 rgba(42, 47, 69, 0.35));
+}
+
+/* A game's own drawing in place of emoji (Rocket Factory's Beep and its rocket, as the game draws them): as tall as the emoji's line, its shapes painted fill first. */
+.picture .art {
+  display: block;
+  height: 1.1em;
+  width: auto;
+  paint-order: normal;
 }
 
 .name {

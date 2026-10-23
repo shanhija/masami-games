@@ -9,6 +9,7 @@
 - **Strict arguments, no optional by default**: Function parameters should be required and non-nullable unless the current code path genuinely has callers that legitimately pass nothing. Don't widen a signature to `arg?: T` just because the only caller "might not" pass it, or to keep tests / scaffolding compiling; a forgotten argument in a future caller then becomes a silent no-op instead of a compile error. Add optionality only when a real call site has nothing to pass (and document why at the call site).
 - **Screenshots yes, the user's browser no**: check that a game boots and how it looks with a headless Chromium (Playwright from the terminal, the script kept outside the repo); never drive the user's own browser (no Claude in Chrome). Logic is still proven by `npm run typecheck` and `npm test`; the user has the last look and tunes. For games this overrides the general "visual checks are the user's".
 - **Audience-visible text reads human-written**: no em-dashes, plain sentences, few and big words for a five-year-old.
+- **Stop at 95% of the weekly limit**: before Claude's weekly usage limit passes 95%, save the work (everything on disk, the plan and a note of where to resume) and stop; never run past it. Size each batch of agent work so it fits in what is left.
 
 ## Stack and tooling
 

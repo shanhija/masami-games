@@ -1,0 +1,1185 @@
+/* Rocket Factory's HUD in the Sticker Table look (src/draw/look.ts): every button is a white sticker with a flat deep-teal shadow down-right, the tray a sheet of stickers on backing paper, the cards big pictures with one word, no ink lines. The HUD lays itself out in the HUD frame's boxes (game/layout.ts hudFrame), given as custom properties on .hud by Hud.tsx. */
+
+:root {
+  /* The same values as draw/look.ts: LAND.table, LAND.tableEdge, LAND.ground, LAND.flap (the backing paper) and LAND.flapPrint, C.ghostLine (the HUD's one dark colour, for glyphs), C.shadow and C.liftShadow, C.face (words), C.warm, BEEP.body and its fold and light (Play), BUILDING.lab (Good night), THING.goldBar (New!) and its fold, GLASS.glass (a jar), C.grey (switched off), and NIGHT.dusk's indigo. */
+  --table: #e4eef2;
+  --table-edge: #cfdde3;
+  --ground: #cdefe0;
+  --paper: #f2f6f4;
+  --paper-print: #dce9e3;
+  --teal: #1d5c57;
+  --shadow: rgba(29, 92, 87, 0.3);
+  --lift: rgba(29, 92, 87, 0.22);
+  --ink: #2b2f4a;
+  --white: #fff;
+  --warm: #fff1c9;
+  --coral: #ff7f5e;
+  --coral-fold: #e0603f;
+  --coral-light: #ffa488;
+  --indigo: #4d52b0;
+  --indigo-fold: #3a3e8c;
+  --gold: #ffc93c;
+  --gold-fold: #e3a812;
+  --glass: #eef7f6;
+  --grey: #b9c4c2;
+  /* The picked button's glow: the gold of New!, soft. */
+  --glow: rgba(255, 201, 60, 0.6);
+  /* What a card or the menu dims the factory with, and Good night's dusk. */
+  --dim: rgba(29, 92, 87, 0.36);
+  --night: rgba(47, 58, 122, 0.62);
+  /* The developer's ?sheet page: a pale ground and a thin line round each drawing. */
+  --sheet-bg: #e4eef2;
+  --sheet-line: #cfdde3;
+  /* A sticker's flat shadow, and the shadow of one lifted off the table. */
+  --drop: 3px 4px 0 var(--shadow);
+  --raised: 5px 12px 0 var(--lift), 0 0 0 4px var(--warm), 0 0 18px 6px var(--glow);
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--table);
+  font-family: ui-rounded, 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* No selecting, no long-press callout, no grey flash on a tap, no pinch or pull: the page is the game. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+/* Everything over the canvas. Nothing here takes a pointer but the buttons and the layers under a card. */
+.hud {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.hud button {
+  pointer-events: auto;
+  position: relative;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  border: 0;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hud .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* A picture's box; its canvas fills it. */
+.portrait {
+  position: relative;
+  display: block;
+}
+
+.portrait canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ the sticker button */
+
+.hud .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: var(--drop);
+  transition:
+    transform 0.08s,
+    box-shadow 0.08s;
+}
+
+.hud .btn.down {
+  transform: translate(2px, 3px);
+  box-shadow: 1px 1px 0 var(--shadow);
+}
+
+/* The tool in hand: lifted off the sheet, glowing. A tap on it puts it back. */
+.hud .btn.on {
+  transform: translateY(-8px);
+  box-shadow: var(--raised);
+}
+
+/* The pencil is the tool almost all the time: lifted with a white ring, never the gold glow that means New! or a sticker in hand. */
+.hud .btn.pencil.on {
+  box-shadow:
+    5px 12px 0 var(--lift),
+    0 0 0 4px var(--white);
+}
+
+/* A tap that has nothing to do still answers: the button's picture wiggles (the rocket card before the launch waits, Oops with nothing to undo). */
+.hud .wobble {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hud .wobble.wiggle {
+  animation: wiggle 0.5s ease-in-out;
+}
+
+/* Nothing to do: Oops with nothing to undo, Voice where the browser cannot speak, a switch turned off. */
+.hud .btn.off {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+.hud .btn.round {
+  border-radius: 50%;
+}
+
+.btn .pic {
+  width: 100%;
+  height: 100%;
+}
+
+/* A card's picture lies on a piece of the mint ground, as stickers do on the board: a white pearl shows on it. */
+.hud .ground {
+  background: var(--ground);
+  border-radius: 14px;
+}
+
+/* A white sticker card: the rocket card, the lab card, the cards over the board. */
+.card {
+  box-sizing: border-box;
+  background: var(--white);
+  border-radius: 18px;
+  box-shadow: var(--drop);
+}
+
+/* ------------------------------------------------------------------ the top strip */
+
+.strip {
+  position: absolute;
+  left: var(--strip-x);
+  top: var(--strip-y);
+  width: var(--strip-w);
+  height: var(--strip-h);
+  box-sizing: border-box;
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.strip > .right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hud .strip .btn,
+.hud .strip .card {
+  height: 56px;
+}
+
+.hud .strip .pause,
+.hud .strip .peel,
+.hud .strip .oops {
+  width: 56px;
+  padding: 12px;
+}
+
+/* The rocket card sits in the middle of the strip, whatever stands either side. It never bounces: when the launch waits, the pad's launch button is the one thing bouncing. */
+.hud .strip .rocket-card {
+  position: absolute;
+  left: calc(50% - 56px);
+  top: 4px;
+  width: 112px;
+  padding: 2px 10px;
+  border-radius: 18px;
+}
+
+.rocket-card .pic {
+  width: 100%;
+  height: 100%;
+}
+
+/* The lab card: the next card's picture and its jars, in the night indigo of the lab. */
+.lab-slot {
+  position: relative;
+  display: block;
+  pointer-events: auto;
+}
+
+.hud .lab-card {
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--indigo);
+  min-width: 56px;
+  height: 56px;
+}
+
+.lab-card .next {
+  width: 48px;
+  height: 48px;
+}
+
+.lab-card .done {
+  width: 34px;
+  height: 34px;
+}
+
+.jar {
+  position: relative;
+  display: block;
+  width: 26px;
+  height: 46px;
+}
+
+.jar .glass {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 6px;
+  bottom: 0;
+  overflow: hidden;
+  border-radius: 7px 7px 9px 9px;
+  background: var(--glass);
+}
+
+.jar .fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transition: height 0.4s ease-out;
+}
+
+.jar .label {
+  position: absolute;
+  left: 1px;
+  top: 0;
+  width: 24px;
+  height: 24px;
+}
+
+/* While the choice waits: the two cards side by side on the lab card, both bobbing ("which one?"), each a fingertip's 56 px (the strip grows the card a little past its 56 px row). */
+.hud .card.lab-card.choice {
+  display: flex;
+  gap: 8px;
+  height: 60px;
+  padding: 2px 6px;
+  background: var(--indigo);
+  pointer-events: auto;
+}
+
+.hud .lab-card.choice .pick {
+  width: 56px;
+  height: 56px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--ground);
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+.hud .lab-card.choice .pick + .pick {
+  animation-delay: -0.8s;
+}
+
+/* A tap on a used sticker's hole: the lab card wiggles, and that sticker peeks out from behind it (a card brings more). */
+.lab-slot.wiggle .lab-card {
+  animation: wiggle 0.6s ease-in-out;
+}
+
+.peek {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  margin-left: -22px;
+  z-index: -1;
+  animation: peek 1.6s ease-in-out both;
+}
+
+/* ------------------------------------------------------------------ a phone's left column */
+
+.column {
+  position: absolute;
+  left: var(--column-x);
+  top: var(--column-y);
+  width: var(--column-w);
+  height: var(--column-h);
+  box-sizing: border-box;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.hud .column .btn,
+.hud .column .card,
+.hud .column .lab-slot {
+  width: var(--button);
+  height: var(--button);
+  min-width: 0;
+}
+
+.hud .column .btn {
+  padding: calc(var(--button) * 0.2);
+}
+
+.hud .column .rocket-card {
+  padding: 2px;
+}
+
+/* On a phone the lab card shows the next card's picture alone; its path is a tap away. */
+.hud .column .lab-card {
+  padding: 3px;
+}
+
+.hud .column .lab-card .next {
+  width: 100%;
+  height: 100%;
+}
+
+.hud .column .jar {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ the tray: a sheet of stickers on backing paper */
+
+.tray {
+  position: absolute;
+  left: var(--tray-x);
+  top: var(--tray-y);
+  width: var(--tray-w);
+  height: var(--tray-h);
+  transition:
+    translate 1s ease-out,
+    opacity 1s ease-out;
+}
+
+/* Up in the launch's sky the tray slides away with the board, and comes home with it, and the strip slides away up: the sky is the whole screen, nothing covers the flight, and no sticker is picked mid-flight. */
+.hud.sky .tray {
+  translate: 0 calc(var(--tray-h) + 40px);
+  opacity: 0;
+  transition:
+    translate 1.4s ease-in,
+    opacity 1.4s ease-in;
+}
+
+.strip {
+  transition:
+    translate 1s ease-out,
+    opacity 1s ease-out;
+}
+
+.hud.sky .strip {
+  translate: 0 calc(-1 * var(--strip-h) - 24px);
+  opacity: 0;
+  transition:
+    translate 1.4s ease-in,
+    opacity 1.4s ease-in;
+}
+
+/* While the rocket flies the lab card and the tray take no taps: the board answers them, and nothing opens over the flight. */
+.hud.launch .tray .backing,
+.hud.launch .tray .btn,
+.hud.launch .lab-slot,
+.hud.launch .lab-card,
+.hud.sky .strip .btn {
+  pointer-events: none;
+}
+
+/* The backing paper and every button stand where layout.ts trayBoxes puts them (Tray.tsx). */
+.tray .backing {
+  position: absolute;
+  box-sizing: border-box;
+  background: var(--paper);
+  border-radius: 20px;
+  box-shadow: var(--drop);
+  pointer-events: auto;
+}
+
+.tray .slot {
+  position: absolute;
+  display: block;
+}
+
+.tray .press {
+  display: block;
+}
+
+/* A phone on its side: the tray stands in columns at the right; its badges stay inside the screen and a picked sticker lifts less. */
+.hud.phone .tray .backing {
+  border-radius: 14px;
+}
+
+.hud.phone .tray .count {
+  right: -2px;
+  bottom: -2px;
+}
+
+.hud.phone .btn.on {
+  transform: translateY(-4px);
+}
+
+.hud .tray .btn {
+  width: var(--button);
+  height: var(--button);
+  border-radius: calc(var(--button) * 0.22);
+}
+
+.hud .tray .sticker {
+  padding: calc(var(--button) * 0.08);
+}
+
+/* A used sticker leaves its die-cut hole in the backing paper: no white sticker, no shadow. */
+.hud .tray .sticker.empty {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--paper-print);
+}
+
+/* The count, big, on a white badge at the sticker's bottom right; the endless mark after the launch. */
+.tray .count {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  min-width: calc(var(--button) * 0.42);
+  height: calc(var(--button) * 0.42);
+  box-sizing: border-box;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--white);
+  box-shadow: 1px 2px 0 var(--shadow);
+  color: var(--teal);
+  font-size: calc(var(--button) * 0.32);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.tray .count .icon {
+  width: calc(var(--button) * 0.3);
+  height: calc(var(--button) * 0.3);
+}
+
+/* New!: on the one sticker the chain needs, bouncing above it. */
+.tray .new {
+  position: absolute;
+  left: 50%;
+  top: -18px;
+  translate: -50% 0;
+  padding: 2px 8px 3px;
+  border-radius: 999px;
+  background: var(--gold);
+  box-shadow: 1px 2px 0 var(--shadow);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.hud .tray .fresh {
+  animation: bounce 0.8s ease-in-out infinite;
+}
+
+.hud .tray .fresh.on {
+  animation: none;
+}
+
+/* At dusk and through the night the HUD dims and nothing on it bounces or bobs: the machine in its nightcap is the one bouncing thing, and nothing invites a new task. */
+.hud.evening .tray,
+.hud.evening .strip .card,
+.hud.evening .strip .lab-slot {
+  opacity: 0.45;
+  filter: saturate(0.5);
+  transition:
+    opacity 1.2s ease-in,
+    filter 1.2s ease-in;
+}
+
+.hud.evening .tray .fresh,
+.hud.evening .lab-card.choice .pick,
+.hud.sky .tray .fresh {
+  animation: none;
+}
+
+.hud.evening .tray .new,
+.hud.sky .tray .new {
+  display: none;
+}
+
+.hud.evening .btn.on {
+  box-shadow: 5px 12px 0 var(--lift);
+}
+
+/* The pencil: the belt it lays in its pattern, the pencil over it. */
+.hud .pencil {
+  padding: calc(var(--button) * 0.12);
+  flex-direction: column;
+}
+
+.pencil .belt {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 14%;
+  width: auto;
+  height: 30%;
+}
+
+.pencil .lead {
+  position: absolute;
+  left: 22%;
+  top: 6%;
+  width: 52%;
+  height: 52%;
+}
+
+.hud .tray .peel,
+.hud .tray .oops {
+  padding: calc(var(--button) * 0.2);
+}
+
+/* ------------------------------------------------------------------ the cards over the board */
+
+.dim,
+.layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.dim {
+  background: var(--dim);
+  animation: fadeIn 0.25s ease-out both;
+}
+
+/* The start card: a big Beep waving, the rocket so far, the next card's picture, and Play. */
+.start-card {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-items: center;
+  gap: 8px 28px;
+  padding: 24px 32px 28px;
+  animation: popIn 0.35s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.start-card .beep {
+  grid-row: span 2;
+  width: min(34vmin, 260px);
+  height: min(32vmin, 250px);
+}
+
+.start-card .so-far {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.start-card .rocket {
+  width: min(24vmin, 180px);
+  height: min(17vmin, 126px);
+}
+
+.start-card .next {
+  width: min(12vmin, 84px);
+  height: min(12vmin, 84px);
+}
+
+.hud .btn.play {
+  width: min(24vmin, 150px);
+  height: min(24vmin, 150px);
+  padding: min(5vmin, 34px);
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow:
+    0 7px 0 var(--coral-fold),
+    5px 12px 0 var(--lift);
+  animation: bounce 1s ease-in-out infinite;
+}
+
+/* The pause button stays over every card and layer but the menu itself, so a grown-up can always reach the menu (Good night's morning is there). */
+.hud .btn.pause {
+  z-index: 2;
+}
+
+.dim.pause {
+  z-index: 3;
+}
+
+/* A card found: one picture and one word, flipping over in the middle of the board. Its layer catches the tap that closes it. */
+.layer.discovery {
+  background: rgba(29, 92, 87, 0.12);
+}
+
+.card.found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 34px 18px;
+  animation: flipIn 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+/* A card the lab found comes out of the lab (Cards.tsx outOfLab sets where it is), small and flipping, while the dome's stars join into its picture: she sees where it came from. */
+.card.found.from-lab {
+  animation: outOfLab 0.7s cubic-bezier(0.3, 1.25, 0.5, 1) both;
+}
+
+.found .pic {
+  width: min(40vmin, 260px);
+  height: min(40vmin, 260px);
+}
+
+.found .word {
+  font-size: min(11vmin, 72px);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+/* The lab's one choice in the middle of the board: two big pictures side by side, bobbing out of step ("which one?"). A tap off them wiggles the pair. */
+.layer.choose {
+  background: rgba(29, 92, 87, 0.12);
+}
+
+.card.which {
+  display: flex;
+  gap: min(5vmin, 36px);
+  padding: 22px 28px;
+  animation: flipIn 0.6s cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+
+.card.which.wiggle {
+  animation: wiggle 0.5s ease-in-out;
+}
+
+.hud .card.which .pick {
+  width: min(30vmin, 200px);
+  height: min(30vmin, 200px);
+  padding: 8%;
+  border-radius: 18px;
+  background: var(--ground);
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+.hud .card.which .pick + .pick {
+  animation-delay: -0.8s;
+}
+
+/* The path: every card in order, the found ones ticked, the one coming now glowing, the later ones grey. */
+.dim.path .cards {
+  display: grid;
+  grid-template-columns: repeat(6, auto);
+  gap: min(2.4vmin, 18px);
+  padding: 16px;
+  animation: popIn 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.card.step {
+  position: relative;
+  display: block;
+  width: min(13vw, 21vh, 128px);
+  height: min(13vw, 21vh, 128px);
+  padding: 10%;
+}
+
+.card.step .pic {
+  width: 100%;
+  height: 100%;
+}
+
+.card.step.now {
+  box-shadow: var(--raised);
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+.hud .btn.card.step.now {
+  padding: 10%;
+  border-radius: 18px;
+}
+
+.card.step.later {
+  background: var(--paper);
+  box-shadow: none;
+}
+
+.card.step.later .pic {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+
+.card.step .tick {
+  position: absolute;
+  right: -8px;
+  top: -8px;
+  width: 34%;
+  height: 34%;
+}
+
+/* Good night: her factory asleep under the dusk, the rocket so far and today's cards. */
+.dim.night {
+  background: var(--night);
+  animation: fadeIn 1.2s ease-in both;
+}
+
+.card.goodnight {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 26px 18px;
+  animation: popIn 0.5s ease-out both;
+}
+
+.goodnight .moon {
+  position: absolute;
+  right: -20px;
+  top: -24px;
+  width: 64px;
+  height: 64px;
+}
+
+/* A tap on the sleeping factory: Beep murmurs in its sleep and a z floats up by the moon, and fades. */
+.goodnight .snore {
+  position: absolute;
+  right: 30px;
+  top: -10px;
+  color: var(--white);
+  font-size: 40px;
+  font-weight: 700;
+  text-shadow: 2px 3px 0 var(--shadow);
+  pointer-events: none;
+  animation: snore 1.8s ease-out both;
+}
+
+.goodnight .factory {
+  width: min(64vw, 72vh, 520px);
+  aspect-ratio: 1.62;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.goodnight .day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.goodnight .rocket {
+  width: 104px;
+  height: 72px;
+}
+
+.goodnight .today {
+  width: 52px;
+  height: 52px;
+}
+
+/* An upright phone: the picture asking her to turn it. */
+.turn-me {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--table);
+  pointer-events: auto;
+}
+
+.turn-me .icon {
+  width: min(60vw, 260px);
+  height: min(60vw, 260px);
+}
+
+.turn-me .phone {
+  transform-origin: 0 0;
+  animation: turn 2.4s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ the hint's hand */
+
+/* Over the board, the tray and the cards, under the pause menu; moved and faded from Hand.tsx each frame, never taking a touch. */
+.hand {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  visibility: hidden;
+  will-change: transform, opacity;
+}
+
+/* ------------------------------------------------------------------ the pause menu */
+
+.card.menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 24px);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 24px 28px;
+  border-radius: 24px;
+  animation: popIn 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.menu .row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+}
+
+.card.menu .btn {
+  gap: 0.4em;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.card.menu .btn .icon {
+  width: 1.15em;
+  height: 1.15em;
+}
+
+.hud .btn.primary {
+  background: var(--coral);
+  color: var(--white);
+  min-height: 72px;
+  font-size: clamp(28px, 5.6vmin, 46px);
+  padding: 0.2em 0.9em 0.24em 0.7em;
+}
+
+.hud .btn.night {
+  background: var(--indigo);
+  color: var(--white);
+  min-height: 72px;
+  font-size: clamp(24px, 4.4vmin, 36px);
+  padding: 0.24em 0.9em 0.28em 0.7em;
+}
+
+.hud .btn.small {
+  min-height: 60px;
+  font-size: clamp(18px, 2.8vmin, 24px);
+  padding: 0.3em 0.9em 0.34em 0.7em;
+  color: var(--teal);
+}
+
+.hud .btn.small.cannot,
+.hud .btn.night.cannot {
+  pointer-events: none;
+}
+
+/* The Munchers and Science switches as pictures with their words under them, the picked one lifted. */
+.hud .menu .btn.choice {
+  flex-direction: column;
+  gap: 2px;
+  width: 80px;
+  height: 84px;
+  padding: 6px 6px 4px;
+  border-radius: 16px;
+}
+
+.menu .btn.choice .pic {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.menu .btn.choice .word {
+  font-size: 15px;
+  color: var(--teal);
+}
+
+/* Not saved: this factory is not being kept (a test run, blocked storage, another tab's newer save). */
+.menu .unsaved {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--paper-print);
+  color: var(--teal);
+  font-size: 15px;
+}
+
+.menu .divider {
+  width: 3px;
+  height: 44px;
+  border-radius: 2px;
+  background: var(--paper-print);
+}
+
+/* Start again: a parent's button, quiet, behind a 3 s hold. */
+.hud .btn.fresh {
+  opacity: 0.85;
+}
+
+.hud .btn.bring {
+  padding: 6px 10px 6px 14px;
+}
+
+.bring .old {
+  width: 96px;
+  height: 60px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ring {
+  position: fixed;
+  width: 124px;
+  height: 124px;
+  margin: -62px 0 0 -62px;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 12;
+}
+
+.ring .track {
+  stroke: var(--white);
+  opacity: 0.8;
+}
+
+.ring .fill {
+  stroke: var(--coral);
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  animation: fillRing linear forwards;
+}
+
+/* A short window: the menu in rows closer together. */
+@media (max-height: 560px) {
+  .card.menu {
+    gap: 8px;
+    padding: 12px 16px;
+  }
+
+  .menu .row {
+    gap: 8px;
+  }
+
+  .hud .btn.primary,
+  .hud .btn.night {
+    min-height: 56px;
+  }
+
+  .hud .btn.small {
+    min-height: 56px;
+  }
+
+  .hud .menu .btn.choice {
+    width: 70px;
+    height: 70px;
+  }
+}
+
+/* ------------------------------------------------------------------ a bad URL switch */
+
+.oops {
+  position: fixed;
+  inset: 0;
+  margin: 24px;
+  padding: 16px;
+  white-space: pre-wrap;
+  font: 600 20px/1.4 ui-monospace, monospace;
+  color: var(--ink);
+  background: var(--white);
+  border-radius: 18px;
+  box-shadow: var(--drop);
+}
+
+/* ------------------------------------------------------------------ ?sheet: a grid of every drawing in a group */
+
+.sheet {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--sheet-bg);
+  touch-action: auto;
+  user-select: text;
+}
+
+.sheet-cell {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: var(--ground);
+  border: 1px solid var(--sheet-line);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.sheet-cell figcaption {
+  font: 12px system-ui, sans-serif;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ motion: calm, nothing flashes */
+
+@keyframes bounce {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  40% {
+    translate: 0 -10px;
+  }
+  70% {
+    translate: 0 -2px;
+  }
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -5px;
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    rotate: 0deg;
+  }
+  25% {
+    rotate: -7deg;
+  }
+  50% {
+    rotate: 6deg;
+  }
+  75% {
+    rotate: -3deg;
+  }
+}
+
+@keyframes peek {
+  0% {
+    translate: 0 0;
+    opacity: 0;
+  }
+  25%,
+  75% {
+    translate: 0 48px;
+    opacity: 1;
+  }
+  100% {
+    translate: 0 0;
+    opacity: 0;
+  }
+}
+
+@keyframes popIn {
+  from {
+    scale: 0.6;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes flipIn {
+  from {
+    transform: perspective(800px) rotateY(90deg) scale(0.7);
+    opacity: 0;
+  }
+  to {
+    transform: perspective(800px) rotateY(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes outOfLab {
+  from {
+    transform: translate(var(--from-x), var(--from-y)) perspective(800px) rotateY(90deg) scale(0.15);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(0, 0) perspective(800px) rotateY(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes snore {
+  from {
+    translate: 0 0;
+    opacity: 0;
+    scale: 0.6;
+  }
+  25% {
+    opacity: 1;
+  }
+  to {
+    translate: 24px -60px;
+    opacity: 0;
+    scale: 1.2;
+  }
+}
+
+@keyframes fillRing {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes turn {
+  0%,
+  20% {
+    rotate: 0deg;
+  }
+  60%,
+  100% {
+    rotate: -90deg;
+  }
+}

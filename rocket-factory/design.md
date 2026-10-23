@@ -1,0 +1,1 @@
+please build a new kids version of factorio. perhaps with less tech tree and no upgrades, but the resource gathering, factory building, conveyor belts, science, and some form of monsters/opponents that cause havoc and need to be considered.
