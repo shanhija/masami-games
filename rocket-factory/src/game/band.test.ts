@@ -2,7 +2,7 @@
  * The band without ears. The score: every bar of every part is whole, every note is on the F
  * major pentatonic but the bass's (which walks the chords' roots and fifths in F major), no
  * written note grinds a semitone above its chord on a beat, the song has its long form and a
- * new arrangement for each land. Which parts play, for states built from a fresh game: working
+ * new arrangement for each step of the path. Which parts play, for states built from a fresh game: working
  * machines, napped and tucked ones, the belts, a visit, the pad's drum, Good night, the launch
  * and a new session. And the notes they play, with the music on and off.
  */
@@ -25,16 +25,16 @@ function add(s: State, kind: Kind, how: 'works' | 'idle' | 'napped' | 'tucked') 
   return b
 }
 
-/** Every piece with its name: the song in each land's arrangement, the lullaby, the roll and the flight. */
+/** Every piece with its name: the song in each step's arrangement, the lullaby, the roll and the flight. */
 const ALL: { name: string; piece: Piece }[] = [
-  ...([1, 2, 3] as const).map((land) => ({ name: `song (land ${land})`, piece: SONG[land] })),
+  ...([1, 2, 3] as const).map((land) => ({ name: `song (step ${land})`, piece: SONG[land] })),
   ...(['lullaby', 'roll', 'flight'] as const).map((name) => ({ name, piece: PIECES[name] })),
 ]
 /** A band playing every part `piece` has, and every one of them as a kazoo too. */
 function everything(name: string, piece: Piece): Band {
   const parts = INSTRUMENTS.filter((i) => piece.parts[i])
   const kind = name.startsWith('song') ? 'song' : (name as 'lullaby' | 'roll' | 'flight')
-  return { piece: kind, from: 0, land: name.startsWith('song') ? (Number(name.at(-2)) as 1 | 2 | 3) : 1, play: parts, kazoo: parts }
+  return { piece: kind, from: 0, progress: name.startsWith('song') ? (Number(name.at(-2)) as 1 | 2 | 3) : 1, play: parts, kazoo: parts }
 }
 /** Every note of a whole pass through `band`'s piece, with its bar and slot. */
 function pass(band: Band, music: boolean): { n: Note; bar: number; slot: number }[] {
@@ -132,7 +132,7 @@ describe('the score', () => {
     expect(PIECES.lullaby.chords.length * 6 * EIGHTH).toBeGreaterThan(30)
   })
 
-  it('has a new arrangement for each land, around the same tune, descant and pizzicato line', () => {
+  it('has a new arrangement for each step of the path, around the same tune, descant and pizzicato line', () => {
     const accompaniment = (land: 1 | 2 | 3) => JSON.stringify(['bass', 'shaker', 'woodblock', 'pluck', 'chimes', 'drum'].map((i) => SONG[land].parts[i as Instrument]))
     expect(new Set([1, 2, 3].map((l) => accompaniment(l as 1 | 2 | 3))).size).toBe(3)
     for (const i of ['bell', 'glock', 'pizzicato'] as const) {
@@ -142,7 +142,7 @@ describe('the score', () => {
   })
 
   it('comes home and is its own: the lullaby ends on F, and the tune, the descant, the pizzicato line and the lullaby each open differently', () => {
-    const line = (piece: Piece, i: Instrument) => pass({ piece: piece === PIECES.lullaby ? 'lullaby' : 'song', from: 0, land: 1, play: [i], kazoo: [] }, true).map(({ n }) => n.midi)
+    const line = (piece: Piece, i: Instrument) => pass({ piece: piece === PIECES.lullaby ? 'lullaby' : 'song', from: 0, progress: 1, play: [i], kazoo: [] }, true).map(({ n }) => n.midi)
     expect(pc(line(PIECES.lullaby, 'box').at(-1)!)).toBe(5)
     const openings = [line(SONG[1], 'bell'), line(SONG[1], 'glock'), line(SONG[1], 'pizzicato'), line(PIECES.lullaby, 'box')].map((notes) => JSON.stringify(notes.slice(0, 5).map(pc)))
     expect(new Set(openings).size).toBe(4)
@@ -157,7 +157,7 @@ describe('which parts play', () => {
   it('none on a fresh board: the start oven waits, the belts are empty and nobody is out', () => {
     const s = blankState(1)
     const band = bandOf(s)
-    expect(band).toEqual({ piece: 'song', from: 0, land: 1, play: [], kazoo: [] })
+    expect(band).toEqual({ piece: 'song', from: 0, progress: 1, play: [], kazoo: [] })
     expect(pass(band, true)).toEqual([])
     expect(pass(band, false)).toEqual([])
   })
@@ -231,7 +231,7 @@ describe('which parts play', () => {
     const s = blankState(1)
     s.tick = REJOIN
     expect(padDrums(s)).toBe(false)
-    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket']
+    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket']
     expect(padDrums(s)).toBe(true)
     expect(bandOf(s).play).toEqual(['drum'])
     s.buildings[0]!.tucked = true
@@ -250,7 +250,7 @@ describe('which parts play', () => {
     s.visit = { burrow: 0, at: 0, kept: 0, tickled: 0, sent: 0, naps: 0, fed: 0 }
     s.night = { at: 990, kind: 'oven', kindAt: 990, doneAt: -1 }
     const band = bandOf(s)
-    expect(band).toEqual({ piece: 'lullaby', from: Math.ceil((990 + NIGHT_LEAD) / HOP), land: 1, play: ['shaker', 'bass', 'box'], kazoo: [] })
+    expect(band).toEqual({ piece: 'lullaby', from: Math.ceil((990 + NIGHT_LEAD) / HOP), progress: 1, play: ['shaker', 'bass', 'box'], kazoo: [] })
     // The evening's chime first: the lullaby's first note waits for it.
     expect(notesAt(band, band.from - 1, true)).toEqual([])
     expect(notesAt(band, band.from, true).find((n) => n.instrument === 'box')!.midi).toBe(72)
@@ -266,16 +266,16 @@ describe('which parts play', () => {
     add(s, 'oven', 'works')
     s.tick = 2010
     s.launch = { at: 2010, landsAt: 2010 + ticks(40) }
-    expect(bandOf(s)).toEqual({ piece: 'roll', from: Math.ceil(2010 / HOP), land: 1, play: ['roll'], kazoo: [] })
+    expect(bandOf(s)).toEqual({ piece: 'roll', from: Math.ceil(2010 / HOP), progress: 1, play: ['roll'], kazoo: [] })
     const rolls = [0, 8, 16].map((k) => notesAt(bandOf(s), bandOf(s).from + k, true)[0]!.vel)
     expect(rolls[0]).toBeLessThan(rolls[1]!)
     expect(rolls[1]).toBeLessThan(rolls[2]!)
     s.tick = 2010 + LIFTOFF
-    expect(bandOf(s)).toEqual({ piece: 'flight', from: Math.ceil((2010 + LIFTOFF) / HOP), land: 1, play: ['bass', 'chimes', 'box'], kazoo: [] })
+    expect(bandOf(s)).toEqual({ piece: 'flight', from: Math.ceil((2010 + LIFTOFF) / HOP), progress: 1, play: ['bass', 'chimes', 'box'], kazoo: [] })
     // The flight's tune is the song's, an octave up on the music box.
     const flight = bandOf(s)
     const tune = (b: Band, i: Instrument) => notesAt(b, b.from, true).find((n) => n.instrument === i)!.midi
-    expect(tune(flight, 'box')).toBe(tune({ piece: 'song', from: 0, land: 1, play: ['bell'], kazoo: [] }, 'bell') + 12)
+    expect(tune(flight, 'box')).toBe(tune({ piece: 'song', from: 0, progress: 1, play: ['bell'], kazoo: [] }, 'bell') + 12)
   })
 
   it('brings the parts back one by one over REJOIN after a new session', () => {
@@ -307,15 +307,15 @@ describe('which parts play', () => {
 })
 
 describe('the notes', () => {
-  const song = (land: 1 | 2 | 3, play: Instrument[], kazoo: Instrument[]): Band => ({ piece: 'song', from: 0, land, play, kazoo })
+  const song = (land: 1 | 2 | 3, play: Instrument[], kazoo: Instrument[]): Band => ({ piece: 'song', from: 0, progress: land, play, kazoo })
 
-  it("follow each part's line in the land's arrangement: the tune on the bell, the bass on the chord's root", () => {
+  it("follow each part's line in the step's arrangement: the tune on the bell, the bass on the chord's root", () => {
     const first = notesAt(song(1, ['bass', 'bell'], []), 0, true)
     expect(first.map((n) => [n.instrument, n.midi, n.len])).toEqual([
       ['bass', 41, 4],
       ['bell', 84, 2],
     ])
-    // Land 2 walks the bass: root, fifth, octave, fifth.
+    // The second step (Nose!) walks the bass: root, fifth, octave, fifth.
     expect([0, 2, 4, 6].map((k) => notesAt(song(2, ['bass'], []), k, true)[0]!.midi)).toEqual([41, 48, 53, 48])
   })
 
@@ -366,7 +366,7 @@ describe('the notes', () => {
 
   it("time a machine's pulse from its part's last note as itself, within a bar", () => {
     const band = song(1, ['bass', 'shaker'], ['bell'])
-    // The bass plays on eighths 0 and 4 of land 1's bar.
+    // The bass plays on eighths 0 and 4 of the first step's bar.
     expect(sinceNote(band, 'bass', 0.1, true)).toBeCloseTo(0.1, 9)
     expect(sinceNote(band, 'bass', 4.5 * EIGHTH, true)).toBeCloseTo(0.5 * EIGHTH, 9)
     expect(sinceNote(band, 'bass', 4 * EIGHTH, true)).toBeCloseTo(0, 9)

@@ -11,13 +11,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { choose } from './brain'
-import { FLOWER_OF, GROUND, PAD_RING, cellInLand, xOf } from './board'
+import { FLOWER_OF, GROUND, PAD_RING, inCorner, xOf, yOf } from './board'
 import { BEDTIME, Child, FINGER, FRANTIC_EVERY, PHONE_MM, SCREENS, STEADY, intentsOf, screenNamed, trayButton, type Kid, type Screen } from './child'
 import { carefulAt, frame, memoryStorage, open } from './childKit'
 import type { Demo } from './fixtures'
 import type { Game } from './game'
 import type { Ranked } from './hint'
-import { sameTool, ticks, type Action, type EventKind, type Placeable, type SimEvent, type State, type Step, type Tool } from './model'
+import { COLS, sameTool, ticks, type Action, type EventKind, type Placeable, type SimEvent, type State, type Step, type Tool } from './model'
 import { act, cloneState } from './rules'
 import { lintNet } from './strokes'
 
@@ -35,7 +35,7 @@ const SEED = 3
 /** The board as the planners see it: every belt cell's sides, the hedges, the buildings. */
 const layout = (s: State) => JSON.stringify([[...s.belts.in], [...s.belts.out], [...s.belts.fork], [...s.belts.over], [...s.hedge], s.buildings.map((b) => `${b.kind}@${b.x},${b.y}`)])
 /** The events that answer a gesture: what changed the board, and what a tap, a dig, a tickle or a button did. */
-const ANSWERS: ReadonlySet<EventKind> = new Set<EventKind>(['lay', 'repoint', 'bridge', 'join', 'fork', 'rollUp', 'hedgeIn', 'place', 'peel', 'oops', 'dig', 'full', 'caught', 'tickleBusy', 'recipe', 'flap', 'launch', 'tuck', 'cardClosed', 'nope'])
+const ANSWERS: ReadonlySet<EventKind> = new Set<EventKind>(['lay', 'repoint', 'bridge', 'join', 'fork', 'rollUp', 'hedgeIn', 'place', 'peel', 'oops', 'dig', 'full', 'caught', 'tickleBusy', 'recipe', 'launch', 'tuck', 'cardClosed', 'nope'])
 /** An answer as a key, without where it is drawn (a finger's point is not the script's). */
 const keyOf = (e: SimEvent) => JSON.stringify({ ...e, x: undefined, y: undefined })
 
@@ -55,7 +55,7 @@ interface Taken {
   why: string
 }
 
-/** A step's gestures held against its script: the same board, every answer the script gave among what the frames reported, and the choice, the land and the launch where the step is one of those. */
+/** A step's gestures held against its script: the same board, every answer the script gave among what the frames reported, and the choice and the launch where the step is one of those. */
 function judge(kind: Step['kind'], pure: { s: State; answers: string[] }, events: readonly SimEvent[], s: State): Taken {
   const why: string[] = []
   if (layout(s) !== layout(pure.s)) why.push('the board differs')
@@ -67,7 +67,6 @@ function judge(kind: Step['kind'], pure: { s: State; answers: string[] }, events
     got.set(k, n - 1)
   }
   if (kind === 'choose' && s.choice !== pure.s.choice) why.push('no choice')
-  if (kind === 'flap' && s.land !== pure.s.land) why.push('the land did not open')
   if (kind === 'launch' && s.launch === null && s.launches === 0) why.push('no launch')
   return { kind, landed: why.length === 0, why: why.join('; ') }
 }
@@ -112,10 +111,10 @@ function play(sc: Screen, demo: Demo, kid: Kid, seed: number, until: Step['kind'
 /** A crafted step: a script the child takes as if the hint had offered it. */
 const crafted = (script: Action[]): Ranked => ({ step: { kind: 'rocket' }, script })
 
-/** Cells for a hedge line: `n` in a row of the land's grass with nothing on them, off the flowers and the pad's ring, and with no building or belt round them (on a phone's small cells a roof stack or a riding thing next door takes the press, and a stroke from what a tap answers begins only SLOP off it). */
+/** Cells for a hedge line: `n` in a row of the start block's grass with nothing on them, off the flowers and the pad's ring, and with no building or belt round them (on a phone's small cells a roof stack or a riding thing next door takes the press, and a stroke from what a tap answers begins only SLOP off it). */
 function freeRow(s: State, n: number): number[] {
-  const clear = (c: number) => [-21, -20, -19, -1, 1, 19, 20, 21].every((d) => s.owner[c + d] === undefined || (s.owner[c + d]! < 0 && s.belts.out[c + d]! < 0))
-  const free = (c: number) => cellInLand(s.land, c) && GROUND[c] === 'grass' && FLOWER_OF[c]! < 0 && !PAD_RING.has(c) && s.owner[c]! < 0 && s.belts.out[c]! < 0 && s.hedge[c] === 0 && clear(c)
+  const clear = (c: number) => [-COLS - 1, -COLS, -COLS + 1, -1, 1, COLS - 1, COLS, COLS + 1].every((d) => s.owner[c + d] === undefined || (s.owner[c + d]! < 0 && s.belts.out[c + d]! < 0))
+  const free = (c: number) => inCorner(xOf(c), yOf(c)) && GROUND[c] === 'grass' && FLOWER_OF[c]! < 0 && !PAD_RING.has(c) && s.owner[c]! < 0 && s.belts.out[c]! < 0 && s.hedge[c] === 0 && clear(c)
   for (let c = 0; c < s.belts.out.length; c++) {
     const row = Array.from({ length: n }, (_, i) => c + i)
     if (xOf(c) + n <= 20 && row.every(free)) return row
@@ -133,7 +132,7 @@ function beltRow(s: State, n: number): number[] {
   throw new Error('no straight belt')
 }
 
-/** The moments that bring each gesture, and the step that stops each run: the start card's Play, a dig and a link's stroke; a card's tap and a sticker carried from the tray; a tickle on a sitter and on a napper; the choice (on the choice card, which comes up as Gears! closes, before the hint's own step for it); the flaps; a tuck at dusk; the launch; the peel's two taps and Oops; a hedge line and the peel's drag. */
+/** The moments that bring each gesture, and the step that stops each run: the start card's Play, a dig and a link's stroke; a card's tap and a sticker carried from the tray; a tickle on a sitter and on a napper; the choice (on the choice card, which comes up as Gears! closes, before the hint's own step for it); a tuck at dusk; the launch; the peel's two taps and Oops; a hedge line and the peel's drag. */
 const NONE = () => []
 const CASES: readonly { demo: Demo; until: Step['kind']; most: number; crafted: (s: State) => Ranked[] }[] = [
   { demo: 'start', until: 'link', most: 60, crafted: NONE },
@@ -141,7 +140,6 @@ const CASES: readonly { demo: Demo; until: Step['kind']; most: number; crafted: 
   { demo: 'sitting', until: 'muncher', most: 10, crafted: NONE },
   { demo: 'napping', until: 'muncher', most: 10, crafted: NONE },
   { demo: 'card-gears', until: 'choose', most: 60, crafted: () => [{ step: { kind: 'choose' }, script: [{ kind: 'choose', card: 'bubbles' }] }] },
-  { demo: 'card-land2', until: 'flap', most: 60, crafted: NONE },
   { demo: 'dusk', until: 'tuck', most: 20, crafted: NONE },
   { demo: 'ready', until: 'launch', most: 20, crafted: NONE },
   {
@@ -155,7 +153,7 @@ const CASES: readonly { demo: Demo; until: Step['kind']; most: number; crafted: 
     },
   },
   {
-    demo: 'land3',
+    demo: 'busy',
     until: 'rocket',
     most: 30,
     crafted: (s) => [crafted([{ kind: 'tool', tool: { kind: 'hedge' } }, { kind: 'drag', cells: freeRow(s, 3) }, { kind: 'release', commit: true }]), crafted([{ kind: 'tool', tool: { kind: 'peel' } }, { kind: 'drag', cells: beltRow(s, 3) }, { kind: 'release', commit: true }])],
@@ -174,7 +172,7 @@ describe('the gestures', () => {
 
   it('finds every tray sticker inside the tray band, in arrival order, on every screen', { timeout: 30_000 }, () => {
     for (const sc of SCREENS) {
-      const g = open('?demo=land3&seed=3', 3, sc)
+      const g = open('?demo=busy&seed=3', 3, sc)
       const f = g.view!.hud
       if (f.tray === null) continue
       let last = -Infinity
@@ -255,8 +253,8 @@ describe('a touch aimed at a muncher', () => {
 })
 
 describe('a thumb resting on the glass', () => {
-  // Where the other hand's thumb rests (board points): in the gutter, on the ground, on a machine, on the pond, on a rock patch, on the next land's flaps.
-  const RESTS: Record<string, { x: number; y: number }> = { gutter: { x: -0.6, y: 6.5 }, ground: { x: 3.5, y: 9.5 }, machine: { x: 6.5, y: 6.5 }, pond: { x: 0.5, y: 8.5 }, patch: { x: 7.5, y: 2.5 }, flaps: { x: 13.15, y: 5.5 } }
+  // Where the other hand's thumb rests (board points): in the gutter, on the ground, on a machine, on the pond, on a rock patch, on the board east of the start block.
+  const RESTS: Record<string, { x: number; y: number }> = { gutter: { x: -0.6, y: 6.5 }, ground: { x: 3.5, y: 9.5 }, machine: { x: 6.5, y: 6.5 }, pond: { x: 0.5, y: 8.5 }, patch: { x: 7.5, y: 2.5 }, east: { x: 20.1, y: 5.5 } }
   it('never freezes the board: wherever it rests, the playing finger still digs and lays the first belt', { timeout: 30_000 }, () => {
     for (const sc of [screenNamed('1024x768'), screenNamed('750x320')])
       for (const [name, at] of Object.entries(RESTS)) {
@@ -303,10 +301,10 @@ describe('the frantic tapper', () => {
 
 describe('the chaos and belts-everywhere children', () => {
   for (const kind of ['chaos', 'belts'] as const)
-    it(`${kind === 'chaos' ? 'the chaos child (taps, strokes, stickers, peels and Oops anywhere)' : 'the belts-everywhere child (long strokes all over the land)'} plays 5 game minutes from a fresh game and from the full land 3 with the network lint clean and nothing thrown`, { timeout: 60_000 }, () => {
+    it(`${kind === 'chaos' ? 'the chaos child (taps, strokes, stickers, peels and Oops anywhere)' : 'the belts-everywhere child (long strokes all over the start block)'} plays 5 game minutes from a fresh game and from the busy factory with the network lint clean and nothing thrown`, { timeout: 60_000 }, () => {
       for (const [demo, name] of [
         ['start', '1024x768'],
-        ['land3', '750x320'],
+        ['busy', '750x320'],
       ] as const) {
         const sc = screenNamed(name)
         const g = open(`?demo=${demo}&seed=${SEED}`, SEED, sc)

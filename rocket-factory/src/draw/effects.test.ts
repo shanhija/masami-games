@@ -4,7 +4,7 @@
  * gradient, the pool never holds more than POOL, and every burst is gone within five seconds. Holds the
  * song's notes to the plan's rules (one a machine a bar, to a burrow that is listening, every
  * other bar while munchers are out, none to the burrow that is visiting), the particles to
- * falling down the screen on the upright board too, and the hint's ring to its bounce. Looks
+ * falling down the screen, a card's confetti to the board the screen shows, and the hint's ring to its bounce. Looks
  * are judged on ?sheet=effects.
  */
 import { afterEach, describe, expect, it } from 'vitest'
@@ -12,11 +12,15 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cellOf } from '../game/board'
 import { CARDS, HOP, STEP, newBuilding, type EventKind, type Muncher, type SimEvent, type State } from '../game/model'
 import { blankState } from '../game/rules'
+import type { Box } from '../game/where'
 import { Effects, POOL, SHEET, drawHintRing, hintLift, type HeldGhost } from './effects'
 import { colours, fakeContext, resetPen } from './fakeContext'
 import { C, LAND, pen } from './look'
 
 afterEach(resetPen)
+
+/** The board box the screen shows: the start block. */
+const VIEW: Box = { x: 0, y: 0, w: 20, h: 12 }
 
 /** A muncher of burrow `b` sitting on cell (x, y). */
 const sitter = (id: number, b: number, x: number, y: number): Muncher => ({
@@ -87,7 +91,6 @@ function everyEvent(): SimEvent[] {
     partFull: [{ kind: 'partFull', part: 'legs' }],
     card: [{ kind: 'card', id: 'gold' }],
     cardClosed: [{ kind: 'cardClosed', id: 'gold' }],
-    flap: [{ kind: 'flap', land: 2 }],
     carry: [{ kind: 'carry', thing: 'gear', x: 5, y: 5 }],
     warn: [{ kind: 'warn', burrow: 0 }],
     hopOut: [{ kind: 'hopOut', id: 1, burrow: 0 }],
@@ -131,7 +134,7 @@ describe('the particles', () => {
   it("set off every kind of event without trouble, stay within the pool, draw clean and are gone in five seconds (a card's confetti rains longest)", () => {
     const fx = new Effects()
     const s = stage()
-    fx.spawn(everyEvent(), s, 0, null)
+    fx.spawn(everyEvent(), s, 0, null, VIEW)
     expect(fx.alive).toBeGreaterThan(60)
     expect(fx.alive).toBeLessThanOrEqual(POOL)
     const { ctx, check } = fakeContext()
@@ -142,39 +145,46 @@ describe('the particles', () => {
   it('never hold more than the pool, the oldest making way', () => {
     const fx = new Effects()
     const s = stage()
-    for (let i = 0; i < 20; i++) fx.spawn([{ kind: 'card', id: CARDS[i % CARDS.length]! }, { kind: 'landed' }], s, 0, null)
+    for (let i = 0; i < 20; i++) fx.spawn([{ kind: 'card', id: CARDS[i % CARDS.length]! }, { kind: 'landed' }], s, 0, null, VIEW)
     expect(fx.alive).toBe(POOL)
     fx.clear()
     expect(fx.alive).toBe(0)
   })
 
-  it('fall down the screen and stay upright on the upright board as on the flat one', () => {
-    for (const turn of [0, Math.PI / 2, -Math.PI / 2]) {
+  it('fall down the screen', () => {
+    const fx = new Effects()
+    const { ctx, measure } = fakeContext()
+    ctx.scale(50, 50)
+    // A leaf from a tree's tap: it pops up a little, then drifts down the screen.
+    fx.spawn([{ kind: 'poke', what: 'tree', x: 4, y: 3 }], stage(), 0, null, VIEW)
+    const ys: number[] = []
+    for (let i = 0; i < 80; i++) {
+      const b = measure(() => fx.draw(ctx, i * STEP, STEP))
+      ys.push((b.y0 + b.y1) / 2)
+    }
+    expect(ys[79]! - ys[20]!).toBeGreaterThan(0.2)
+  })
+
+  it("rain a card's confetti over the board the screen shows, wherever that is", () => {
+    // Over the start block, and over a stretch far out east: the rain's middle follows the view's box.
+    for (const view of [VIEW, { x: 40, y: 20, w: 20, h: 12 }]) {
       const fx = new Effects()
       const { ctx, measure } = fakeContext()
-      ctx.scale(50, 50)
-      const frame = (t: number) =>
-        measure(() => {
-          ctx.save()
-          ctx.rotate(turn)
-          fx.draw(ctx, t, STEP)
-          ctx.restore()
-        })
-      // A leaf from a tree's tap: it pops up a little, then drifts down the screen.
-      fx.spawn([{ kind: 'poke', what: 'tree', x: 4, y: 3 }], stage(), 0, null)
-      const ys: number[] = []
-      for (let i = 0; i < 80; i++) {
-        const b = frame(i * STEP)
-        ys.push((b.y0 + b.y1) / 2)
+      fx.spawn([{ kind: 'card', id: 'gold' }], stage(), 0, null, view)
+      const xs: number[] = []
+      for (let i = 0; i < 90; i++) {
+        const b = measure(() => fx.draw(ctx, i * STEP, STEP))
+        if (b.x1 > b.x0) xs.push((b.x0 + b.x1) / 2)
       }
-      // Measured on the screen in cells, the board turned inside the measure.
-      expect(ys[79]! - ys[20]!, `turn ${turn}`).toBeGreaterThan(0.2)
+      const mid = xs.reduce((a, x) => a + x, 0) / xs.length
+      expect(mid, `view at ${view.x}`).toBeGreaterThan(view.x)
+      expect(mid, `view at ${view.x}`).toBeLessThan(view.x + view.w)
     }
   })
 
   it('set off nothing for an event whose muncher or building has gone since (a frame of several steps)', () => {
     const fx = new Effects()
-    fx.spawn([{ kind: 'caught', id: 99 }, { kind: 'shot', tower: 99, muncher: 99 }, { kind: 'picnic', id: 99, burrow: 0 }, { kind: 'place', id: 99, sticker: 'oven' }, { kind: 'napStart', id: 99, building: 99 }], stage(), 0, null)
+    fx.spawn([{ kind: 'caught', id: 99 }, { kind: 'shot', tower: 99, muncher: 99 }, { kind: 'picnic', id: 99, burrow: 0 }, { kind: 'place', id: 99, sticker: 'oven' }, { kind: 'napStart', id: 99, building: 99 }], stage(), 0, null, VIEW)
     expect(fx.alive).toBe(0)
   })
 })
@@ -197,7 +207,7 @@ describe("the song's notes", () => {
     const seen = new Set<string>()
     for (let tick = 0; tick < bars * 8 * HOP; tick++) {
       s.tick = tick
-      fx.spawn([], s, tick * STEP, ghost)
+      fx.spawn([], s, tick * STEP, ghost, VIEW)
       fx.update(STEP)
       if (fx.alive > was) {
         n += fx.alive - was
@@ -229,7 +239,7 @@ describe("the song's notes", () => {
     expect(notes((s) => (s.buildings.find((b) => b.id === 11)!.napper = 3), 4)).toBe(0)
     expect(notes((s) => (s.buildings.find((b) => b.id === 11)!.batch = null), 4)).toBe(0)
     expect(notes((s) => (s.burrows[0]!.hunger = 999), 4)).toBe(0)
-    // A machine by burrow B's flowers sings to it only once land 2 is open.
+    // A machine by burrow B's flowers sings to it only once Nose! is found.
     const byB = (s: State) => {
       const d = s.buildings.find((b) => b.id === 11)!
       d.x = 11
@@ -239,7 +249,7 @@ describe("the song's notes", () => {
     expect(
       notes((s) => {
         byB(s)
-        s.land = 2
+        s.found.push('nose')
       }, 4),
     ).toBe(4)
   })
@@ -247,7 +257,7 @@ describe("the song's notes", () => {
   it('come every other bar while munchers are out from another burrow', () => {
     expect(
       notes((s) => {
-        s.land = 2
+        s.found.push('nose')
         s.munchers.push(sitter(1, 1, 14, 9))
         s.visit = { burrow: 1, at: 0, kept: 0, tickled: 0, sent: 0, naps: 0, fed: 0 }
       }, 6),

@@ -1,4 +1,4 @@
-import { HOP, ticks, type CardId, type Kind, type Land, type PartId, type Placeable, type Sticker, type Thing } from './model'
+import { HOP, ticks, type CardId, type Kind, type PartId, type Placeable, type Sticker, type Thing } from './model'
 
 /**
  * The data every rule reads: sizes, recipes and rates, the path and what each card brings,
@@ -70,8 +70,7 @@ export interface Card {
   needs: Needs
   /** The stickers it brings. */
   gives: Partial<Record<Sticker, number>>
-  /** What it opens: the next land, a rocket part, the launch. */
-  land: Land | null
+  /** What it opens: a rocket part, the launch. */
   part: PartId | null
   launch: boolean
   /** It brings one more belt pattern. */
@@ -82,24 +81,24 @@ export interface Card {
  * The path in order. 'bubbles' and 'hedges' are the one choice: after 'gears' the lab card
  * shows both and the one she picks comes first (CHOICE). Lab cards need bottles; the first
  * three come from the rocket and the ovens. The costs are about 5 to 6 minutes of the bottle
- * lines the hint has built by each card (one green maker until the second Land!, two after,
+ * lines the hint has built by each card (one green maker until More!, two after,
  * and the orange maker from Stars!), so the factory sets the clock and no card keeps her
  * waiting 8 minutes; Fuel! is the long last card, where waiting is the countdown's (the
  * scripted children's measurements, session.test.ts and plans/rocket-factory.md, Science).
  */
 export const PATH: readonly Card[] = [
-  { id: 'digger', word: 'Digger!', needs: { kind: 'legs', n: 3 }, gives: { digger: 1 }, land: null, part: null, launch: false, pattern: false },
-  { id: 'gold', word: 'Gold!', needs: { kind: 'legs', n: 20 }, gives: { digger: 1, oven: 1 }, land: null, part: null, launch: false, pattern: false },
-  { id: 'science', word: 'Science!', needs: { kind: 'goldBar' }, gives: { greenMaker: 1, lab: 1 }, land: null, part: null, launch: false, pattern: false },
-  { id: 'gears', word: 'Gears!', needs: { kind: 'bottles', green: 5, orange: 0 }, gives: { workshop: 1, digger: 1, oven: 1 }, land: null, part: 'body', launch: false, pattern: true },
-  { id: 'bubbles', word: 'Bubbles!', needs: { kind: 'bottles', green: 80, orange: 0 }, gives: { pump: 1, tower: 2 }, land: null, part: null, launch: false, pattern: true },
-  { id: 'hedges', word: 'Hedges!', needs: { kind: 'bottles', green: 80, orange: 0 }, gives: { hedge: 8 }, land: null, part: null, launch: false, pattern: true },
-  { id: 'land2', word: 'Land!', needs: { kind: 'bottles', green: 90, orange: 0 }, gives: { tower: 1, hedge: 3 }, land: 2, part: 'nose', launch: false, pattern: true },
-  { id: 'stars', word: 'Stars!', needs: { kind: 'bottles', green: 85, orange: 0 }, gives: { orangeMaker: 1 }, land: null, part: null, launch: false, pattern: true },
-  { id: 'snacks', word: 'Snacks!', needs: { kind: 'bottles', green: 75, orange: 20 }, gives: { bowl: 2 }, land: null, part: null, launch: false, pattern: true },
-  { id: 'land3', word: 'Land!', needs: { kind: 'bottles', green: 90, orange: 45 }, gives: { digger: 1, oven: 1, greenMaker: 1, tower: 1, bowl: 1, hedge: 3 }, land: 3, part: null, launch: false, pattern: true },
-  { id: 'rocket', word: 'Rocket!', needs: { kind: 'bottles', green: 130, orange: 40 }, gives: {}, land: null, part: 'engine', launch: false, pattern: true },
-  { id: 'fuel', word: 'Fuel!', needs: { kind: 'bottles', green: 180, orange: 0 }, gives: {}, land: null, part: null, launch: true, pattern: true },
+  { id: 'digger', word: 'Digger!', needs: { kind: 'legs', n: 3 }, gives: { digger: 1 }, part: null, launch: false, pattern: false },
+  { id: 'gold', word: 'Gold!', needs: { kind: 'legs', n: 20 }, gives: { digger: 1, oven: 1 }, part: null, launch: false, pattern: false },
+  { id: 'science', word: 'Science!', needs: { kind: 'goldBar' }, gives: { greenMaker: 1, lab: 1 }, part: null, launch: false, pattern: false },
+  { id: 'gears', word: 'Gears!', needs: { kind: 'bottles', green: 5, orange: 0 }, gives: { workshop: 1, digger: 1, oven: 1 }, part: 'body', launch: false, pattern: true },
+  { id: 'bubbles', word: 'Bubbles!', needs: { kind: 'bottles', green: 80, orange: 0 }, gives: { pump: 1, tower: 2 }, part: null, launch: false, pattern: true },
+  { id: 'hedges', word: 'Hedges!', needs: { kind: 'bottles', green: 80, orange: 0 }, gives: { hedge: 8 }, part: null, launch: false, pattern: true },
+  { id: 'nose', word: 'Nose!', needs: { kind: 'bottles', green: 90, orange: 0 }, gives: { tower: 1, hedge: 3 }, part: 'nose', launch: false, pattern: true },
+  { id: 'stars', word: 'Stars!', needs: { kind: 'bottles', green: 85, orange: 0 }, gives: { orangeMaker: 1 }, part: null, launch: false, pattern: true },
+  { id: 'snacks', word: 'Snacks!', needs: { kind: 'bottles', green: 75, orange: 20 }, gives: { bowl: 2 }, part: null, launch: false, pattern: true },
+  { id: 'more', word: 'More!', needs: { kind: 'bottles', green: 90, orange: 45 }, gives: { digger: 1, oven: 1, greenMaker: 1, tower: 1, bowl: 1, hedge: 3 }, part: null, launch: false, pattern: true },
+  { id: 'rocket', word: 'Rocket!', needs: { kind: 'bottles', green: 130, orange: 40 }, gives: {}, part: 'engine', launch: false, pattern: true },
+  { id: 'fuel', word: 'Fuel!', needs: { kind: 'bottles', green: 180, orange: 0 }, gives: {}, part: null, launch: true, pattern: true },
 ]
 const CARD_OF = new Map(PATH.map((c) => [c.id, c] as const))
 export const card = (id: CardId): Card => CARD_OF.get(id)!
@@ -116,7 +115,7 @@ export const QUICKER = 0.6
 export const PART_INFO: Record<PartId, { thing: Thing; n: number; opens: CardId | null }> = {
   legs: { thing: 'blueBar', n: 20, opens: null },
   body: { thing: 'gear', n: 30, opens: 'gears' },
-  nose: { thing: 'gear', n: 10, opens: 'land2' },
+  nose: { thing: 'gear', n: 10, opens: 'nose' },
   engine: { thing: 'orangeBottle', n: 40, opens: 'rocket' },
 }
 
@@ -143,21 +142,25 @@ export const HUNGER = { base: 4, perWorking: 1, workingCap: 8, onFlowers: 5, nea
 /** The 5 s warning, then the munchers hop out of the door HOP_OUT_EVERY apart. */
 export const WARN = ticks(5)
 export const HOP_OUT_EVERY = ticks(1)
-/** The kind rules: a visit starts only when the last muncher got home QUIET_AFTER ago, the board was touched within TOUCHED_WITHIN, no card closed within AFTER_CARD, the pause menu did not close within AFTER_PAUSE, the board did not turn within AFTER_TURN, and the session is older than SESSION_CALM. */
+/** The kind rules: a visit starts only when the last muncher got home QUIET_AFTER ago, the board was touched within TOUCHED_WITHIN, no card closed within AFTER_CARD, the pause menu did not close within AFTER_PAUSE, and the session is older than SESSION_CALM. */
 export const QUIET_AFTER = ticks(60)
 export const TOUCHED_WITHIN = ticks(30)
 export const AFTER_CARD = ticks(20)
 export const AFTER_PAUSE = ticks(20)
-export const AFTER_TURN = ticks(10)
 export const SESSION_CALM = ticks(120)
 /** Burrow A sleeps until Gears!, and its scout comes SCOUT_AFTER later: one slow muncher with small cheeks that never naps. */
 export const SCOUT_AFTER = ticks(90)
 export const SCOUT_STEP = 75
 export const SCOUT_CHEEKS = 2
-/** A visit is 1 muncher, plus one for each working machine on its flowers (at most FLOWER_EXTRA), plus one when VISIT_BUSY or more machines work; at most VISIT_CAP for the land that is open. */
+/** How far the path has come, for what changes with it (the visits' size, the song's arrangement): 1 before Nose!, 2 after it, 3 after More!. */
+export type Progress = 1 | 2 | 3
+export const progressOf = (found: readonly CardId[]): Progress => (found.includes('more') ? 3 : found.includes('nose') ? 2 : 1)
+/** A visit is 1 muncher, plus one for each working machine on its flowers (at most FLOWER_EXTRA), plus one when VISIT_BUSY or more machines work; at most VISIT_CAP for how far the path has come. */
 export const FLOWER_EXTRA = 2
 export const VISIT_BUSY = 8
-export const VISIT_CAP: Record<Land, number> = { 1: 2, 2: 3, 3: 3 }
+export const VISIT_CAP: Record<Progress, number> = { 1: 2, 2: 3, 3: 3 }
+/** The card that wakes each burrow, A to F: A wakes after Gears! (its scout SCOUT_AFTER later), B says hello with Nose! and C with More!. D, E and F (null) sleep, snoring, and never visit until a later step lets the factory's song wake them. */
+export const BURROW_WAKES: readonly (CardId | null)[] = ['gears', 'nose', 'more', null, null, null]
 /** Ticks a cell: walking (1.2 cells a second), hopping home (1), giggling home after a tickle (2), floating home in suds (1.5). */
 export const WALK_STEP = 50
 export const HOME_STEP = 60
@@ -180,7 +183,7 @@ export const TICKLE_FOR = ticks(1.5)
 export const CAUGHT_MAX = 3
 /** A burrow's sleep after a visit (each term per muncher or thing), at most `max`. */
 export const SLEEP = { base: ticks(40), perKept: ticks(5), perTickled: ticks(15), perSent: ticks(30), perNap: ticks(20), max: ticks(240) } as const
-/** A new burrow waves hello and sleeps this long when its land opens. */
+/** A burrow waves hello and sleeps this long when the card that wakes it is found (BURROW_WAKES). */
 export const HELLO_SLEEP = ticks(120)
 /** Polite munchers sit beside the bottle line this long and go home. */
 export const POLITE_FOR = ticks(20)
@@ -233,17 +236,15 @@ export const HINT_EVERY = ticks(0.5)
 export const DEFEND_KEPT = 4
 
 // ---------------------------------------------------------------------------------------
-// Edits, cards, the land, the launch and the night
+// Edits, cards, the launch and the night
 
 export const STROKE_MAX = 40
 export const UNDO_MAX = 10
 export const UNDO_FOR = ticks(60)
-/** The land's flaps fold open and the view eases out over GROW. */
-export const GROW = ticks(2)
 /** A card closes after CARD_FOR, unless nobody touched the board for CARD_IDLE before it came: then it waits for a tap. */
 export const CARD_FOR = ticks(4)
 export const CARD_IDLE = ticks(30)
-/** A finger down holds a card, the land's ease and the launch back at most this long. */
+/** A finger down holds a card and the launch back at most this long. */
 export const LIFT_WAIT = ticks(3)
 /** The launch: the countdown from 5 starts COUNT_AT after the tap, one a second; liftoff, then the flight lands LAUNCH_FOR after the tap. */
 export const COUNT_AT = ticks(3)

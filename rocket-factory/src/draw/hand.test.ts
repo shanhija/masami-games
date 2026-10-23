@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { cellOf } from '../game/board'
-import { viewAt } from '../game/camera'
+import { startView } from '../game/camera'
 import { HAND_FOR, SIZE } from '../game/catalog'
 import { GRIP, NO_INSETS, gripLift, heldAt, screenBox, toScreen, type View } from '../game/layout'
 import { STEP, inSlot, outSlot, type State, type Step } from '../game/model'
@@ -31,7 +31,7 @@ const SCREENS = [
 ] as const
 
 /** A view of state s at sim time t on a w x h screen, a touch screen with no safe areas. */
-const viewOf = (s: State, t: number, w: number, h: number): View => viewAt(s, t, w, h, 2, true, NO_INSETS)
+const viewOf = (w: number, h: number): View => startView(w, h, 2, true, NO_INSETS)
 
 /** HUD buttons where the page puts them on the view's frame, near enough: a sticker at the tray's start, the peel and Oops at its end (upright in the strip, on a phone in the column), the choice at the strip's right, the card in the middle. */
 function buttons(v: View): (b: HandButton) => Box {
@@ -65,7 +65,7 @@ function chooseFactory(): State {
   return s
 }
 
-/** The busy land 3 factory with `step` bouncing since long ago and the hand shown at AT (her last touch long before). */
+/** The busy factory with `step` bouncing since long ago and the hand shown at AT (her last touch long before). */
 function showing(s: State, step: Step): State {
   s.hint = { step, at: AT - 600 }
   s.handAt = AT
@@ -75,7 +75,7 @@ function showing(s: State, step: Step): State {
   return s
 }
 
-/** Every kind of step the hand shows, on the busy factory (or land 1 for the flaps), each with the box of what a tap of it aims at (screen px on the view), or null for a stroke or a drag. */
+/** Every kind of step the hand shows, on the busy factory, each with the box of what a tap of it aims at (screen px on the view), or null for a stroke or a drag. */
 function steps(): { name: string; make: () => State; aim: ((s: State, v: View) => Box) | null }[] {
   const footprint = (id: number) => (s: State, v: View) => {
     const b = s.buildings.find((x) => x.id === id)!
@@ -102,13 +102,12 @@ function steps(): { name: string; make: () => State; aim: ((s: State, v: View) =
     { name: 'a heap', make: () => showing(busyFactory(1), { kind: 'heap', burrow: 0 }), aim: null },
     { name: 'the basket', make: () => showing(busyFactory(1), { kind: 'basket' }), aim: null },
     { name: "the choice card's two pictures", make: () => showing(chooseFactory(), { kind: 'choose' }), aim: null },
-    { name: 'the flaps', make: () => showing(firstFactory(1), { kind: 'flap' }), aim: null },
     { name: 'the launch button', make: () => showing(busyFactory(1), { kind: 'launch' }), aim: null },
     {
       name: 'the card that waits',
       make: () => {
         const s = showing(busyFactory(1), { kind: 'card' })
-        s.card = { id: 'land3', at: AT - 900 }
+        s.card = { id: 'more', at: AT - 900 }
         return s
       },
       aim: hud({ kind: 'card' }),
@@ -163,12 +162,12 @@ describe('the hint hand', () => {
     for (const [w, h] of SCREENS)
       for (const st of steps()) {
         const s = st.make()
-        const v0 = viewOf(s, AT * STEP, w, h)
+        const v0 = viewOf(w, h)
         const length = handNow(s, AT * STEP)!.length
         let pressed = 0
         for (let age = 0; age < length; age += 0.04) {
           const t = AT * STEP + age
-          const v = viewOf(s, t, w, h)
+          const v = viewOf(w, h)
           const p = handPose(s, v, t, buttons(v))
           const what = `${st.name} on ${w}x${h} at ${age.toFixed(2)} s`
           if (p === null) {
@@ -198,7 +197,7 @@ describe('the hint hand', () => {
 
   it('turns its palm aside over the tray, to the left by the right edge, and keeps it down and to the right over the board', () => {
     const s = showing(busyFactory(1), { kind: 'place', sticker: 'oven', x: 2, y: 8 })
-    const v = viewOf(s, AT * STEP, 1180, 820)
+    const v = viewOf(1180, 820)
     // Pressed on the tray's sticker, the palm turns to the right, over the tray; carried onto the ghost, it hangs down and to the right again.
     const onTray = handPose(s, v, AT * STEP + 0.45 + 0.14 + 0.05, buttons(v))!
     expect(onTray.press).toBe(1)
@@ -256,7 +255,7 @@ describe('the hint hand', () => {
 
   it('carries the sticker it drags by its bottom edge above its fingertip from its tray button, and ends with the fingertip under the ghost, so the sticker settles right onto it', () => {
     const s = showing(busyFactory(1), { kind: 'place', sticker: 'oven', x: 2, y: 8 })
-    const v = viewOf(s, AT * STEP, 1024, 768)
+    const v = viewOf(1024, 768)
     const at = (age: number) => handPose(s, v, AT * STEP + age, buttons(v))!
     expect(at(0.3).carry, 'gliding in, it carries nothing yet').toBeNull()
     const lifted = at(0.45 + 0.14 + 0.05).carry!
@@ -281,7 +280,7 @@ describe('the hint hand', () => {
 describe('the choice', () => {
   it("points at the choice card's two pictures in turn while it is up, whatever bounces under it, and never presses: the choice is hers", () => {
     const s = showing(chooseFactory(), { kind: 'place', sticker: 'workshop', x: 4, y: 2 })
-    const v = viewOf(s, AT * STEP, 1180, 820)
+    const v = viewOf(1180, 820)
     const length = handNow(s, AT * STEP)!.length
     const near: ('bubbles' | 'hedges')[] = []
     for (let age = 0; age < length; age += 0.05) {
@@ -301,7 +300,7 @@ describe('the hint hand on a real board', () => {
   it('taps a thing where it rides now', () => {
     const s = showing(busyFactory(1), { kind: 'unblock', slot: inSlot(cellOf(7, 5)) })
     put(s, inSlot(cellOf(7, 5)), 'blueRock')
-    const v = viewOf(s, AT * STEP + 1, 1024, 768)
+    const v = viewOf(1024, 768)
     expect(handPose(s, v, AT * STEP + 1, buttons(v))).not.toBeNull()
     s.belts.slot[inSlot(cellOf(7, 5))] = -1
     expect(handPose(s, v, AT * STEP + 1, buttons(v)), 'a thing taken since the hint looked').toBeNull()

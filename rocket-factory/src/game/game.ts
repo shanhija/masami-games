@@ -2,11 +2,12 @@ import { useEffect, useSyncExternalStore } from 'react'
 
 import type { StageGame } from '../draw/Stage'
 import { working } from './band'
+import { CORNER } from './board'
 import { IDLE_MOST, IDLE_PAUSE, SESSION_GAP, card } from './catalog'
 import { pageChild } from './child'
 import { DEMOS, demoState, type Demo } from './fixtures'
 import { hudView, pathOrder, sameHud, type HudView } from './hud'
-import type { HudFrame, View } from './layout'
+import { middleOf, type HudFrame, type View } from './layout'
 import { HZ, MUNCHER_MODES, STEP, type Action, type CardId, type EventKind, type Hit, type MunchersMode, type SimEvent, type State, type Sticker } from './model'
 import { OLD_KEY, OLD_MOST, SAVE_KEY, freshKeep, isKeep, keepOf, parseKeep, parseOld, serializeKeep, serializeOld, stateFromKeep, worthKeeping, type Keep } from './progress'
 import { act, step } from './rules'
@@ -40,7 +41,7 @@ const MAX_FRAME = 0.1
 const MAX_STEPS = 6
 /** The save is checked every SAVE_EVERY seconds while the game runs, and written when the keep changed; at once after what she would hate to lose (SAVE_NOW), a pause and a page hide. */
 const SAVE_EVERY = 2
-const SAVE_NOW: ReadonlySet<EventKind> = new Set<EventKind>(['lay', 'repoint', 'bridge', 'join', 'fork', 'rollUp', 'hedgeIn', 'place', 'peel', 'oops', 'card', 'partFull', 'visitOver', 'flap', 'landed'])
+const SAVE_NOW: ReadonlySet<EventKind> = new Set<EventKind>(['lay', 'repoint', 'bridge', 'join', 'fork', 'rollUp', 'hedgeIn', 'place', 'peel', 'oops', 'card', 'partFull', 'visitOver', 'landed'])
 /** ?fast: at most this many times the speed. */
 const FAST_MOST = 20
 /** What Beep asks when the lab's one choice waits: the choice card's word. */
@@ -60,7 +61,7 @@ export interface UrlSwitches {
   debug: boolean
   /** ?fast=<n>: the clock runs n times as fast (1 without it). */
   fast: number
-  /** ?all: every card found and land 3 open, for looking. */
+  /** ?all: every card found, for looking. */
   all: boolean
   /** ?munchers=many|few|polite|none: the parent's switch for this run. */
   munchers: MunchersMode | null
@@ -94,12 +95,10 @@ export interface Player {
   frame(game: Game): void
 }
 
-/** ?all: every card on the path found (Bubbles! first), with their patterns, and land 3 open. */
+/** ?all: every card on the path found (Bubbles! first), with their patterns. */
 function openAll(s: State): void {
   s.found = pathOrder(s)
   s.choice = 'bubbles'
-  s.land = s.landFrom = 3
-  s.flap = 0
   s.patterns = 1 + s.found.filter((id) => card(id).pattern).length
 }
 
@@ -250,14 +249,11 @@ export class Game implements StageGame {
     return f
   }
 
-  /** The view the stage drew: the router's tick runs against it, the board turning upright or back drops a drag (and tells the rules), and a new HUD frame bumps the HUD. */
+  /** The view the stage drew: the router's tick runs against it, the window going upright or back drops a drag, and a new HUD frame bumps the HUD. */
   setView(v: View): void {
     const was = this.view
     this.view = v
-    if (was !== null && was.upright !== v.upright) {
-      this.router.drop()
-      this.dispatch({ kind: 'turned' })
-    }
+    if (was !== null && (was.hud.held === 'upright') !== (v.hud.held === 'upright')) this.router.drop()
     this.router.tick(this.state, v, this.time)
     if (was === null || !sameFrame(was.hud, v.hud)) this.bump()
   }
@@ -347,7 +343,8 @@ export class Game implements StageGame {
    * on the start card they press Play. A held key's repeats are taken and do nothing.
    */
   keyDown(code: string, repeat: boolean, ctrl: boolean): boolean {
-    const a = keyAction(this.state, this.time, code, ctrl)
+    // Before the first frame there is no view: the start block's middle.
+    const a = keyAction(this.state, this.time, code, ctrl, this.view === null ? { x: CORNER.x + CORNER.w / 2, y: CORNER.y + CORNER.h / 2 } : middleOf(this.view))
     const go = !ctrl && (code === 'Enter' || code === 'Space')
     if (a === null && !go) return false
     this.poke()

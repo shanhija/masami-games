@@ -1,15 +1,15 @@
 /**
  * The pointer router, rule by rule as "A touch is read" gives them (plans/rocket-factory.md,
  * Beep and the child's hands): taps, digs, strokes with the axis lock, the L fill and the turn
- * at the lift, ghosts held by their bottom edge, the hint's spot, the flaps, the lift bridge,
+ * at the lift, ghosts held by their bottom edge, the hint's spot, the lift bridge,
  * one finger on the board and the resting heel or thumb, drops, the held board, the launch, the
  * mouse, the tray and the keys; and that no touch aimed at a muncher ever draws, places or peels.
  */
 import { describe, expect, it } from 'vitest'
 
 import { cellOf, yOf } from './board'
-import { viewAt } from './camera'
-import { NO_INSETS, SLOP, fingerLift, heldAt, toScreen, type Insets, type View } from './layout'
+import { startView } from './camera'
+import { NO_INSETS, SLOP, fingerLift, heldAt, toBoard, toScreen, type Insets, type View } from './layout'
 import { HOP, STEP, THINGS, inSlot, thingIndex, type Action, type Dir, type Muncher, type MuncherMode, type Tool } from './model'
 import { rng } from './random'
 import { rebuild } from './belts'
@@ -24,21 +24,21 @@ const c = cellOf
 const row = (y: number, x0: number, x1: number) => Array.from({ length: Math.abs(x1 - x0) + 1 }, (_, i) => cellOf(x0 + Math.sign(x1 - x0) * i, y))
 const PENCIL: Tool = { kind: 'pencil' }
 const OVEN: Tool = { kind: 'sticker', sticker: 'oven' }
+/** The board point at the middle of the start view: where Space looks for the nearest muncher. */
+const MIDDLE = { x: 10, y: 6 }
 
 /**
- * A blank game with land 3 open at tick 6000, on a sideways Air in full screen (52 px cells),
+ * A blank game at tick 6000, on a sideways Air in full screen (54 px cells),
  * and a router recording what it sends. Fingers go down, move and lift at board points
  * (cells) through the view `g.v`, at sim times.
  */
 function rig(w = 1180, h = 820) {
   const s = blankState(1)
-  s.land = 3
-  s.landFrom = 3
   s.tick = 6000
   const got: Action[] = []
   const g = {
     s,
-    v: viewAt(s, T0, w, h, 2, true, HOME) as View,
+    v: startView(w, h, 2, true, HOME) as View,
     r: new Router((a) => got.push(a)),
     got,
     down: (id: number, x: number, y: number, t: number, press: Press = 'touch') => g.r.down(s, g.v, id, ...toScreen(g.v, x, y), t, press),
@@ -105,7 +105,7 @@ describe('taps', () => {
     expect(g.sent()).toEqual([])
   })
 
-  it('tells the kind rules when a finger lands on the land and when the last one lifts, and a tap comes before its lift', () => {
+  it('tells the kind rules when a finger lands on the board and when the last one lifts, and a tap comes before its lift', () => {
     const g = rig()
     g.down(1, 3.5, 11.5, T0)
     g.down(2, 9.5, 10.5, T0 + 0.1)
@@ -253,7 +253,7 @@ describe('strokes', () => {
     // East along row 10, wobbling 0.8 of a cell off its middle line into rows 9 and 11.
     for (let i = 2; i <= 16; i++) g.move(1, 2.5 + i * 0.5, 10.5 + (i % 2 === 0 ? 0.8 : -0.8), (t += 0.03))
     const drags = g.sent() as { kind: 'drag'; cells: number[] }[]
-    for (const d of drags) expect(d.cells.every((cell) => Math.floor(cell / 20) === 10)).toBe(true)
+    for (const d of drags) expect(d.cells.every((cell) => yOf(cell) === 10)).toBe(true)
     expect(drags.at(-1)).toEqual(drag(row(10, 2, 10)))
     // Past LOCK it turns, keeping its column then as the finger wobbles across it.
     g.move(1, 10.5, 10.5 + LOCK + 0.05, (t += 0.03))
@@ -282,12 +282,12 @@ describe('strokes', () => {
     g.move(1, 10.5, 11.5, T0 + 0.1)
     expect(g.sent()).toEqual([drag([...row(9, 5, 8), c(8, 10), ...row(11, 8, 11).slice(0, 3)])])
     // Dragged off the board, it runs on to the board's edge.
-    g.move(1, 25, 11.5, T0 + 0.15)
-    expect((g.sent()[0] as { cells: number[] }).cells.at(-1)).toBe(c(19, 11))
+    g.move(1, 65, 11.5, T0 + 0.15)
+    expect((g.sent()[0] as { cells: number[] }).cells.at(-1)).toBe(c(59, 11))
   })
 })
 
-describe('ghosts, the hint spot and the flaps', () => {
+describe('ghosts and the hint spot', () => {
   it("holds a picked sticker's ghost by its bottom edge above the finger, places it a moment after the lift, and puts it back when its middle is lifted over the tray", () => {
     const g = rig()
     g.s.tool = OVEN
@@ -351,11 +351,10 @@ describe('ghosts, the hint spot and the flaps', () => {
   it("draws a hedge line when the hedge's button is dragged out of the tray, from the first open cell the finger enters", () => {
     const g = rig()
     const tray = g.v.hud.tray!
-    const [, top] = toScreen(g.v, 0, 12)
     g.r.tray(g.s, g.v, 1, 'hedge', tray.x + 300, tray.y + 40, T0, 'touch')
-    // Out of the tray but still over the table below the land: the line has not begun.
-    expect(top).toBeLessThan(tray.y)
-    g.r.move(g.s, g.v, 1, tray.x + 300, (top + tray.y) / 2, T0 + 0.05)
+    // Out of the tray but still over the table west of the board: the line has not begun.
+    expect(toBoard(g.v, 40, tray.y - 100)[0]).toBeLessThan(0)
+    g.r.move(g.s, g.v, 1, 40, tray.y - 100, T0 + 0.05)
     expect(g.got.splice(0)).toEqual([{ kind: 'touch', down: true }, { kind: 'tool', tool: { kind: 'hedge' } }])
     g.move(1, 9.5, 11.5, T0 + 0.1)
     g.move(1, 11.5, 11.5, T0 + 0.2)
@@ -384,30 +383,6 @@ describe('ghosts, the hint spot and the flaps', () => {
     g.up(3, 9.25, 4.25, T0 + 2.3)
     g.tick(T0 + 2.5)
     expect(g.sent()).toEqual([{ kind: 'hold', x: 10, y: 5 }, release(true)])
-  })
-
-  it("taps the next land's flaps before a Land! card (they lift their corner), and opens them with a tap or a drag once one has come", () => {
-    const g = rig()
-    g.s.land = 1
-    g.s.landFrom = 1
-    g.v = viewAt(g.s, T0, 1180, 820, 2, true, HOME)
-    // Before the card a drag is no more than a tap: the rules lift the corner.
-    g.down(1, 13.2, 5.5, T0)
-    g.up(1, 13.2, 5.5, T0 + 0.2)
-    expect(g.got.splice(0)).toEqual([{ kind: 'touch', down: true }, { kind: 'tap', hit: { kind: 'flap' } }, { kind: 'touch', down: false }])
-    g.down(4, 6, 1.8, T0 + 0.5)
-    g.move(4, 6, 0.8, T0 + 0.6)
-    g.up(4, 6, 0.8, T0 + 0.7)
-    expect(g.sent()).toEqual([{ kind: 'tap', hit: { kind: 'flap' } }])
-    g.s.flap = 2
-    g.down(2, 13.2, 5.5, T0 + 1)
-    g.up(2, 13.2, 5.5, T0 + 1.2)
-    expect(g.sent()).toEqual([{ kind: 'tap', hit: { kind: 'flap' } }])
-    g.down(3, 6, 1.8, T0 + 2)
-    g.move(3, 6, 1.3, T0 + 2.1)
-    g.move(3, 6, 0.8, T0 + 2.2)
-    g.up(3, 6, 0.8, T0 + 2.3)
-    expect(g.sent()).toEqual([{ kind: 'flap' }])
   })
 })
 
@@ -544,7 +519,7 @@ describe('one finger on the board', () => {
 
   it('hands the board at once from a thumb resting on a patch or the pond, its dig ended there: a thumb that dug never freezes the game', () => {
     const g = rig()
-    // The pond at the land's west edge, where a hand holding the iPad rests its thumb.
+    // The pond at the board's west edge, where a hand holding the iPad rests its thumb.
     g.down(1, 0.5, 8.5, T0)
     expect(g.sent()).toEqual([{ kind: 'dig', cell: c(0, 8), down: true }])
     g.down(2, 9.5, 10.5, T0 + 0.1)
@@ -575,7 +550,7 @@ describe('one finger on the board', () => {
     expect(g.got.splice(0)).toEqual([{ kind: 'touch', down: true }, drag(row(9, 5, 8))])
   })
 
-  it('never gives the board to a touch in a gutter or on the table round the land', () => {
+  it('never gives the board to a touch in a gutter or on the table round the board', () => {
     const g = rig()
     g.r.down(g.s, g.v, 1, 8, 400, T0, 'touch')
     g.down(2, 9.5, 10.5, T0 + 0.1)
@@ -588,7 +563,7 @@ describe('one finger on the board', () => {
 })
 
 describe('letting go', () => {
-  it('drops a stroke or a ghost with nothing placed on a cancel, a turn, a page hide or a pause, and forgets every finger', () => {
+  it('drops a stroke or a ghost with nothing placed on a cancel, a window turn, a page hide or a pause, and forgets every finger', () => {
     const g = rig()
     g.down(1, 2.5, 10.5, T0)
     g.move(1, 4.5, 10.5, T0 + 0.1)
@@ -611,32 +586,6 @@ describe('letting go', () => {
     g.down(4, 17.5, 11.5, T0 + 3.3)
     g.r.drop()
     expect(g.sent()).toEqual([drag(row(10, 2, 4)), release(false), { kind: 'dig', cell: c(17, 11), down: true }, { kind: 'dig', cell: c(17, 11), down: false }])
-  })
-
-  it('takes no board input while the land eases out or the table turns, and lets go of a stroke when they start', () => {
-    const g = rig()
-    g.down(1, 2.5, 10.5, T0)
-    g.move(1, 4.5, 10.5, T0 + 0.1)
-    g.s.turnedAt = g.s.tick + 6
-    g.tick(T0 + 0.1)
-    expect(g.sent()).toEqual([drag(row(10, 2, 4)), release(false)])
-    muncher(g, 5, 15, 11, 'sit')
-    g.down(2, 15.5, 11.2, T0 + 0.2)
-    g.down(3, 9.5, 10.5, T0 + 0.3)
-    g.up(3, 9.5, 10.5, T0 + 0.4)
-    expect(g.sent()).toEqual([])
-    // The land's ease the same.
-    g.s.turnedAt = -1
-    g.down(4, 2.5, 10.5, T0 + 1)
-    g.move(4, 4.5, 10.5, T0 + 1.1)
-    g.s.landAt = g.s.tick + 66
-    g.up(4, 4.5, 10.5, T0 + 1.15)
-    g.tick(T0 + 1.5)
-    expect(g.sent()).toEqual([drag(row(10, 2, 4)), release(false)])
-    g.s.landAt = -1
-    g.down(5, 9.5, 10.5, T0 + 2)
-    g.up(5, 9.5, 10.5, T0 + 2.1)
-    expect(g.sent()).toEqual([{ kind: 'tap', hit: { kind: 'ground', cell: c(9, 10) } }])
   })
 
   it('takes no board input on a phone held upright, which shows the turn-me picture', () => {
@@ -897,39 +846,39 @@ describe('the mouse', () => {
 describe('the keys', () => {
   it('picks the kinds with 1 to 9 and the tools with B, H and X, Oops with Z or Ctrl+Z, and leaves other Ctrl keys alone', () => {
     const s = blankState(1)
-    expect(keyAction(s, 0, 'Digit1', false)).toEqual({ kind: 'tool', tool: { kind: 'sticker', sticker: 'digger' } })
-    expect(keyAction(s, 0, 'Digit2', false)).toEqual({ kind: 'tool', tool: OVEN })
-    expect(keyAction(s, 0, 'Numpad9', false)).toEqual({ kind: 'tool', tool: { kind: 'sticker', sticker: 'bowl' } })
-    expect(keyAction(s, 0, 'Digit0', false)).toBeNull()
-    expect(keyAction(s, 0, 'KeyB', false)).toEqual({ kind: 'pattern' })
+    expect(keyAction(s, 0, 'Digit1', false, MIDDLE)).toEqual({ kind: 'tool', tool: { kind: 'sticker', sticker: 'digger' } })
+    expect(keyAction(s, 0, 'Digit2', false, MIDDLE)).toEqual({ kind: 'tool', tool: OVEN })
+    expect(keyAction(s, 0, 'Numpad9', false, MIDDLE)).toEqual({ kind: 'tool', tool: { kind: 'sticker', sticker: 'bowl' } })
+    expect(keyAction(s, 0, 'Digit0', false, MIDDLE)).toBeNull()
+    expect(keyAction(s, 0, 'KeyB', false, MIDDLE)).toEqual({ kind: 'pattern' })
     s.tool = OVEN
-    expect(keyAction(s, 0, 'KeyB', false)).toEqual({ kind: 'tool', tool: PENCIL })
-    expect(keyAction(s, 0, 'KeyH', false)).toEqual({ kind: 'tool', tool: { kind: 'hedge' } })
-    expect(keyAction(s, 0, 'KeyX', false)).toEqual({ kind: 'tool', tool: { kind: 'peel' } })
-    expect(keyAction(s, 0, 'KeyZ', false)).toEqual({ kind: 'oops' })
-    expect(keyAction(s, 0, 'KeyZ', true)).toEqual({ kind: 'oops' })
-    expect(keyAction(s, 0, 'KeyB', true)).toBeNull()
-    expect(keyAction(s, 0, 'KeyQ', false)).toBeNull()
+    expect(keyAction(s, 0, 'KeyB', false, MIDDLE)).toEqual({ kind: 'tool', tool: PENCIL })
+    expect(keyAction(s, 0, 'KeyH', false, MIDDLE)).toEqual({ kind: 'tool', tool: { kind: 'hedge' } })
+    expect(keyAction(s, 0, 'KeyX', false, MIDDLE)).toEqual({ kind: 'tool', tool: { kind: 'peel' } })
+    expect(keyAction(s, 0, 'KeyZ', false, MIDDLE)).toEqual({ kind: 'oops' })
+    expect(keyAction(s, 0, 'KeyZ', true, MIDDLE)).toEqual({ kind: 'oops' })
+    expect(keyAction(s, 0, 'KeyB', true, MIDDLE)).toBeNull()
+    expect(keyAction(s, 0, 'KeyQ', false, MIDDLE)).toBeNull()
   })
 
   it('tickles the muncher nearest the middle with Space, presses Play and closes a card with Enter, and gives the shell Esc, P, M and F', () => {
     const g = rig()
     const s = g.s
-    expect(keyAction(s, T0, 'Space', false)).toBeNull()
+    expect(keyAction(s, T0, 'Space', false, MIDDLE)).toBeNull()
     muncher(g, 1, 1, 1, 'walk')
     muncher(g, 2, 15, 9, 'sit')
     muncher(g, 3, 10, 6, 'home')
-    expect(keyAction(s, T0, 'Space', false)).toEqual({ kind: 'tickle', id: 2 })
-    expect(keyAction(s, T0, 'Enter', false)).toEqual({ kind: 'play' })
+    expect(keyAction(s, T0, 'Space', false, MIDDLE)).toEqual({ kind: 'tickle', id: 2 })
+    expect(keyAction(s, T0, 'Enter', false, MIDDLE)).toEqual({ kind: 'play' })
     s.playing = true
-    expect(keyAction(s, T0, 'Enter', false)).toBeNull()
+    expect(keyAction(s, T0, 'Enter', false, MIDDLE)).toBeNull()
     s.card = { id: 'gold', at: s.tick }
-    expect(keyAction(s, T0, 'Enter', false)).toEqual({ kind: 'card' })
-    expect(keyAction(s, T0, 'Escape', false)).toBe('pause')
-    expect(keyAction(s, T0, 'KeyP', false)).toBe('pause')
-    expect(keyAction(s, T0, 'KeyF', false)).toBe('fullscreen')
-    expect(keyAction(s, T0, 'KeyM', false)).toEqual({ kind: 'sound', on: false })
+    expect(keyAction(s, T0, 'Enter', false, MIDDLE)).toEqual({ kind: 'card' })
+    expect(keyAction(s, T0, 'Escape', false, MIDDLE)).toBe('pause')
+    expect(keyAction(s, T0, 'KeyP', false, MIDDLE)).toBe('pause')
+    expect(keyAction(s, T0, 'KeyF', false, MIDDLE)).toBe('fullscreen')
+    expect(keyAction(s, T0, 'KeyM', false, MIDDLE)).toEqual({ kind: 'sound', on: false })
     s.switches.sound = false
-    expect(keyAction(s, T0, 'KeyM', false)).toEqual({ kind: 'sound', on: true })
+    expect(keyAction(s, T0, 'KeyM', false, MIDDLE)).toEqual({ kind: 'sound', on: true })
   })
 })

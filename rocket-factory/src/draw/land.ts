@@ -1,7 +1,7 @@
-import { BURROWS, FLOWER_OF, GROUND, LANDS, cellInLand, cellOf, inLand, xOf, yOf } from '../game/board'
+import { BURROWS, FLOWER_OF, GROUND, PONDS, cellOf, inCorner, xOf, yOf, type PondSite } from '../game/board'
 import { HEAP_HINT, PAWS_FOR, STAGE_AT, WARN } from '../game/catalog'
-import { CELLS, STEP, THINGS, type Counts, type Land, type Thing } from '../game/model'
-import { heapPoint, type Box, type Point } from '../game/where'
+import { COLS, ROWS, STEP, THINGS, type Counts, type Thing } from '../game/model'
+import { heapPoint, type Box } from '../game/where'
 import { WAVE, drawMuncher, type MuncherPicture } from './critters'
 import {
   C,
@@ -22,7 +22,6 @@ import {
   heldAge,
   loop,
   mix,
-  pen,
   phaseOf,
   roundStroke,
   scaled,
@@ -34,20 +33,18 @@ import {
 import { drawStillThing } from './things'
 
 /**
- * The land and what lives on it. The print layer the renderer bakes per land and size: the
- * sea-mist table, the mint ground with a small dot at each cell corner (or full cell outlines,
- * for under a ghost or a stroke), the flowers' faint lavender tint and their five-petal marks,
- * the pond, the trees, the patch rocks (small rimmed stickers set into the print: they answer
- * a touch), and the next land folded at the edges as paper flaps with a faint print of what is
- * under them. Then what the renderer draws live: one cell of the print again for a tap (a tree
- * shaking and dropping a leaf, flowers swaying, rocks jiggling for a dig), the flaps folding
- * open and their corner wiggling, the burrows in every stage of hunger, their heaps and paw
- * prints, and Beep's basket.
+ * The land and what lives on it. The print layer the renderer bakes over the cells in view:
+ * the sea-mist table past the board's own edge, the mint ground with a small dot at each cell
+ * corner (or full cell outlines, for under a ghost or a stroke), the flowers' faint lavender
+ * tint and their five-petal marks, the ponds, the trees and the patch rocks (small rimmed
+ * stickers set into the print: they answer a touch). Then what the renderer draws live: one
+ * cell of the print again for a tap (a tree shaking and dropping a leaf, flowers swaying, rocks
+ * jiggling for a dig), the burrows in every stage of hunger, their heaps and paw prints, and
+ * Beep's basket.
  *
- * The land is flat print with no rim (look.ts rule 2); the trees in it are pictures and stand
- * upright on screen however the board is turned (`turn`). Burrows, heaps and the basket are
- * stickers, drawn at their own origin (look.ts rule 7) and counter-turned by the caller. Every
- * drawing is a function of plain data and time.
+ * The land is flat print with no rim (look.ts rule 2). Burrows, heaps and the basket are
+ * stickers, drawn at their own origin (look.ts rule 7). Every drawing is a function of plain
+ * data and time.
  */
 
 /** Seconds a tapped tree shakes, flowers sway and dug rocks jiggle, and a shaken tree's leaf takes to fall. */
@@ -55,7 +52,7 @@ const SHAKE_FOR = 0.7
 const SWAY_FOR = 1
 const JIGGLE_FOR = 0.45
 const LEAF_FOR = 1.1
-/** A tap on a sleeping burrow opens its door a crack for POKE_FOR, a new land's burrow waves hello for HELLO_FOR (seconds). */
+/** A tap on a sleeping burrow opens its door a crack for POKE_FOR, a burrow whose card was just found waves hello for HELLO_FOR (seconds). */
 export const POKE_FOR = 1.8
 export const HELLO_FOR = 4
 /** A heap draws at most HEAP_DRAWN of its things. */
@@ -68,17 +65,6 @@ function hash(a: number, b: number): number {
   h ^= h >>> 13
   return (h >>> 0) / 4294967296
 }
-
-/** The pond's cells' bounding box. The board's pond is one rectangle. */
-const POND = (() => {
-  const cells = Array.from({ length: CELLS }, (_, c) => c).filter((c) => GROUND[c] === 'pond')
-  const x0 = Math.min(...cells.map(xOf))
-  const y0 = Math.min(...cells.map(yOf))
-  const x1 = Math.max(...cells.map(xOf)) + 1
-  const y1 = Math.max(...cells.map(yOf)) + 1
-  if (cells.length !== (x1 - x0) * (y1 - y0)) throw new Error('the pond must be one rectangle of cells')
-  return { x0, y0, x1, y1 }
-})()
 
 // ---------------------------------------------------------------------------------------
 // The print, cell by cell
@@ -110,8 +96,8 @@ function drawPetals(ctx: CanvasRenderingContext2D, c: number, age: number) {
   fill(ctx, LAND.petalCentre)
 }
 
-/** Cell c's patch rocks: three small rimmed stickers (blue chunks, gold lumps) set into the print, upright on screen with the board turned `turn`, hopping `age` seconds after a dig. */
-function drawRocks(ctx: CanvasRenderingContext2D, c: number, age: number, turn: number) {
+/** Cell c's patch rocks: three small rimmed stickers (blue chunks, gold lumps) set into the print, hopping `age` seconds after a dig. */
+function drawRocks(ctx: CanvasRenderingContext2D, c: number, age: number) {
   const a = heldAge(age)
   const blue = GROUND[c] === 'blue'
   const body = blue ? LAND.blueRock : LAND.goldRock
@@ -140,30 +126,27 @@ function drawRocks(ctx: CanvasRenderingContext2D, c: number, age: number, turn: 
     }
     ctx.save()
     ctx.translate(xOf(c) + sx + (hash(c, 20 + k) - 0.5) * 0.1, yOf(c) + sy + (hash(c, 30 + k) - 0.5) * 0.08)
-    tipped(ctx, -turn, 1, 1, () => {
-      ctx.translate(0, -hop)
-      dieCutRim(ctx, outline, 0, 0.03)
-      outline()
-      fill(ctx, body)
-      ctx.save()
-      outline()
-      ctx.clip()
-      ctx.beginPath()
-      addCircle(ctx, -r * 0.45, -r * 0.5, r * 0.62)
-      fill(ctx, light)
-      ctx.restore()
-    })
+    ctx.translate(0, -hop)
+    dieCutRim(ctx, outline, 0, 0.03)
+    outline()
+    fill(ctx, body)
+    ctx.save()
+    outline()
+    ctx.clip()
+    ctx.beginPath()
+    addCircle(ctx, -r * 0.45, -r * 0.5, r * 0.62)
+    fill(ctx, light)
+    ctx.restore()
     ctx.restore()
   }
 }
 
-/** Cell c's tree: a round leafy top on a short trunk, upright on screen with the board turned `turn`, shaking from its foot `age` seconds after a tap and dropping a leaf. */
-function drawTree(ctx: CanvasRenderingContext2D, c: number, age: number, turn: number) {
+/** Cell c's tree: a round leafy top on a short trunk, shaking from its foot `age` seconds after a tap and dropping a leaf. */
+function drawTree(ctx: CanvasRenderingContext2D, c: number, age: number) {
   const a = heldAge(age)
   const shake = 0.11 * Math.sin(a * 24) * (1 - smooth(0, SHAKE_FOR, a))
   ctx.save()
   ctx.translate(xOf(c) + 0.5, yOf(c) + 0.5)
-  ctx.rotate(-turn)
   ctx.save()
   ctx.translate(0, 0.4)
   ctx.rotate(shake)
@@ -196,9 +179,12 @@ function drawTree(ctx: CanvasRenderingContext2D, c: number, age: number, turn: n
   ctx.restore()
 }
 
-/** The pond: one rounded pool over its cells, two ripples on it. */
-function drawPond(ctx: CanvasRenderingContext2D) {
-  const { x0, y0, x1, y1 } = POND
+/** A pond: one rounded pool over its cells, two ripples on it. */
+function drawPond(ctx: CanvasRenderingContext2D, p: PondSite) {
+  const x0 = p.x
+  const y0 = p.y
+  const x1 = p.x + p.w
+  const y1 = p.y + p.h
   ctx.beginPath()
   addRoundRect(ctx, x0 + 0.08, y0 + 0.08, x1 - x0 - 0.16, y1 - y0 - 0.16, 0.5)
   fill(ctx, LAND.pond)
@@ -209,258 +195,88 @@ function drawPond(ctx: CanvasRenderingContext2D) {
   roundStroke(ctx, 0.05, LAND.pondLight)
 }
 
-/** The cell corners' dots, or with `grid` the cells' outlines, for the cells of `land` within [x0, x1) x [y0, y1): only the corners and edges inside the land. */
-function drawMarks(ctx: CanvasRenderingContext2D, land: Land, grid: boolean, x0: number, y0: number, x1: number, y1: number) {
-  const w = LANDS[land]
-  const inside = (x: number, y: number) => x > w.x0 && x <= w.x1 && y > w.y0 && y <= w.y1
+/** The cell corners' dots, or with `grid` the cells' outlines, for the cells within [x0, x1) x [y0, y1): only the corners and edges inside the board. */
+function drawMarks(ctx: CanvasRenderingContext2D, grid: boolean, x0: number, y0: number, x1: number, y1: number) {
   ctx.beginPath()
   if (grid) {
-    for (let x = Math.max(x0, w.x0 + 1); x <= Math.min(x1, w.x1); x++) {
-      ctx.moveTo(x, Math.max(y0, w.y0))
-      ctx.lineTo(x, Math.min(y1, w.y1 + 1))
+    for (let x = Math.max(x0, 1); x <= Math.min(x1, COLS - 1); x++) {
+      ctx.moveTo(x, Math.max(y0, 0))
+      ctx.lineTo(x, Math.min(y1, ROWS))
     }
-    for (let y = Math.max(y0, w.y0 + 1); y <= Math.min(y1, w.y1); y++) {
-      ctx.moveTo(Math.max(x0, w.x0), y)
-      ctx.lineTo(Math.min(x1, w.x1 + 1), y)
+    for (let y = Math.max(y0, 1); y <= Math.min(y1, ROWS - 1); y++) {
+      ctx.moveTo(Math.max(x0, 0), y)
+      ctx.lineTo(Math.min(x1, COLS), y)
     }
     ctx.lineWidth = 0.025
     ctx.strokeStyle = LAND.grid
     ctx.stroke()
     return
   }
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (inside(x, y)) addCircle(ctx, x, y, 0.032)
+  for (let y = Math.max(y0, 1); y <= Math.min(y1, ROWS - 1); y++) for (let x = Math.max(x0, 1); x <= Math.min(x1, COLS - 1); x++) addCircle(ctx, x, y, 0.032)
   fill(ctx, LAND.dot)
 }
 
 /** What grows on cell c, `age` seconds after a tap or a dig: its flowers, its rocks, its tree. */
-function drawGrowth(ctx: CanvasRenderingContext2D, c: number, age: number, turn: number) {
+function drawGrowth(ctx: CanvasRenderingContext2D, c: number, age: number) {
   if (FLOWER_OF[c]! >= 0) drawPetals(ctx, c, age)
-  if (GROUND[c] === 'blue' || GROUND[c] === 'gold') drawRocks(ctx, c, age, turn)
-  if (GROUND[c] === 'tree') drawTree(ctx, c, age, turn)
+  if (GROUND[c] === 'blue' || GROUND[c] === 'gold') drawRocks(ctx, c, age)
+  if (GROUND[c] === 'tree') drawTree(ctx, c, age)
 }
 
 /**
- * The print layer of `land`, for the renderer's bake: the table over `area` (board cells), the
- * board's edge, the land's ground, its corner dots (or with `grid` its cell outlines), the
- * flowers' tint, the pond, every cell's flowers, rocks and tree (upright with the board turned
- * `turn` radians on screen), and the next land's flaps lying folded at its edges.
+ * The print layer for the renderer's bake over `area` (board cells): the table over all of
+ * `area`, the board's edge, the ground of the board's cells in it, their corner dots (or with
+ * `grid` their cell outlines), the flowers' tint, the ponds, and the flowers, rocks and trees
+ * of only the cells `area` touches: never the whole 60 x 36 board.
  */
-export function drawPrint(ctx: CanvasRenderingContext2D, land: Land, grid: boolean, area: Box, turn: number): void {
-  const w = LANDS[land]
-  const all = land === 3 ? w : LANDS[(land + 1) as Land]
+export function drawPrint(ctx: CanvasRenderingContext2D, grid: boolean, area: Box): void {
+  const x0 = Math.max(0, Math.floor(area.x))
+  const y0 = Math.max(0, Math.floor(area.y))
+  const x1 = Math.min(COLS, Math.ceil(area.x + area.w))
+  const y1 = Math.min(ROWS, Math.ceil(area.y + area.h))
+  ctx.save()
   ctx.beginPath()
   ctx.rect(area.x, area.y, area.w, area.h)
+  ctx.clip()
   fill(ctx, LAND.table)
-  // The board's edge: a flat band down and right of all of it, folded or not, on the table.
+  // The board's edge: a flat band down and right of all of it, on the table.
   ctx.beginPath()
-  addRoundRect(ctx, all.x0 + 0.09, all.y0 + 0.09, all.x1 + 1 - all.x0, all.y1 + 1 - all.y0, 0.22)
+  addRoundRect(ctx, 0.09, 0.09, COLS, ROWS, 0.22)
   fill(ctx, LAND.tableEdge)
   ctx.beginPath()
-  if (land === 3) addRoundRect(ctx, w.x0, w.y0, w.x1 + 1 - w.x0, w.y1 + 1 - w.y0, 0.22)
-  else ctx.rect(w.x0, w.y0, w.x1 + 1 - w.x0, w.y1 + 1 - w.y0)
+  addRoundRect(ctx, 0, 0, COLS, ROWS, 0.22)
   fill(ctx, LAND.ground)
   // The flowers' tint, one shape over all their cells so it has no seams.
   ctx.beginPath()
-  for (let c = 0; c < CELLS; c++) if (FLOWER_OF[c]! >= 0 && cellInLand(land, c)) ctx.rect(xOf(c), yOf(c), 1, 1)
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (FLOWER_OF[cellOf(x, y)]! >= 0) ctx.rect(x, y, 1, 1)
   fill(ctx, LAND.flowerTint)
-  drawMarks(ctx, land, grid, w.x0, w.y0, w.x1 + 1, w.y1 + 1)
-  if (inLand(land, POND.x0, POND.y0)) drawPond(ctx)
-  for (let c = 0; c < CELLS; c++) if (cellInLand(land, c)) drawGrowth(ctx, c, Infinity, turn)
-  if (land < 3) drawFlaps(ctx, land, 0, 0)
+  drawMarks(ctx, grid, x0, y0, x1, y1)
+  for (const p of PONDS) if (p.x < x1 && p.x + p.w > x0 && p.y < y1 && p.y + p.h > y0) drawPond(ctx, p)
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) drawGrowth(ctx, cellOf(x, y), Infinity)
+  ctx.restore()
 }
 
 /**
- * One cell of `land`'s print again over the bake, for the moment after a tap or a dig: its
- * ground (or tint), its corner dots or outlines, a part of the pond, and its flowers swaying,
- * its rocks hopping or its tree shaking `age` seconds after it (Infinity: at rest).
+ * One cell of the print again over the bake, for the moment after a tap or a dig: its ground
+ * (or tint), its corner dots or outlines, a part of its pond, and its flowers swaying, its
+ * rocks hopping or its tree shaking `age` seconds after it (Infinity: at rest).
  */
-export function drawCellPrint(ctx: CanvasRenderingContext2D, land: Land, grid: boolean, c: number, age: number, turn: number): void {
-  if (!cellInLand(land, c)) throw new Error(`cell ${c} is not in land ${land}`)
+export function drawCellPrint(ctx: CanvasRenderingContext2D, grid: boolean, c: number, age: number): void {
   const x = xOf(c)
   const y = yOf(c)
   ctx.beginPath()
   ctx.rect(x, y, 1, 1)
   fill(ctx, FLOWER_OF[c]! >= 0 ? LAND.flowerTint : LAND.ground)
-  drawMarks(ctx, land, grid, x, y, x + 1, y + 1)
+  drawMarks(ctx, grid, x, y, x + 1, y + 1)
   if (GROUND[c] === 'pond') {
     ctx.save()
     ctx.beginPath()
     ctx.rect(x, y, 1, 1)
     ctx.clip()
-    drawPond(ctx)
+    drawPond(ctx, PONDS.find((p) => x >= p.x && x < p.x + p.w && y >= p.y && y < p.y + p.h)!)
     ctx.restore()
   }
-  drawGrowth(ctx, c, age, turn)
-}
-
-// ---------------------------------------------------------------------------------------
-// The next land's flaps
-
-/** The next land's flaps round `land`: each a rectangle of cells [x0, x1) x [y0, y1) hinged on its outer side. The east one spans the land's rows; the north and south ones the next land's width, corners and all. */
-function flapsOf(land: 1 | 2) {
-  const cur = LANDS[land]
-  const next = LANDS[(land + 1) as Land]
-  const out: { x0: number; y0: number; x1: number; y1: number; hinge: 0 | 1 | 3 }[] = []
-  if (next.x1 > cur.x1) out.push({ x0: cur.x1 + 1, y0: cur.y0, x1: next.x1 + 1, y1: cur.y1 + 1, hinge: 0 })
-  if (next.y0 < cur.y0) out.push({ x0: next.x0, y0: next.y0, x1: next.x1 + 1, y1: cur.y0, hinge: 3 })
-  if (next.y1 > cur.y1) out.push({ x0: next.x0, y0: cur.y1 + 1, x1: next.x1 + 1, y1: next.y1 + 1, hinge: 1 })
-  return out
-}
-type Flap = ReturnType<typeof flapsOf>[number]
-
-/** The part of a flap still lying flat when it has folded up to `fold` of its depth (1 flat, 0 standing on its hinge). */
-function flatPart(f: Flap, fold: number) {
-  if (f.hinge === 0) return { x0: f.x1 - (f.x1 - f.x0) * fold, y0: f.y0, x1: f.x1, y1: f.y1 }
-  if (f.hinge === 3) return { x0: f.x0, y0: f.y0, x1: f.x1, y1: f.y0 + (f.y1 - f.y0) * fold }
-  return { x0: f.x0, y0: f.y1 - (f.y1 - f.y0) * fold, x1: f.x1, y1: f.y1 }
-}
-
-/** The faint print on a flap of what lies under it: the corner dots, flowers as dots and rocks as lumps in one tone, and the trees and burrows as soft blobs in their own, so the paper plainly hides more land. */
-function drawFlapPrint(ctx: CanvasRenderingContext2D, f: Flap) {
-  ctx.beginPath()
-  for (let y = f.y0; y < f.y1; y++)
-    for (let x = f.x0; x < f.x1; x++) {
-      const c = cellOf(x, y)
-      if (x > f.x0 && y > f.y0) addCircle(ctx, x, y, 0.032)
-      if (GROUND[c] === 'blue' || GROUND[c] === 'gold') {
-        addCircle(ctx, x + 0.32, y + 0.36, 0.12)
-        addCircle(ctx, x + 0.66, y + 0.62, 0.11)
-      }
-      if (FLOWER_OF[c]! >= 0) {
-        addCircle(ctx, x + 0.24, y + 0.76, 0.06)
-        addCircle(ctx, x + 0.76, y + 0.24, 0.06)
-      }
-    }
-  fill(ctx, LAND.flapPrint)
-  ctx.beginPath()
-  for (let y = f.y0; y < f.y1; y++) for (let x = f.x0; x < f.x1; x++) if (GROUND[cellOf(x, y)] === 'tree') addCircle(ctx, x + 0.5, y + 0.42, 0.3)
-  fill(ctx, LAND.flapTree)
-  ctx.beginPath()
-  for (const b of BURROWS) {
-    if (b.x + 2 <= f.x0 || b.x >= f.x1 || b.y + 2 <= f.y0 || b.y >= f.y1) continue
-    const bx = b.x + 1
-    const by = b.y + 1.15
-    ctx.moveTo(bx + 0.88, by)
-    ctx.ellipse(bx, by, 0.88, 0.72, 0, 0, TAU)
-  }
-  fill(ctx, LAND.flapMound)
-}
-
-/** How far a flap's corner lifts while it wiggles for her tap (after a Land! card), on a calm 1.6 s loop: 0 to 1. */
-export const flapWiggle = (t: number) => 0.35 + 0.65 * arch(loop(t, 1.6, 0))
-
-/**
- * The next land's paper flaps round `land` (none round land 3), folding open as u runs from 0
- * (lying flat over the next land's cells) to 1 (stood up on their outer hinges, gone): east,
- * north and south at once, their faint print folding with them and their shadow growing on the
- * land they uncover. `corner` (0 to 1) lifts the east flap's corner at the land's north-east
- * corner for her tap, showing the paper's white back and the ground under it.
- */
-export function drawFlaps(ctx: CanvasRenderingContext2D, land: Land, u: number, corner: number): void {
-  if (land === 3) return
-  const e = smooth(0, 1, u)
-  const fold = Math.cos((e * Math.PI) / 2)
-  if (fold < 0.002) return
-  const flaps = flapsOf(land)
-  const next = LANDS[(land + 1) as Land]
-  /** The flat parts as one shape, the next land's outer corners rounded. */
-  const paper = () => {
-    ctx.beginPath()
-    for (const f of flaps) {
-      const p = flatPart(f, fold)
-      // Never rounder than half the part still flat, or arcTo would bulge past it.
-      const round = Math.min(0.22, (p.x1 - p.x0) / 2, (p.y1 - p.y0) / 2)
-      const r = (x: number, y: number) => ((x === next.x0 || x === next.x1 + 1) && (y === next.y0 || y === next.y1 + 1) ? round : 0)
-      // A rect with only the board's own corners rounded, clockwise from the middle of its top: the top right, bottom right, bottom left and top left corners.
-      const corners = [p.x1, p.y0, p.x1, p.y1, p.x0, p.y1, p.x0, p.y0]
-      ctx.moveTo((p.x0 + p.x1) / 2, p.y0)
-      for (let k = 0; k < 4; k++) {
-        const x = corners[2 * k]!
-        const y = corners[2 * k + 1]!
-        ctx.arcTo(x, y, corners[(2 * k + 2) % 8]!, corners[(2 * k + 3) % 8]!, r(x, y))
-      }
-      ctx.closePath()
-    }
-  }
-  // The paper's shadow: a light sliver while it lies flat (never a line round the land), longer as it stands up.
-  const lift = Math.sin((e * Math.PI) / 2)
-  ctx.save()
-  // The shadow falls on the land, never past the board's edge (the board has its own there).
-  ctx.beginPath()
-  ctx.rect(next.x0, next.y0, next.x1 + 1 - next.x0, next.y1 + 1 - next.y0)
-  ctx.clip()
-  ctx.translate(pen.shadowX * (0.5 + lift * 4), pen.shadowY * (0.5 + lift * 4))
-  paper()
-  fill(ctx, C.liftShadow)
-  ctx.restore()
-  paper()
-  fill(ctx, LAND.flap)
-  for (const f of flaps) {
-    const p = flatPart(f, fold)
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(p.x0, p.y0, p.x1 - p.x0, p.y1 - p.y0)
-    ctx.clip()
-    // The print folds with the paper toward the hinge.
-    if (f.hinge === 0) {
-      ctx.translate(f.x1, 0)
-      ctx.scale(fold, 1)
-      ctx.translate(-f.x1, 0)
-    } else {
-      const hy = f.hinge === 3 ? f.y0 : f.y1
-      ctx.translate(0, hy)
-      ctx.scale(1, fold)
-      ctx.translate(0, -hy)
-    }
-    drawFlapPrint(ctx, f)
-    ctx.restore()
-    if (u > 0) {
-      // The bend: a white band where the paper turns up, at its free edge, never wider than the paper still flat.
-      const k = Math.min(0.16 * lift, f.hinge === 0 ? p.x1 - p.x0 : p.y1 - p.y0)
-      ctx.beginPath()
-      if (f.hinge === 0) ctx.rect(p.x0, p.y0, k, p.y1 - p.y0)
-      else if (f.hinge === 3) ctx.rect(p.x0, p.y1 - k, p.x1 - p.x0, k)
-      else ctx.rect(p.x0, p.y0, p.x1 - p.x0, k)
-      fill(ctx, C.white)
-    }
-  }
-  if (corner > 0 && u === 0) drawFlapCorner(ctx, land, corner)
-}
-
-/** The point the next land's dog-ear folds back from: the east flap's corner at the land's north-east corner (the hint's ring and the hand's tap go there). */
-export function flapCorner(land: 1 | 2): Point {
-  const east = flapsOf(land).find((f) => f.hinge === 0)!
-  return { x: east.x0, y: east.y0 }
-}
-
-/**
- * The dog-ear alone: the east flap's corner at the land's north-east corner folded back over
- * the flap by `corner` (0 to 1), up to a whole cell, the paper's warm back up over a sticker's
- * shadow and the ground showing where it was: the next step she can see from the sofa, like
- * every other one. The renderer draws it live over the print's bake, whose flaps lie flat,
- * while the flaps wait for her tap. Nothing round land 3.
- */
-export function drawFlapCorner(ctx: CanvasRenderingContext2D, land: Land, corner: number): void {
-  if (land === 3 || corner <= 0) return
-  const { x: px, y: py } = flapCorner(land)
-  const l = 0.5 + 0.5 * corner
-  ctx.beginPath()
-  ctx.moveTo(px, py)
-  ctx.lineTo(px + l, py)
-  ctx.lineTo(px, py + l)
-  ctx.closePath()
-  fill(ctx, LAND.ground)
-  const back = () => {
-    ctx.beginPath()
-    addRoundPoly(ctx, [px + l, py, px + l * 0.96, py + l * 0.96, px, py + l], 0.06)
-  }
-  ctx.save()
-  ctx.translate(pen.shadowX * (1 + 1.5 * corner), pen.shadowY * (1 + 1.5 * corner))
-  back()
-  fill(ctx, C.shadow)
-  ctx.restore()
-  back()
-  fill(ctx, C.warm)
+  drawGrowth(ctx, c, age)
 }
 
 // ---------------------------------------------------------------------------------------
@@ -468,7 +284,7 @@ export function drawFlapCorner(ctx: CanvasRenderingContext2D, land: Land, corner
 
 /** A burrow as its picture shows it, read off State.burrows and the visit. */
 export interface BurrowPic {
-  /** Which burrow (0 A, 1 B, 2 C): the mark its munchers wear (a bow, freckles, a flower). */
+  /** Which burrow (0 A to 5 F): the mark its munchers wear (a bow, freckles, a flower, a star, stripes, a diamond). */
   burrow: number
   /** 0 to 1000 (catalog.ts HUNGER_FULL): its stage shows on the mound (STAGE_AT). */
   hunger: number
@@ -478,7 +294,7 @@ export interface BurrowPic {
   out: boolean
   /** Its first picnic made it a friend: a heart flag on the mound. */
   friend: boolean
-  /** Seconds since a tap on it (the door opens a crack and a sleepy face waves), and since its land opened (a face leans out and waves hello); Infinity for never. */
+  /** Seconds since a tap on it (the door opens a crack and a sleepy face waves), and since its card was found (a face leans out and waves hello); Infinity for never. */
   pokeAge: number
   helloAge: number
 }
@@ -517,7 +333,7 @@ const LEAN = 0.32
  * and a whole sleepy face leaning out, blinking and yawning; never eyes alone in the dark. The
  * warning wobbles the mound with the face awake; while its munchers are out the door stands
  * open on the lit room. A friend wears a heart flag. A tap peeks a sleepy face out with a wave;
- * a new land's burrow waves hello.
+ * a burrow whose card was just found waves hello.
  */
 export function drawBurrow(ctx: CanvasRenderingContext2D, b: BurrowPic, t: number): void {
   const warnAge = heldAge(b.warnAge)
@@ -765,11 +581,12 @@ export function drawBasket(ctx: CanvasRenderingContext2D, basket: Counts): void 
 // ---------------------------------------------------------------------------------------
 // The sheet
 
-const BOARD_BOX: Box = { x: -0.4, y: -0.4, w: 20.8, h: 12.8 }
+/** The start block with its table round it. */
+const CORNER_BOX: Box = { x: -0.4, y: -0.4, w: 20.8, h: 12.8 }
 /** A burrow's own box on the sheet, its heap at where.ts's heap point relative to it. */
 const HEAP_AT = { x: heapPoint(0).x - BURROWS[0]!.x, y: heapPoint(0).y - BURROWS[0]!.y }
 
-/** ?sheet=land: the print of each land (open it with &px=50 or &px=80), its grid, the flaps folding open and the corner wiggling, a tapped tree, flowers and a dug patch, every stage of a burrow with its heap, heaps of every size, paw prints and the basket. */
+/** ?sheet=land: the print of the start block and of the far burrows and ponds (open it with &px=50 or &px=80), its grid, a tapped tree, flowers and a dug patch, every stage of a burrow with its heap, heaps of every size, paw prints and the basket. */
 export const SHEET = (): SheetEntry[] => {
   const burrow = (label: string, b: Partial<BurrowPic>, heap: number): SheetEntry => ({
     label,
@@ -783,51 +600,38 @@ export const SHEET = (): SheetEntry[] => {
       ctx.restore()
     },
   })
-  const tree = GROUND.findIndex((g, c) => g === 'tree' && cellInLand(1, c))
-  const flower = FLOWER_OF.findIndex((f, c) => f >= 0 && GROUND[c] === 'grass' && cellInLand(1, c))
-  const patch = GROUND.findIndex((g, c) => g === 'blue' && cellInLand(1, c))
+  const tree = GROUND.findIndex((g, c) => g === 'tree' && inCorner(xOf(c), yOf(c)))
+  const flower = FLOWER_OF.findIndex((f, c) => f >= 0 && GROUND[c] === 'grass' && inCorner(xOf(c), yOf(c)))
+  const patch = GROUND.findIndex((g, c) => g === 'blue' && inCorner(xOf(c), yOf(c)))
+  const around = (i: number, w: number, h: number): Box => ({ x: BURROWS[i]!.x - (w - 2) / 2, y: BURROWS[i]!.y - 2, w, h })
   const near = (c: number): Box => ({ x: xOf(c) - 1, y: yOf(c) - 1, w: 3, h: 3 })
   return [
-    ...([1, 2, 3] as const).map((land): SheetEntry => ({ label: `land ${land}`, box: BOARD_BOX, draw: (ctx) => drawPrint(ctx, land, false, BOARD_BOX, 0) })),
-    { label: 'land 1 grid', box: BOARD_BOX, draw: (ctx) => drawPrint(ctx, 1, true, BOARD_BOX, 0) },
-    {
-      label: 'land 1 opening',
-      box: { x: 7.6, y: -0.4, w: 9, h: 12.8 },
-      draw: (ctx, t) => {
-        drawPrint(ctx, 2, false, { x: 7.6, y: -0.4, w: 9, h: 12.8 }, 0)
-        drawFlaps(ctx, 1, smooth(0.15, 0.85, loop(t, 3, 0)), 0)
-      },
-    },
-    {
-      label: 'land 1 corner',
-      box: { x: 10.6, y: 0.6, w: 3.8, h: 3 },
-      draw: (ctx, t) => {
-        drawPrint(ctx, 1, false, { x: 10.6, y: 0.6, w: 3.8, h: 3 }, 0)
-        drawFlaps(ctx, 1, 0, flapWiggle(t))
-      },
-    },
+    { label: 'the start block', box: CORNER_BOX, draw: (ctx) => drawPrint(ctx, false, CORNER_BOX) },
+    { label: 'the start block, grid', box: CORNER_BOX, draw: (ctx) => drawPrint(ctx, true, CORNER_BOX) },
+    ...([3, 4, 5] as const).map((i): SheetEntry => ({ label: `burrow ${'ABCDEF'[i]}'s land`, box: around(i, 12, 9), draw: (ctx) => drawPrint(ctx, false, around(i, 12, 9)) })),
+    ...PONDS.slice(1).map((p, i): SheetEntry => ({ label: `pond ${i + 2}`, box: { x: p.x - 3, y: p.y - 2, w: p.w + 6, h: p.h + 4 }, draw: (ctx) => drawPrint(ctx, false, { x: p.x - 3, y: p.y - 2, w: p.w + 6, h: p.h + 4 }) })),
     {
       label: 'tree tapped',
       box: near(tree),
       draw: (ctx, t) => {
-        drawPrint(ctx, 1, false, near(tree), 0)
-        drawCellPrint(ctx, 1, false, tree, loop(t, 2, 0) * 2, 0)
+        drawPrint(ctx, false, near(tree))
+        drawCellPrint(ctx, false, tree, loop(t, 2, 0) * 2)
       },
     },
     {
       label: 'flowers tapped',
       box: near(flower),
       draw: (ctx, t) => {
-        drawPrint(ctx, 1, false, near(flower), 0)
-        drawCellPrint(ctx, 1, false, flower, loop(t, 2, 0) * 2, 0)
+        drawPrint(ctx, false, near(flower))
+        drawCellPrint(ctx, false, flower, loop(t, 2, 0) * 2)
       },
     },
     {
       label: 'rocks dug',
       box: near(patch),
       draw: (ctx, t) => {
-        drawPrint(ctx, 1, false, near(patch), 0)
-        drawCellPrint(ctx, 1, false, patch, loop(t, 1.2, 0) * 1.2, 0)
+        drawPrint(ctx, false, near(patch))
+        drawCellPrint(ctx, false, patch, loop(t, 1.2, 0) * 1.2)
       },
     },
     burrow('burrow asleep', { hunger: 100 }, 0),

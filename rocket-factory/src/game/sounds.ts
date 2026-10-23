@@ -407,12 +407,6 @@ export class Synth {
       this.dip(at, 2)
     },
     cardClosed: (at) => this.uiVoices.close(at),
-    flap: (at) => {
-      // The paper flaps fold open: a papery fwump, a breath up as the view eases out, and bells for the new land.
-      this.hiss(this.effects, 'lowpass', [[0, 1800], [0.15, 600]], 0.7, struck(0.01, 0.2), 0.1, at)
-      this.hiss(this.effects, 'bandpass', [[0, 500], [1.2, 2400]], 1, [[0, 0], [0.4, 1], [1.4, 0]], 0.06, at + 0.1)
-      ;[84, 86, 89, 93, 96].forEach((m, i) => this.bell(this.effects, BELL, hz(m), at + 1.1 + i * 0.1, 0.6, 0.13 - i * 0.015))
-    },
     carry: (at) => {
       // Beep flies it over: a whirr of the propeller in a soft whoosh, and a bip.
       const prop = this.tremolo(this.effects, 24, 0.4, at, 0.36)
@@ -680,10 +674,6 @@ export class Synth {
       // Moony's warble.
       const o = this.voice(this.effects, 'sine', [[0, 620], [0.2, 930]], [[0, 0], [0.04, 1], [0.25, 0.7], [0.32, 0]], 0.07, at)
       this.wobble([o.frequency], 8, [[0, 25]], at, 0.32)
-    },
-    flap: (at) => {
-      // A folded flap lifts its corner: a paper flutter.
-      this.hiss(this.effects, 'bandpass', [[0, 1800], [0.15, 2600]], 1.5, [[0, 0], [0.03, 1], [0.18, 0]], 0.05, at)
     },
     grey: (at) => {
       // The lab card wiggles: wub wub.

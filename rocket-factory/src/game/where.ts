@@ -120,14 +120,13 @@ export const basketPoint: Point = { x: BASKET.x + 0.5, y: BASKET.y + 0.5 }
 /** A burrow's mound, and its heap, which sits just left of its door. */
 export const burrowBox = (i: number): Box => ({ x: BURROWS[i]!.x, y: BURROWS[i]!.y, w: 2, h: 2 })
 export const heapPoint = (i: number): Point => ({ x: BURROWS[i]!.door.x - 0.85, y: BURROWS[i]!.door.y - 0.2 })
-/** Where a maker's roof stack is drawn, in its picture's own frame (cells from its footprint's top-left corner, upright on screen): up to STACK things in a row along the top of its outline, half over it. */
+/** Where a maker's roof stack is drawn, in its picture's own frame (cells from its footprint's top-left corner): up to STACK things in a row along the top of its outline, half over it. */
 export const stackBox = (b: Building): Box => ({ x: 0.2, y: -0.3, w: SIZE[b.kind] - 0.4, h: 0.6 })
 /**
  * Moony, home with Beep from the first launch, sits on the pad's outer coral ring and waves:
  * its feet. On the ring's upper right the rocket's nose is below it and the launch button far
- * from it, and on the upright board, where this point shows on the ring's upper left, it sits
- * above the rocket's fin and inside the pad: so it never covers the rocket filling again, a
- * tap on its button, or the belts round the pad.
+ * from it: so it never covers the rocket filling again, a tap on its button, or the belts
+ * round the pad.
  */
 export const moonyPoint: Point = { x: PAD.x + 2.3, y: PAD.y + 0.88 }
 

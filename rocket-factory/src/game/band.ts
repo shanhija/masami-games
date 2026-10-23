@@ -1,5 +1,5 @@
-import { COUNT_AT } from './catalog'
-import { HOP, HZ, STEP, ticks, type Building, type Kind, type Land, type State } from './model'
+import { COUNT_AT, progressOf, type Progress } from './catalog'
+import { HOP, HZ, STEP, ticks, type Building, type Kind, type State } from './model'
 
 /**
  * The factory's band (plans/rocket-factory.md, Sound): the song, which of its parts play now
@@ -97,8 +97,8 @@ export interface Band {
   piece: PieceName
   /** The eighth the piece's first bar starts on: 0 for the song, which runs with the sim's own clock; the lullaby's after dusk, the roll's at the tap, the flight's at liftoff. */
   from: number
-  /** The song has a new arrangement for each land. */
-  land: Land
+  /** The song has a new arrangement for each step of the path (catalog.ts progressOf). */
+  progress: Progress
   /** The parts playing their own line, in INSTRUMENTS order: a machine of their kind works (the drum: the pad drums; the tick: things ride the belts; the pizzicato: a visit is out). */
   play: Instrument[]
   /** The machine parts a napping muncher turns into a kazoo of the same line. A kind with one machine napped on and another working plays both: its own part goes on for the working one, and the kazoo tells her where the muncher sleeps. */
@@ -117,10 +117,10 @@ const eighthFrom = (tick: number) => Math.ceil(tick / HOP)
 export function bandOf(s: State): Band {
   if (s.launch) {
     const lift = s.launch.at + LIFTOFF
-    if (s.tick < lift) return { piece: 'roll', from: eighthFrom(s.launch.at), land: s.land, play: ['roll'], kazoo: [] }
-    return { piece: 'flight', from: eighthFrom(lift), land: s.land, play: ['bass', 'chimes', 'box'], kazoo: [] }
+    if (s.tick < lift) return { piece: 'roll', from: eighthFrom(s.launch.at), progress: progressOf(s.found), play: ['roll'], kazoo: [] }
+    return { piece: 'flight', from: eighthFrom(lift), progress: progressOf(s.found), play: ['bass', 'chimes', 'box'], kazoo: [] }
   }
-  if (s.night && s.night.doneAt >= 0) return { piece: 'none', from: 0, land: s.land, play: [], kazoo: [] }
+  if (s.night && s.night.doneAt >= 0) return { piece: 'none', from: 0, progress: progressOf(s.found), play: [], kazoo: [] }
   const play = new Set<Instrument>()
   const kazoo = new Set<Instrument>()
   for (const b of s.buildings) {
@@ -142,7 +142,7 @@ export function bandOf(s: State): Band {
   return {
     piece: s.night ? 'lullaby' : 'song',
     from: s.night ? eighthFrom(s.night.at + NIGHT_LEAD) : 0,
-    land: s.land,
+    progress: progressOf(s.found),
     play: INSTRUMENTS.filter((i) => play.has(i) && rejoined(i)),
     kazoo: INSTRUMENTS.filter((i) => kazoo.has(i)),
   }
@@ -346,7 +346,7 @@ const B: Section = {
 export const FORM = [A, A, B, A] as const
 const lines = (sections: readonly Section[], line: 'bell' | 'glock' | 'pizzicato') => sections.flatMap((sec) => sec[line])
 
-/** The written lines every land's arrangement shares: the tune, the descant and the visit's line. The two bottle makers' kazoos sit an octave apart, so a nap on either is its own sound. */
+/** The written lines every arrangement shares: the tune, the descant and the visit's line. The two bottle makers' kazoos sit an octave apart, so a nap on either is its own sound. */
 const TUNE = written(8, lines(FORM, 'bell'), 0, 1, -12)
 const DESCANT = written(8, lines(FORM, 'glock'), 0, 0.9, -12)
 const SNEAK = written(8, lines(FORM, 'pizzicato'), 0, 1, 12)
@@ -362,8 +362,8 @@ interface Arrangement {
   drum: readonly [string, string]
 }
 
-/** A new arrangement for each land: the first factory's gentle one, a walking bass and a busier shaker for land 2, a groove for the whole board. */
-const ARRANGEMENTS: Record<Land, Arrangement> = {
+/** A new arrangement for each step of the path: the first factory's gentle one, a walking bass and a busier shaker from Nose!, a groove from More!. */
+const ARRANGEMENTS: Record<Progress, Arrangement> = {
   1: {
     bass: 'r -  -  -  f -  -  -',
     shaker: '. x  .  x  . x  .  x',
@@ -397,10 +397,10 @@ const ARRANGEMENTS: Record<Land, Arrangement> = {
 const PLUCK_BASE = 60
 const CHIMES_BASE = 77
 
-/** The factory's song, as each land arranges it. */
-export const SONG: Record<Land, Piece> = Object.fromEntries(
-  ([1, 2, 3] as const).map((land) => {
-    const a = ARRANGEMENTS[land]
+/** The factory's song, as each step of the path arranges it. */
+export const SONG: Record<Progress, Piece> = Object.fromEntries(
+  ([1, 2, 3] as const).map((progress) => {
+    const a = ARRANGEMENTS[progress]
     const piece: Piece = {
       meter: 8,
       chords: FORM.flatMap((sec) => sec.chords),
@@ -417,9 +417,9 @@ export const SONG: Record<Land, Piece> = Object.fromEntries(
         pizzicato: SNEAK,
       },
     }
-    return [land, piece]
+    return [progress, piece]
   }),
-) as Record<Land, Piece>
+) as Record<Progress, Piece>
 
 /** The Good night lullaby, rocking in six eight on a music box, with every machine part still awake playing softly along. */
 const LULLABY: Piece = {
@@ -480,13 +480,13 @@ const FLIGHT: Piece = {
   },
 }
 
-/** Every piece but the song (which is in SONG, one for each land). */
+/** Every piece but the song (which is in SONG, one for each step of the path). */
 export const PIECES: Record<'lullaby' | 'roll' | 'flight', Piece> = { lullaby: LULLABY, roll: ROLLING, flight: FLIGHT }
 
 /** The piece a band plays. */
 export const pieceOf = (band: Band): Piece => {
   if (band.piece === 'none') throw new Error('the band is resting: it plays no piece')
-  return band.piece === 'song' ? SONG[band.land] : PIECES[band.piece]
+  return band.piece === 'song' ? SONG[band.progress] : PIECES[band.piece]
 }
 
 /** The `i`-th note at or over `base` whose pitch class is one of the chord's tones. */

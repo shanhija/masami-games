@@ -1,16 +1,16 @@
-import { BURROWS, FLOWER_OF, GROUND, LANDS, cellInLand, cellOf, inLand, xOf, yOf } from './board'
+import { BURROWS, FLOWER_OF, GROUND, cellOf, onBoard } from './board'
 import { BEEP_FLY, GHOST_DELAY, HELP_FULL, SIZE } from './catalog'
-import { CELLS, SLOTS, STEP, since, type BeepPic, type Hit, type Land, type Muncher, type Placeable, type State } from './model'
+import { COLS, ROWS, SLOTS, STEP, since, type BeepPic, type Hit, type Placeable, type State } from './model'
 import { basketPoint, beepPoint, buildingBox, burrowBox, heapPoint, moonyPoint, muncherPoint, napSpot, stackBox, thingPoint, type Box, type Point } from './where'
 
 /**
  * The board on the screen, as pure functions: the HUD's frame on a window (hudFrame), the
- * cell size that fits a land into what the HUD leaves free (fitCell), the one board-to-screen
- * map, which owns the upright quarter turn (View, toScreen, toBoard), and what a touch lands
- * on (targets, hitTest) in the plan's hit order. The renderer draws through the same map at
- * where.ts's points, so a picture and its tap never disagree; the sim never knows about the
- * turn. The design is plans/rocket-factory.md: The board and the view, Beep and the child's
- * hands, The HUD.
+ * one board-to-screen map (View, toScreen, toBoard; the camera that makes a View is
+ * camera.ts), the board cells a screen box shows (cellsIn), and what a touch lands on (targets,
+ * hitTest) in the plan's hit order, only for what is in view. The renderer draws through the
+ * same map at where.ts's points, so a picture and its tap never disagree; the sim never knows
+ * where the view is. The design is plans/rocket-factory.md: The board and the view, Beep and
+ * the child's hands, The HUD.
  */
 
 // ---------------------------------------------------------------------------------------
@@ -26,10 +26,9 @@ export interface Insets {
 export const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 }
 
 /**
- * How the window is held. sideways: an iPad or a laptop, the board as it is; upright: an iPad
- * held upright, the board turned a quarter (the munchers' east front at the top, the pad at
- * the bottom by the tray); phone: a phone on its side, the board fitted between the HUD's
- * columns; turnMe: a phone held upright, which shows a picture asking her to turn it and takes
+ * How the window is held. sideways: an iPad or a laptop; upright: an iPad held upright (a
+ * taller window on the same board, its own tray row); phone: a phone on its side, the board
+ * seen between the HUD's columns; turnMe: a phone held upright, which shows a picture asking her to turn it and takes
  * no board input (the HUD does not fit across it).
  */
 export type Held = 'sideways' | 'upright' | 'phone' | 'turnMe'
@@ -37,7 +36,7 @@ export type Held = 'sideways' | 'upright' | 'phone' | 'turnMe'
 /** The HUD's parts on a window, in CSS px. The HUD lays itself out in exactly these, and the board fits in `free`. */
 export interface HudFrame {
   held: Held
-  /** What the board, the table round it and the next land's flaps fit in: the window less the HUD, the side gutters and the safe areas. A touch outside it is on the table and never takes the board. */
+  /** What the board is seen in: the window less the HUD, the side gutters and the safe areas. A touch outside it is on the table and never takes the board. */
   free: Box
   /** The top strip: pause at the left, the rocket card in the middle, the lab card at the right, and upright the peel and Oops too. Null on a phone. */
   strip: Box | null
@@ -68,7 +67,7 @@ const TRAY_ROW = { sideways: 13, upright: 11 } as const
  * board and between its buttons; its left column holds PHONE_COLUMN buttons (pause, the rocket
  * and lab cards, the peel and Oops), and its tray the eleven others in PHONE_COLS columns. A
  * button is 56 px wherever the column's height allows, as every target is (MIN_TARGET), so the
- * tray takes three columns' width: at land 3 that costs a pixel of cell.
+ * tray takes three columns' width: that costs a pixel of cell.
  */
 const PHONE = 500
 const PHONE_PAD = 4
@@ -150,49 +149,15 @@ export function trayBoxes(f: HudFrame, n: number): { backing: Box; buttons: Box[
 }
 
 // ---------------------------------------------------------------------------------------
-// The fit
-
-/** The next land's folded flaps peek out FLAP cells past the land's east, north and south edges, and the view fits them too while there is a next land: the corner that wiggles after a Land! card is never under the HUD. */
-export const FLAP = 0.4
-
-/** The board box a land's view fits: the land's window, and round it the flaps of the next land. */
-export function landBox(land: Land): Box {
-  const l = LANDS[land]
-  const f = land < 3 ? FLAP : 0
-  return { x: l.x0, y: l.y0 - f, w: l.x1 + 1 - l.x0 + f, h: l.y1 + 1 - l.y0 + 2 * f }
-}
-
-/** The cosine and sine of `turn` quarter turns, exact at 0 and 1, so a settled view puts whole cells on whole pixels. */
-export function turnCS(turn: number): [number, number] {
-  if (turn === 0) return [1, 0]
-  if (turn === 1) return [0, 1]
-  const a = (turn * Math.PI) / 2
-  return [Math.cos(a), Math.sin(a)]
-}
-
-/** CSS px per cell that fit board box `b`, turned `turn` quarter turns, into screen box `free`: its turned bounding box fits, so the board never slips under the HUD while the table turns. */
-export function fitScale(free: Box, b: Box, turn: number): number {
-  const [c, s] = turnCS(turn)
-  return Math.min(free.w / (b.w * c + b.h * s), free.h / (b.w * s + b.h * c))
-}
-
-/** The cell size a land settles at in a frame: whole CSS px, as big as the free area allows, the board turned when the window is upright. */
-export const fitCell = (hud: HudFrame, land: Land) => Math.floor(fitScale(hud.free, landBox(land), hud.held === 'upright' ? 1 : 0))
-
-// ---------------------------------------------------------------------------------------
 // The map
 
-/** A frame's view (camera.ts viewAt): the canvas in CSS px and its pixel ratio, CSS px per cell, the quarter turn, where the board's origin is on the screen, and the HUD's frame it is fitted in. */
+/** A frame's view (camera.ts viewOf): the canvas in CSS px and its pixel ratio, CSS px per cell, where the board's origin is on the screen, and the HUD's frame it is seen through. */
 export interface View {
   w: number
   h: number
   dpr: number
-  /** CSS px per cell: whole once the land's ease and the turn have settled. */
+  /** CSS px per cell. */
   cell: number
-  /** The window is held upright, so the board settles turned. */
-  upright: boolean
-  /** How far the board is turned, in quarter turns: 0 as it is, 1 upright, in between while the table turns (camera.ts TURN). Turned, east points up the screen and south to the right. Pictures counter-turn to stay upright, so a picture's "up" is always up the screen. */
-  turn: number
   /** The screen point (CSS px) of the board's point (0, 0). */
   ox: number
   oy: number
@@ -200,17 +165,25 @@ export interface View {
 }
 
 /** The screen point (CSS px) of board point (x, y), in cells. */
-export function toScreen(v: View, x: number, y: number): [number, number] {
-  const [c, s] = turnCS(v.turn)
-  return [v.ox + (x * c + y * s) * v.cell, v.oy + (y * c - x * s) * v.cell]
-}
+export const toScreen = (v: View, x: number, y: number): [number, number] => [v.ox + x * v.cell, v.oy + y * v.cell]
 
 /** The board point (cells) under screen point (sx, sy): toScreen's inverse. */
-export function toBoard(v: View, sx: number, sy: number): [number, number] {
-  const [c, s] = turnCS(v.turn)
-  const dx = sx - v.ox
-  const dy = sy - v.oy
-  return [(dx * c - dy * s) / v.cell, (dx * s + dy * c) / v.cell]
+export const toBoard = (v: View, sx: number, sy: number): [number, number] => [(sx - v.ox) / v.cell, (sy - v.oy) / v.cell]
+
+/** The board point at the middle of the free area. */
+export function middleOf(v: View): Point {
+  const f = v.hud.free
+  const [x, y] = toBoard(v, f.x + f.w / 2, f.y + f.h / 2)
+  return { x, y }
+}
+
+/** The board cells [x0, x1) x [y0, y1) that a screen box (CSS px) touches, clamped to the board (empty when the box shows none of it): what a frame bakes and what a touch can land on. */
+export function cellsIn(v: View, b: Box): { x0: number; y0: number; x1: number; y1: number } {
+  const [bx0, by0] = toBoard(v, b.x, b.y)
+  const [bx1, by1] = toBoard(v, b.x + b.w, b.y + b.h)
+  const x0 = Math.min(COLS, Math.max(0, Math.floor(bx0)))
+  const y0 = Math.min(ROWS, Math.max(0, Math.floor(by0)))
+  return { x0, y0, x1: Math.max(x0, Math.min(COLS, Math.ceil(bx1))), y1: Math.max(y0, Math.min(ROWS, Math.ceil(by1))) }
 }
 
 /**
@@ -232,7 +205,7 @@ export const fingerLift = (v: View) => Math.max(0.8 * v.cell, 44)
 export const GRIP = 0.15
 /** How far up the screen from the fingertip, CSS px, the footprint's middle of a held sticker of n cells rides. */
 export const gripLift = (v: View, n: number) => (n / 2 + GRIP) * v.cell
-/** The board point a finger at screen point (sx, sy) holds a sticker of n cells at: its footprint's middle, gripLift up the screen, mapped through the board's turn. */
+/** The board point a finger at screen point (sx, sy) holds a sticker of n cells at: its footprint's middle, gripLift up the screen. */
 export const heldAt = (v: View, sx: number, sy: number, n: number) => toBoard(v, sx, sy - gripLift(v, n))
 /** Where a fingertip goes to hold a sticker of n cells with its footprint's middle at board point (x, y): heldAt's inverse, for the hint's hand and the scripted children's carries. */
 export function fingerFor(v: View, x: number, y: number, n: number): [number, number] {
@@ -240,70 +213,16 @@ export function fingerFor(v: View, x: number, y: number, n: number): [number, nu
   return [sx, sy + gripLift(v, n)]
 }
 
-/** A board box on the screen: the bounds of its four corners (exact once settled, a little bigger while the table turns, when the board takes no input). */
+/** A board box on the screen. */
 export function screenBox(v: View, b: Box): Box {
-  const xs: number[] = []
-  const ys: number[] = []
-  for (const [x, y] of [
-    [b.x, b.y],
-    [b.x + b.w, b.y],
-    [b.x, b.y + b.h],
-    [b.x + b.w, b.y + b.h],
-  ] as const) {
-    const [sx, sy] = toScreen(v, x, y)
-    xs.push(sx)
-    ys.push(sy)
-  }
-  const x0 = Math.min(...xs)
-  const y0 = Math.min(...ys)
-  return { x: x0, y: y0, w: Math.max(...xs) - x0, h: Math.max(...ys) - y0 }
+  const [x, y] = toScreen(v, b.x, b.y)
+  return { x, y, w: b.w * v.cell, h: b.h * v.cell }
 }
 
-/** A spot in the upright picture of the n-cell footprint whose top-left cell is (x, y), given in cells from the picture's top-left (the frame of where.ts stackBox and napSpot), on the screen: the picture stands upright round the footprint's middle, turned or not. */
+/** A spot in the picture of the n-cell footprint whose top-left cell is (x, y), given in cells from the picture's top-left (the frame of where.ts stackBox and napSpot), on the screen: the picture stands round the footprint's middle. */
 export function pictureSpot(v: View, x: number, y: number, n: number, px: number, py: number): [number, number] {
   const [mx, my] = toScreen(v, x + n / 2, y + n / 2)
   return [mx + (px - n / 2) * v.cell, my + (py - n / 2) * v.cell]
-}
-
-/**
- * The board point under the door of burrow i's picture on the board turned `turn` quarter
- * turns. The picture stands upright with its door in the middle of its bottom edge: sideways
- * that is board.ts's door on the mound's south edge, and upright, where the board's south is
- * the screen's right, it is the middle of the mound's west edge.
- */
-export function pictureDoor(i: number, turn: number): Point {
-  const [c, s] = turnCS(turn)
-  const b = BURROWS[i]!
-  return { x: b.x + 1 - s, y: b.y + 1 + c }
-}
-
-/** A hop bends to the picture's door over at most this many cells of it next to the door. */
-const DOOR_BEND = 1.5
-
-/**
- * Where muncher m's feet are drawn at sim time t on the board turned `turn` quarter turns:
- * where.ts muncherPoint (the sim's), except that a hop out of its burrow's door or home to it
- * bends, over its DOOR_BEND cells next to the door, to the door of the burrow's upright
- * picture (pictureDoor), and a muncher waiting in its doorway stands there. Upright a muncher
- * so comes out of the door it is drawn with, never out of the mound's side; sideways the two
- * doors are one point. The renderer draws it here and a tap lands on it here.
- */
-export function muncherDrawn(m: Muncher, t: number, turn: number): Point & { lift: number } {
-  const p = muncherPoint(m, t)
-  const hop = m.hop
-  if (hop === null) return p
-  const door = BURROWS[m.burrow]!.door
-  const out = hop.x0 === door.x && hop.y0 === door.y
-  const home = hop.x1 === door.x && hop.y1 === door.y
-  if (!out && !home) return p
-  const pic = pictureDoor(m.burrow, turn)
-  const span = (hop.until - hop.at) * STEP
-  const u = span <= 0 ? 1 : Math.min(1, Math.max(0, since(hop.at, t) / span))
-  // The share of the hop that bends: all of a short hop, the stretch by the door of a long one.
-  const bend = DOOR_BEND / Math.max(DOOR_BEND, Math.hypot(hop.x1 - hop.x0, hop.y1 - hop.y0))
-  const k = Math.min(1, Math.max(0, out && home ? 0 : out ? u / bend : (1 - u) / bend))
-  const w = 1 - k * k * (3 - 2 * k)
-  return { x: p.x + (pic.x - door.x) * w, y: p.y + (pic.y - door.y) * w, lift: p.lift }
 }
 
 // ---------------------------------------------------------------------------------------
@@ -323,7 +242,7 @@ export interface Target {
  * of 43 to 53 px are paths for strokes, not tap targets; and a touch that slid no further than
  * SLOP off what it went down on is still a tap on it (touch.ts), as a press on a HUD button is
  * (onButton). A muncher answers a touch within muncherReach of where it is or was
- * MUNCHER_TRAIL seconds ago: at land 3 one walks 60 px a second, and a five-year-old's tap lands
+ * MUNCHER_TRAIL seconds ago: at the start view one walks 60 px a second, and a five-year-old's tap lands
  * late and off. The reach is MUNCHER_REACH px where cells are big, at most REACH_CELLS cells
  * where they are small (a phone's 25 px cells, where three munchers out would otherwise leave
  * her drawing finger a third of the board), and never less than SLOP round the muncher's body.
@@ -401,14 +320,20 @@ export function hintPath(s: State): readonly number[] | null {
 }
 
 /**
- * Every target on the land at sim time t, where the frame at t draws it (where.ts), in no
+ * Every target in view at sim time t, where the frame at t draws it (where.ts), in no
  * particular order: what a tap can land on, and what ?debug outlines. Munchers count anywhere;
- * off the land there is nothing else (hitTest answers 'table' or 'flap' there).
+ * of the rest only what the free area shows (the cells a finger there could land on, and the
+ * buildings, burrows and things whose boxes touch it): off the board there is nothing else
+ * (hitTest answers 'table' there).
  */
 export function targets(s: State, view: View, t: number): Target[] {
   const out: Target[] = []
   const k = view.cell
   const reach = muncherReach(view)
+  // What is in view: the cells of the free area grown by MIN_TARGET all round (a touch outside it is on the table), and the boxes, a cell larger all round, that touch them.
+  const f = view.hud.free
+  const seen = cellsIn(view, { x: f.x - MIN_TARGET, y: f.y - MIN_TARGET, w: f.w + 2 * MIN_TARGET, h: f.h + 2 * MIN_TARGET })
+  const shows = (b: Box) => b.x - 1 < seen.x1 && b.x + b.w + 1 > seen.x0 && b.y - 1 < seen.y1 && b.y + b.h + 1 > seen.y0
   const box = (hit: Hit, rank: number, b: Box) => out.push({ hit, rank, area: { kind: 'box', ...screenBox(view, b) } })
   const disc = (hit: Hit, rank: number, p: Point, up: number, r: number) => {
     const [x, y] = toScreen(view, p.x, p.y)
@@ -428,18 +353,20 @@ export function targets(s: State, view: View, t: number): Target[] {
   for (const m of s.munchers) {
     if (m.mode === 'watch' || nappers.has(m.id)) continue
     for (const at of [t, t - MUNCHER_TRAIL]) {
-      const p = muncherDrawn(m, at, view.turn)
+      const p = muncherPoint(m, at)
       disc({ kind: 'muncher', id: m.id }, RANK.muncher, p, BODY.muncher.up + p.lift, reach)
     }
   }
   const ghost = hintGhost(s, t)
   if (ghost !== null) box({ kind: 'spot' }, RANK.spot, { x: ghost.x, y: ghost.y, w: SIZE[ghost.sticker], h: SIZE[ghost.sticker] })
   s.burrows.forEach((b, i) => {
-    if (b.heap.some((n) => n > 0)) disc({ kind: 'heap', burrow: i }, RANK.heap, heapPoint(i), BODY.heap.up, BODY.heap.r * k)
+    const p = heapPoint(i)
+    if (b.heap.some((n) => n > 0) && shows({ x: p.x, y: p.y, w: 0, h: 0 })) disc({ kind: 'heap', burrow: i }, RANK.heap, p, BODY.heap.up, BODY.heap.r * k)
   })
   disc({ kind: 'basket' }, RANK.heap, basketPoint, BODY.basket.up, BODY.basket.r * k)
   if (s.launches > 0) disc({ kind: 'moony' }, RANK.moony, moonyPoint, BODY.moony.up, BODY.moony.r * k)
   for (const b of s.buildings) {
+    if (!shows(buildingBox(b))) continue
     if (b.kind === 'tower' || b.kind === 'bowl') {
       box({ kind: 'building', id: b.id }, RANK.tower, buildingBox(b))
       continue
@@ -452,24 +379,26 @@ export function targets(s: State, view: View, t: number): Target[] {
     }
     box({ kind: 'building', id: b.id }, RANK.building, buildingBox(b))
   }
-  BURROWS.forEach((site, i) => {
-    if (inLand(s.land, site.x, site.y)) box({ kind: 'burrow', burrow: i }, RANK.building, burrowBox(i))
+  BURROWS.forEach((_, i) => {
+    if (shows(burrowBox(i))) box({ kind: 'burrow', burrow: i }, RANK.building, burrowBox(i))
   })
   for (let slot = 0; slot < SLOTS; slot++) if (s.belts.slot[slot]! >= 0) disc({ kind: 'thing', slot }, RANK.thing, thingPoint(s, slot, t), BODY.thing.up, BODY.thing.r * k)
   if (IDLE.has(s.beep.pose) && since(s.beep.movedAt, t) >= BEEP_FLY * STEP) disc({ kind: 'beep' }, RANK.beep, beepPoint(s.beep, t), BODY.beep.up, BODY.beep.r * k)
-  // Each open cell no building covers (the pad and the mounds are covered), as its one kind: a belt, a hedge or stump, a bare patch, the pond, a tree, flowers or bare ground. A rock cell under a belt or a hedge is not bare, so it never digs.
-  for (let c = 0; c < CELLS; c++) {
-    if (!cellInLand(s.land, c) || s.owner[c]! >= 0) continue
-    const g = GROUND[c]!
-    const cell = { x: xOf(c), y: yOf(c), w: 1, h: 1 }
-    if (s.belts.out[c]! >= 0) box({ kind: 'belt', cell: c }, RANK.belt, cell)
-    else if (s.hedge[c]! > 0) box({ kind: 'hedge', cell: c }, RANK.hedge, cell)
-    else if (g === 'blue' || g === 'gold') box({ kind: 'patch', cell: c }, RANK.patch, cell)
-    else if (g === 'pond') box({ kind: 'pond', cell: c }, RANK.patch, cell)
-    else if (g === 'tree') box({ kind: 'tree', cell: c }, RANK.tree, cell)
-    else if (FLOWER_OF[c]! >= 0) box({ kind: 'flowers', cell: c }, RANK.flowers, cell)
-    else if (g === 'grass') box({ kind: 'ground', cell: c }, RANK.ground, cell)
-  }
+  // Each cell in view no building covers (the pad and the mounds are covered), as its one kind: a belt, a hedge or stump, a bare patch, a pond, a tree, flowers or bare ground. A rock cell under a belt or a hedge is not bare, so it never digs.
+  for (let y = seen.y0; y < seen.y1; y++)
+    for (let x = seen.x0; x < seen.x1; x++) {
+      const c = cellOf(x, y)
+      if (s.owner[c]! >= 0) continue
+      const g = GROUND[c]!
+      const cell = { x, y, w: 1, h: 1 }
+      if (s.belts.out[c]! >= 0) box({ kind: 'belt', cell: c }, RANK.belt, cell)
+      else if (s.hedge[c]! > 0) box({ kind: 'hedge', cell: c }, RANK.hedge, cell)
+      else if (g === 'blue' || g === 'gold') box({ kind: 'patch', cell: c }, RANK.patch, cell)
+      else if (g === 'pond') box({ kind: 'pond', cell: c }, RANK.patch, cell)
+      else if (g === 'tree') box({ kind: 'tree', cell: c }, RANK.tree, cell)
+      else if (FLOWER_OF[c]! >= 0) box({ kind: 'flowers', cell: c }, RANK.flowers, cell)
+      else if (g === 'grass') box({ kind: 'ground', cell: c }, RANK.ground, cell)
+    }
   return out
 }
 
@@ -489,13 +418,11 @@ export function areaDistance(a: Area, x: number, y: number): number {
 
 /**
  * What the CSS-px point (sx, sy) lands on at sim time t, and the area of the target it
- * landed on (null off the land): the router keeps the area, to tell whether a touch slid more
- * than SLOP off it. A muncher first, anywhere. Then outside the free area, or off the land,
- * the table (the gutters, the table round the land and closed land never take the board), or
- * the next land's flaps east, north and south of it whenever there is a next land (a Land!
- * card lets a tap open them; before it a tap lifts their corner). On the land, the first
- * target in the hit order whose area, grown to MIN_TARGET,
- * holds the point; among equals the nearest middle.
+ * landed on (null off the board): the router keeps the area, to tell whether a touch slid more
+ * than SLOP off it. A muncher first, anywhere. Then outside the free area, or off the board,
+ * the table (the gutters and the table round the board never take it). On the board, the
+ * first target in the hit order whose area, grown to MIN_TARGET, holds the point; among equals
+ * the nearest middle.
  */
 export function pick(s: State, view: View, sx: number, sy: number, t: number): { hit: Hit; area: Area | null } {
   const all = targets(s, view, t)
@@ -519,7 +446,7 @@ export function pick(s: State, view: View, sx: number, sy: number, t: number): {
   const f = view.hud.free
   if (sx < f.x || sx > f.x + f.w || sy < f.y || sy > f.y + f.h) return table
   const [bx, by] = toBoard(view, sx, sy)
-  if (!inLand(s.land, Math.floor(bx), Math.floor(by))) return s.land < 3 && bx >= LANDS[s.land].x0 ? { hit: { kind: 'flap' }, area: null } : table
+  if (!onBoard(Math.floor(bx), Math.floor(by))) return table
   const tg = best(false)
   if (tg === null) throw new Error(`no target at board point ${bx}, ${by}: every open cell is one`)
   return { hit: tg.hit, area: tg.area }

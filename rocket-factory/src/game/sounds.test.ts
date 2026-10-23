@@ -386,9 +386,8 @@ const EVENTS: { [K in Exclude<EventKind, 'say'>]: Extract<SimEvent, { kind: K }>
   partFull: PARTS.map((part) => ({ kind: 'partFull', part })),
   card: CARDS.map((id) => ({ kind: 'card', id })),
   cardClosed: [{ kind: 'cardClosed', id: 'gold' }],
-  flap: [2, 3].map((land) => ({ kind: 'flap', land: land as 2 | 3 })),
   carry: [{ kind: 'carry', thing: 'gear', ...AT }],
-  warn: [0, 1, 2].map((burrow) => ({ kind: 'warn', burrow })),
+  warn: [0, 1, 2, 3, 4, 5].map((burrow) => ({ kind: 'warn', burrow })),
   hopOut: [{ kind: 'hopOut', id: 1, burrow: 0 }],
   nom: [{ kind: 'nom', id: 1, thing: 'greenBottle', ...AT }],
   napStart: [{ kind: 'napStart', id: 1, building: 1 }],
@@ -425,13 +424,13 @@ const EVENTS: { [K in Exclude<EventKind, 'say'>]: Extract<SimEvent, { kind: K }>
 const ALL_EVENTS: SimEvent[] = Object.values(EVENTS).flat()
 const UI_SOUNDS = Object.keys({ tap: 1, open: 1, close: 1, hold: 1, fresh: 1, pick: 1, murmur: 1 } satisfies Record<UiSound, 1>) as UiSound[]
 /** The good sounds, which are the loudest, and the munchers' havoc, which stays small. */
-const GOOD: EventKind[] = ['play', 'card', 'partFull', 'flap', 'friend', 'picnic', 'landed']
+const GOOD: EventKind[] = ['play', 'card', 'partFull', 'friend', 'picnic', 'landed']
 const HAVOC: EventKind[] = ['warn', 'hopOut', 'nom', 'napStart', 'napEnd', 'burp', 'heap', 'nibble', 'crunch', 'shrug']
 
 /** Every piece with a band playing all its parts. */
 const PIECE_BANDS: { name: string; piece: Piece; band: Band }[] = [
-  ...([1, 2, 3] as const).map((land) => ({ name: `song (land ${land})`, piece: SONG[land], band: { piece: 'song', from: 0, land, play: [], kazoo: [] } as Band })),
-  ...(['lullaby', 'roll', 'flight'] as const).map((name) => ({ name, piece: PIECES[name], band: { piece: name, from: 0, land: 1, play: [], kazoo: [] } as Band })),
+  ...([1, 2, 3] as const).map((land) => ({ name: `song (step ${land})`, piece: SONG[land], band: { piece: 'song', from: 0, progress: land, play: [], kazoo: [] } as Band })),
+  ...(['lullaby', 'roll', 'flight'] as const).map((name) => ({ name, piece: PIECES[name], band: { piece: name, from: 0, progress: 1, play: [], kazoo: [] } as Band })),
 ].map(({ name, piece, band }) => {
   const parts = INSTRUMENTS.filter((i) => piece.parts[i])
   return { name, piece, band: { ...band, play: parts, kazoo: parts } }
@@ -560,7 +559,7 @@ describe('the mix, as a tablet speaker plays it', () => {
   }
   /** A written line's notes over the song's first eight bars, as itself or as a napping muncher's kazoo. */
   const line = (instrument: Instrument, kazoo: boolean): Note[] => {
-    const band: Band = { piece: 'song', from: 0, land: 1, play: kazoo ? [] : [instrument], kazoo: kazoo ? [instrument] : [] }
+    const band: Band = { piece: 'song', from: 0, progress: 1, play: kazoo ? [] : [instrument], kazoo: kazoo ? [instrument] : [] }
     return Array.from({ length: 64 }, (_, k) => notesAt(band, k, true)).flat()
   }
   /** A line's loudness, note for note: their powers' mean, in dB. */
@@ -611,11 +610,11 @@ function fakeSpeech() {
   return speech
 }
 
-/** A board where the diggers' shaker plays every eighth (land 2's), so each eighth the band schedules is one note; the session's parts have all rejoined. */
+/** A board where the diggers' shaker plays every eighth (the second step's, Nose! found), so each eighth the band schedules is one note; the session's parts have all rejoined. */
 function shaking(): State {
   const s = blankState(1)
   s.tick = REJOIN
-  s.land = 2
+  s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose']
   const digger = newBuilding(s.nextId++, 'digger', 0, 0, 0)
   digger.batch = { makes: 'blueRock', at: 0, until: 1e9 }
   s.buildings.push(digger)

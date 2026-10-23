@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-import { viewAt } from '../game/camera'
+import { startView } from '../game/camera'
 import type { Insets, View } from '../game/layout'
 import { STEP, type Hit, type SimEvent, type State } from '../game/model'
 import { HEEL, type Press } from '../game/touch'
@@ -97,7 +97,7 @@ export function canvasEvents(el: HTMLCanvasElement, game: StageGame, seen: (fing
 /**
  * The one canvas and the one animation loop: every frame sizes the canvas to the window
  * (within a pixel budget, at most twice the CSS pixels), advances the game, works out the
- * view (camera.ts viewAt: the safe areas measured once per resize, a touch screen or not by
+ * view (camera.ts startView: the safe areas measured once per resize, a touch screen or not by
  * the last pointer's type), hands it to the game for its hit tests and draws. Pointers on the
  * canvas go to the game (canvasEvents). When the browser takes the canvas's memory back (a
  * lost context) the loop keeps the game running without drawing, and paints everything again
@@ -127,8 +127,6 @@ export function Stage({ game }: { game: StageGame }) {
     let last = -1
     let due = 0
     let lost = false
-    /** Whether the last frame's view was upright, null before the first. */
-    let upright: boolean | null = null
     // Back on the page, the first frame covers no time.
     const visibility = () => {
       if (document.visibilityState === 'visible') last = -1
@@ -170,13 +168,7 @@ export function Stage({ game }: { game: StageGame }) {
       }
       const f = game.advance(seconds)
       const t = (game.state.tick + f.alpha - 1) * STEP
-      let view = viewAt(game.state, t, cssWidth, cssHeight, dpr, touch, safe)
-      // The window turned since the last frame: the game hears it first (the rules stamp the turn), so this very frame starts the table's turn from the way it was instead of showing the new way settled for a frame.
-      if (upright !== null && view.upright !== upright) {
-        game.setView(view)
-        view = viewAt(game.state, t, cssWidth, cssHeight, dpr, touch, safe)
-      }
-      upright = view.upright
+      const view = startView(cssWidth, cssHeight, dpr, touch, safe)
       game.setView(view)
       if (!lost) renderer.draw(game.state, t, view, f.events, seconds, game.finger, game.hover)
     }

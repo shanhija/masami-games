@@ -1,4 +1,4 @@
-import { BASKET, FLOWER_OF, GROUND, PAD_RING, cellInLand, cellOf, dirTo, onBoard, rockOf, stepCell } from './board'
+import { BASKET, FLOWER_OF, GROUND, PAD_RING, cellOf, dirTo, onBoard, rockOf, stepCell, xOf, yOf } from './board'
 import { SIZE, START_STICKERS, STROKE_MAX, card } from './catalog'
 import { cellBelt, deriveNet, hasMouths, owners, rebuild, runOf } from './belts'
 import { CELLS, DIRS, OVER, PRED, THINGS, inSlot, newBuilding, opposite, outSlot, overIn, slotCell, thingIndex, type Building, type CellBelt, type Dir, type Edit, type Placeable, type State, type Sticker, type Thing } from './model'
@@ -31,7 +31,7 @@ import { slotPoint } from './where'
  * on (a bridge) or else ends it in a join: when the stroke ends there, ends one cell past it,
  * turns on it, or crosses a tower or bowl standing on it (its last cell points into that
  * side, so a stop sign there would lie); a belt's head, a bend's, a fork's or a bridge's
- * side, water, a tree, a burrow, the basket and closed land stop it, the ghost ending a cell
+ * side, water, a tree, a burrow and the basket stop it, the ghost ending a cell
  * short under a stop sign (two short at a belt's head, never facing it). A stroke ending one
  * cell short of a building's edge, pointing at it, steps into the mouth; a wobbly trace of the
  * hint's dotted path (it starts and ends where the path does, and two thirds of its cells are
@@ -58,8 +58,8 @@ export interface StrokePlan {
   /** What lifting commits, or null when nothing would change. */
   edit: Edit | null
 }
-/** Why a sticker's ghost is grey, each a thing she can see: water, a tree, a burrow, the pad or the cells round it, the basket, another building, closed land, rocks under a sticker that is not a digger, no rocks under a digger, no pond under the pump, no belt under a tower or a bowl, no flowers under a bowl; or no sticker of that kind left. */
-export type Grey = 'water' | 'tree' | 'burrow' | 'pad' | 'basket' | 'building' | 'land' | 'rock' | 'noRock' | 'noPond' | 'noBelt' | 'noFlowers' | 'empty'
+/** Why a sticker's ghost is grey, each a thing she can see: water, a tree, a burrow, the pad or the cells round it, the basket, another building, the board's edge, rocks under a sticker that is not a digger, no rocks under a digger, no pond under the pump, no belt under a tower or a bowl, no flowers under a bowl; or no sticker of that kind left. */
+export type Grey = 'water' | 'tree' | 'burrow' | 'pad' | 'basket' | 'building' | 'edge' | 'rock' | 'noRock' | 'noPond' | 'noBelt' | 'noFlowers' | 'empty'
 export interface PlacePlan {
   /** The spot the ghost snapped to: its footprint's top-left cell. */
   x: number
@@ -105,10 +105,11 @@ export function stickersLeft(s: State, sticker: Sticker): number {
   return given - placed
 }
 
-/** A cell no stroke goes into or starts on: closed land, water, a tree, a burrow's mound, the basket. The pond under the pump is the pump's footprint, so a stroke leads out of it and into it as with any building. The save reads its belt cells with it too (progress.ts). */
+/** A cell no stroke goes into or starts on: off the board (stepCell's -1), water, a tree, a burrow's mound, the basket. The pond under the pump is the pump's footprint, so a stroke leads out of it and into it as with any building. The save reads its belt cells with it too (progress.ts). */
 export function blocked(s: State, c: number): boolean {
+  if (c < 0) return true
   const g = GROUND[c]
-  return !cellInLand(s.land, c) || (g === 'pond' && s.owner[c]! < 0) || g === 'tree' || g === 'burrow' || c === cellOf(BASKET.x, BASKET.y)
+  return (g === 'pond' && s.owner[c]! < 0) || g === 'tree' || g === 'burrow' || c === cellOf(BASKET.x, BASKET.y)
 }
 /** The building whose footprint covers cell c (the pad and the machines; towers and bowls stand on belts and are no footprint), or -1. */
 function footAt(s: State, c: number): number {
@@ -240,7 +241,7 @@ export function planStroke(s: State, cells: readonly number[], hintPath: readonl
   const finger = fingerPath(cells)
   let p = finger.path
   if (hintPath !== null && p.length >= 2 && hintPath.length >= 2 && traces(s, p, hintPath)) p = [...hintPath]
-  // A stroke begun on water, a tree, a burrow or closed land starts where the finger first finds room.
+  // A stroke begun on water, a tree or a burrow starts where the finger first finds room.
   while (p.length > 0 && blocked(s, p[0]!)) p = p.slice(1)
   let stopped = p.length > STROKE_MAX
   p = p.slice(0, STROKE_MAX)
@@ -566,7 +567,7 @@ export function planStroke(s: State, cells: readonly number[], hintPath: readonl
 /**
  * A hedge line along the finger's cells while hedge stickers last: belt cells, the cells round
  * the pad and cells already hedged are skipped (a gap in the line), and the line stops at a
- * building, water, a tree, a burrow, the basket or closed land. A hedge may stand on rocks, as
+ * building, water, a tree, a burrow or the basket. A hedge may stand on rocks, as
  * a belt may: a digger placed there later takes it back into the tray, so a patch stays free
  * for one, and a fence can close a burrow's ring where its flowers grow on rocks.
  */
@@ -625,7 +626,7 @@ function greyAt(s: State, sticker: Placeable, x: number, y: number): Grey | null
   const cells: number[] = []
   for (let dy = 0; dy < k; dy++)
     for (let dx = 0; dx < k; dx++) {
-      if (!onBoard(x + dx, y + dy) || !cellInLand(s.land, cellOf(x + dx, y + dy))) return 'land'
+      if (!onBoard(x + dx, y + dy)) return 'edge'
       cells.push(cellOf(x + dx, y + dy))
     }
   for (const c of cells) {
@@ -794,7 +795,7 @@ export function lintNet(s: State): string[] {
   const b = s.belts
   const owner = owners(s)
   for (let c = 0; c < owner.length; c++) {
-    const where = `${c % 20},${Math.floor(c / 20)}`
+    const where = `${xOf(c)},${yOf(c)}`
     const cb = cellBelt(s, c)
     if (cb === null) {
       if (b.in[c] !== -1 || b.fork[c] !== -1 || b.over[c] !== -1) bad.push(`cell ${where} has sides but no belt`)
@@ -805,7 +806,7 @@ export function lintNet(s: State): string[] {
       if (cb.fork >= 0 && cb.over >= 0) bad.push(`a fork on a bridge at ${where}`)
       for (const side of [cb.fork, cb.over]) if (side >= 0 && (side === cb.in || side === cb.out)) bad.push(`a fork or bridge along its own lane at ${where}`)
       if (cb.over < 0) for (const x of [overIn(c), overIn(c) + 1]) if (b.slot[x]! >= 0) bad.push(`a thing on the missing over lane of ${where}`)
-      if (blocked(s, c) && cellInLand(s.land, c)) bad.push(`a belt on ${GROUND[c]} at ${where}`)
+      if (blocked(s, c)) bad.push(`a belt on ${GROUND[c]} at ${where}`)
       if (owner[c]! >= 0 && hasMouths(building(s, owner[c]!))) bad.push(`a belt under building ${owner[c]} at ${where}`)
       for (const l of lanesOf(cb)) if (headOn(s, c, l.out as Dir)) bad.push(`a head-on pair at ${where}`)
       if (cb.fork >= 0) {

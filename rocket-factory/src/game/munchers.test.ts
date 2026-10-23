@@ -6,19 +6,18 @@
  * and grabbing, a nap stopping a machine and the shiny thing taken, the 60 s limit, tickles
  * with the cap and Beep's order, the towers' choice, reservation, suds and ammo, picnics and
  * friends, each switch, Good night, the launch's watchers and edits; then the board lint: from
- * every burrow's door a muncher reaches the factory's core on the empty board of the land that
- * opens it.
+ * every burrow's door a muncher reaches the factory's core on the empty board.
  */
 import { describe, expect, it } from 'vitest'
 
 import { add, cell, line, put } from './beltKit'
 import { working } from './band'
-import { BURROWS, GROUND, LANDS, PAD_RING, cellOf, stepCell, xOf, yOf } from './board'
+import { BURROWS, GROUND, PAD_RING, cellOf, stepCell, xOf, yOf } from './board'
 import { hop, rebuild } from './belts'
 import {
   AFTER_CARD,
   AFTER_PAUSE,
-  AFTER_TURN,
+  BURROW_WAKES,
   CAUGHT_MAX,
   CHEEKS,
   COUNT_AT,
@@ -67,12 +66,12 @@ import { muncherPoint } from './where'
 /** The tick the tests start at: ten minutes into the session, a whole second. */
 const T = ticks(600)
 const A = 0
-const ALL: CardId[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel']
+const ALL: CardId[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel']
 const at = (x: number, y: number) => cellOf(x, y)
-/** The cells beside burrow A's mound on land 1 (its row above and column to the east lie in land 2). */
-const BY_A = [at(10, 2), at(10, 3), at(11, 4), at(12, 4)]
+/** The eight cells beside burrow A's mound: its west and south, its row above and its column to the east. */
+const BY_A = [at(10, 2), at(10, 3), at(11, 4), at(12, 4), at(11, 1), at(12, 1), at(13, 2), at(13, 3)]
 
-/** A game ten minutes into its session on land 1: Gears! found and burrow A's scout long gone, a finger on the glass, nothing else going on. */
+/** A game ten minutes into its session before Nose!: Gears! found and burrow A's scout long gone, a finger on the glass, nothing else going on. */
 function game(): State {
   const s = blankState(3)
   s.tick = T
@@ -187,7 +186,6 @@ describe('hunger', () => {
     expect([nearFlowers(A, at(8, 4)), nearFlowers(A, at(7, 4)), nearFlowers(A, at(6, 4))]).toEqual(['near', null, null])
     expect(hungerAfter(s, 2)).toBe(2 * (HUNGER.base + HUNGER.perWorking + HUNGER.nearFlowers))
     s.found = ALL.slice(0, 11)
-    s.land = 3
     expect(hungerAfter(s, 1)).toBe(HUNGER.base + HUNGER.perWorking + HUNGER.nearFlowers + HUNGER.pad)
   })
 
@@ -209,7 +207,7 @@ describe('hunger', () => {
     expect(hungerAfter(s, 4)).toBe(2 * (HUNGER.base + HUNGER.perWorking))
   })
 
-  it('is frozen while the burrow sleeps, while its munchers are out, and before its land opens or Gears! is found', () => {
+  it('is frozen while the burrow sleeps, while its munchers are out, and before its card is found (Gears! for A, Nose! for B, More! for C; D, E and F have none)', () => {
     const s = game()
     s.burrows[A]!.sleepUntil = s.tick + ticks(5)
     expect(hungerAfter(s, 4)).toBe(0)
@@ -281,7 +279,6 @@ describe('the kind rules', () => {
     ['a card is up', (s) => (s.card = { id: 'gears', at: s.tick - HZ })],
     ['a card closed under AFTER_CARD ago', (s) => (s.cardClosedAt = s.tick - AFTER_CARD + 4 * HZ)],
     ['the pause menu closed under AFTER_PAUSE ago', (s) => (s.pauseClosedAt = s.tick - AFTER_PAUSE + 4 * HZ)],
-    ['the board turned under AFTER_TURN ago', (s) => (s.turnedAt = s.tick - AFTER_TURN + 4 * HZ)],
     ['the session is no older than SESSION_CALM', (s) => (s.sessionAt = s.tick - SESSION_CALM + 4 * HZ)],
     ['the rocket is full', (s) => (s.rocket.got = [20, 30, 10, 40])],
     ['it is night', (s) => (s.night = { at: s.tick, kind: null, kindAt: -1, doneAt: -1 })],
@@ -376,13 +373,13 @@ describe('a visit', () => {
     return s.munchers.length
   }
 
-  it('is 1, plus one for each working machine on its flowers up to FLOWER_EXTRA, plus one with VISIT_BUSY working, at most VISIT_CAP for the land', () => {
+  it('is 1, plus one for each working machine on its flowers up to FLOWER_EXTRA, plus one with VISIT_BUSY working, at most VISIT_CAP for how far the path has come', () => {
     expect(size(() => {})).toBe(1)
     expect(size((s) => busy(s, 'oven', 9, 1))).toBe(2)
     expect(size((s) => busy(s, 'oven', 7, 4))).toBe(1)
     expect(size((s) => [busy(s, 'oven', 9, 1), busy(s, 'oven', 11, 4)])).toBe(VISIT_CAP[1])
-    const land3 = (s: State) => {
-      s.land = 3
+    const moreFound = (s: State) => {
+      s.found = ALL.slice(0, 10)
       for (const [x, y] of [
         [9, 1],
         [11, 4],
@@ -391,18 +388,17 @@ describe('a visit', () => {
         busy(s, 'oven', x!, y!)
       for (const x of [0, 2, 4, 6, 8]) busy(s, 'oven', x, 10)
     }
-    // 1 + 2 on its flowers + 1 with 8 working, held to land 3's cap.
-    expect(size(land3)).toBe(Math.min(1 + 2 + 1, VISIT_CAP[3]))
+    // 1 + 2 on its flowers + 1 with 8 working, held to the cap once More! is found.
+    expect(size(moreFound)).toBe(Math.min(1 + 2 + 1, VISIT_CAP[3]))
     expect(
       size((s) => {
-        land3(s)
+        moreFound(s)
         s.switches.munchers = 'few'
       }),
     ).toBe(1)
     // The drumming pad counts as a machine on every burrow's flowers.
     expect(
       size((s) => {
-        s.land = 2
         s.found = ALL.slice(0, 11)
       }),
     ).toBe(2)
@@ -426,11 +422,43 @@ describe('a visit', () => {
   })
 })
 
+describe('burrows D, E and F', () => {
+  it('sleep, snoring, and never visit whatever the factory does and every card found: no hunger, no warning, no watcher at the launch', () => {
+    const s = game()
+    s.found = ALL
+    for (const i of [1, 2]) s.burrows[i]!.helloAt = s.tick - HELLO_SLEEP - ticks(100)
+    // Working machines on every far burrow's flowers: the song that would wake them, were they to wake by it.
+    for (const [x, y] of [[49, 8], [53, 24], [30, 27]] as const) busy(s, 'oven', x, y)
+    for (const i of [3, 4, 5]) s.burrows[i]!.hunger = HUNGER_FULL - 1
+    const events = run(s, ticks(300))
+    expect(kinds(events, 'warn').filter((e) => e.burrow >= 3)).toEqual([])
+    expect(kinds(events, 'hopOut').filter((e) => e.burrow >= 3)).toEqual([])
+    expect(s.burrows.slice(3).map((b) => [b.warnAt, b.visits])).toEqual([[-1, 0], [-1, 0], [-1, 0]])
+    // The launch sends a watcher from every burrow that is awake, and none from these.
+    s.rocket.got = [20, 30, 10, 40]
+    s.launch = { at: s.tick, landsAt: s.tick + LAUNCH_FOR }
+    s.munchers = []
+    s.visit = null
+    run(s, 1)
+    expect(s.munchers.filter((m) => m.mode === 'watch').map((m) => m.burrow).sort()).toEqual([0, 1, 2])
+  })
+
+  it('have their own doors, each far from the factory by walking (over 30 cells) but reaching it', () => {
+    const s = game()
+    for (const i of [3, 4, 5]) {
+      const door = doorCell(s, i)
+      expect(GROUND[door], `burrow ${i}`).not.toBe('burrow')
+      const d = walkDistances(s, door, false)
+      expect(d[at(8, 7)]!, `burrow ${i} to the start oven's side`).toBeGreaterThan(30)
+    }
+  })
+})
+
 describe('burrows B and C', () => {
-  it('wake HELLO_SLEEP after their land opens and send their munchers from their own doors toward the factory', () => {
+  it('wake HELLO_SLEEP after their card is found (Nose!, More!) and send their munchers from their own doors toward the factory', () => {
     for (const i of [1, 2]) {
       const s = game()
-      s.land = BURROWS[i]!.land
+      s.found.push(BURROW_WAKES[i]!)
       s.burrows[i]!.helloAt = s.tick
       const bottle = spot(s, 5, 9, 'greenBottle')
       s.burrows[i]!.hunger = WAIT_AT
@@ -1051,7 +1079,6 @@ describe('Good night', () => {
 describe('the launch', () => {
   it('sends everyone home once the rocket is full with Fuel! found, then a watcher from every burrow to sit by the pad until it lands', () => {
     const s = game()
-    s.land = 3
     s.found = ALL
     for (const i of [1, 2]) s.burrows[i]!.helloAt = s.tick - HELLO_SLEEP - ticks(100)
     const m = muncher(s, at(9, 9), 'polite', [])
@@ -1140,11 +1167,10 @@ describe('edits', () => {
   })
 
   it('let a nibbler whose hedge she takes back with nothing opened behind it step into the gap and nibble the next hedge, by the peel, a peel drag, Oops and a stroke', () => {
-    // Land 2 with burrow B's fence from the hint's blueprint round its west side and top, the corner (13, 10) planted last by her hedge tool so Oops can take it back. B's muncher on its door cell (14, 10) nibbles the corner: behind it stand the tree at (12, 10), closed land at (13, 11) and the fence's next hedge at (13, 9).
+    // Nose! found, burrow B's door pocket fenced round its south and east and the fence's hedge at (13, 9), the corner (13, 10) planted last by her hedge tool so Oops can take it back. B's muncher on its door cell (14, 10) nibbles the corner: behind it stand the tree at (12, 10), the tree at (13, 11) and the fence's next hedge at (13, 9).
     const s = game()
-    s.land = 2
     s.found = ALL.slice(0, 7)
-    for (const [x, y] of [[13, 7], [14, 7], [15, 7], [13, 8], [13, 9]] as const) s.hedge[at(x, y)] = 1
+    for (const [x, y] of [[14, 11], [15, 11], [16, 10], [13, 9]] as const) s.hedge[at(x, y)] = 1
     spot(s, 5, 9, 'greenBottle')
     const corner = at(13, 10)
     act(s, { kind: 'tool', tool: { kind: 'hedge' } })
@@ -1188,16 +1214,14 @@ describe('edits', () => {
 })
 
 describe('the board', () => {
-  it('lets a muncher from every burrow\'s door reach the factory\'s core (the cells round the start oven and the pad\'s ring) on the empty board of the land that opens it', () => {
-    BURROWS.forEach((site, i) => {
+  it('lets a muncher from every burrow\'s door reach the factory\'s core (the cells round the start oven and the pad\'s ring) on the empty board, D, E and F from far out east, south-east and south', () => {
+    BURROWS.forEach((_, i) => {
       const s = blankState(1)
-      s.land = site.land
       rebuild(s)
       const door = doorCell(s, i)
       expect(GROUND[door]).not.toBe('burrow')
       const d = walkDistances(s, door, false)
-      const w = LANDS[s.land]
-      const open = (c: number) => xOf(c) >= w.x0 && xOf(c) <= w.x1 && yOf(c) >= w.y0 && yOf(c) <= w.y1 && s.owner[c]! < 0 && !PAD_RING.has(c) && GROUND[c] !== 'pond' && GROUND[c] !== 'tree' && GROUND[c] !== 'burrow'
+      const open = (c: number) => s.owner[c]! < 0 && !PAD_RING.has(c) && GROUND[c] !== 'pond' && GROUND[c] !== 'tree' && GROUND[c] !== 'burrow'
       const oven = s.buildings.find((b) => b.kind === 'oven')!.id
       const core: number[] = []
       for (let c = 0; c < CELLS; c++)
@@ -1210,7 +1234,7 @@ describe('the board', () => {
         )
           core.push(c)
       expect(core.length).toBeGreaterThan(15)
-      expect(core.filter((c) => d[c]! < 0)).toEqual([])
+      expect(core.filter((c) => d[c]! < 0), `burrow ${i}`).toEqual([])
     })
   })
 
@@ -1220,8 +1244,7 @@ describe('the board', () => {
       const r = rng(seed)
       const pick = <T,>(xs: readonly T[]) => xs[Math.floor(r() * xs.length)]!
       const s = game()
-      s.land = pick([1, 2, 3] as const)
-      s.found = ALL.slice(0, 9)
+      s.found = ALL.slice(0, pick([4, 7, 9, 10]))
       s.burrows[A]!.visits = pick([0, 1])
       const fits = (x: number, y: number, k: number) => {
         for (let j = y; j < y + k; j++)
@@ -1244,7 +1267,7 @@ describe('the board', () => {
       }
       /** A straight belt of a few cells from a random cell a random way, things on some of them; false when not one cell fitted. */
       const belt = (): boolean => {
-        let c = Math.floor(r() * CELLS)
+        let c = cellOf(Math.floor(r() * 20), Math.floor(r() * 12))
         const d = pick(DIRS)
         let laid = false
         for (let j = 0; j < 2 + Math.floor(r() * 5); j++) {
@@ -1263,7 +1286,7 @@ describe('the board', () => {
       s.burrows.forEach((b) => (b.hunger = 900 + Math.floor(r() * 99)))
       const broken: string[] = []
       for (let t = 0; t < ticks(150); t++) {
-        const c = Math.floor(r() * CELLS)
+        const c = cellOf(Math.floor(r() * 20), Math.floor(r() * 12))
         let edited = false
         if (s.munchers.length > 0 && r() < 0.0005) tickle(s, pick(s.munchers).id)
         if (r() < 0.002) edited = place()

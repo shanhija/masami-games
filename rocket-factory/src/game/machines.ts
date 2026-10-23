@@ -1,6 +1,6 @@
 import { working } from './band'
 import { cellOf, rockOf } from './board'
-import { BAKES, BUSY_WINDOW, COST_SCALE, LAB_DRINK, LIFT_WAIT, PATH, PATTERNS, QUICKER, RECIPES, SIZE, STACK, card, type Card } from './catalog'
+import { BAKES, BURROW_WAKES, BUSY_WINDOW, COST_SCALE, HELLO_SLEEP, LAB_DRINK, LIFT_WAIT, PATH, PATTERNS, QUICKER, RECIPES, SIZE, STACK, card, type Card } from './catalog'
 import { HOP, HZ, PARTS, isBottle, thingIndex, type Bottle, type Building, type PartId, type State, type Thing } from './model'
 import { partOpen } from './trade'
 
@@ -97,12 +97,16 @@ function met(s: State, c: Card, goldBar: boolean): boolean {
   }
 }
 
-/** Card c is found: it comes up (the rules close it), Beep says its word, its land's flaps open for her tap, it brings its belt pattern, and the lab starts on empty jars for the next card (its shelf keeps every bottle). */
+/** Card c is found: it comes up (the rules close it), Beep says its word, the burrows it wakes (BURROW_WAKES, but A: its scout comes SCOUT_AFTER later, munchers.ts) wave hello and sleep HELLO_SLEEP, it brings its belt pattern, and the lab starts on empty jars for the next card (its shelf keeps every bottle). */
 function found(s: State, c: Card): void {
   s.found.push(c.id)
   s.card = { id: c.id, at: s.tick }
   s.events.push({ kind: 'card', id: c.id }, { kind: 'say', word: c.word })
-  if (c.land !== null) s.flap = c.land
+  BURROW_WAKES.forEach((id, i) => {
+    if (id !== c.id || i === 0) return
+    s.burrows[i]!.helloAt = s.tick
+    s.burrows[i]!.sleepUntil = s.tick + HELLO_SLEEP
+  })
   if (c.pattern) s.patterns = Math.min(PATTERNS.length, s.patterns + 1)
   s.lab.got = [0, 0]
 }

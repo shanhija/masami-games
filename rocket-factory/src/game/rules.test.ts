@@ -11,10 +11,10 @@ import { describe, expect, it } from 'vitest'
 import { NIGHT_LEAD, LIFTOFF } from './band'
 import { BEEP_HOME } from './beep'
 import { add, line, put } from './beltKit'
-import { BURROWS, LANDS, PAD, cellOf } from './board'
+import { BURROWS, PAD, cellOf } from './board'
 import { rebuild } from './belts'
-import { viewAt } from './camera'
-import { BEEP_REST, CARD_FOR, CARD_IDLE, COUNT_AT, DIG_GAP, HELLO_SLEEP, HOLD, LAUNCH_FOR, LIFT_WAIT, NIGHT_TUCK, PART_INFO, SIZE, STACK, STICKER_WORD, UNDO_FOR, UNDO_MAX } from './catalog'
+import { startView } from './camera'
+import { BEEP_REST, CARD_FOR, CARD_IDLE, COUNT_AT, DIG_GAP, HOLD, LAUNCH_FOR, LIFT_WAIT, NIGHT_TUCK, PART_INFO, SIZE, STACK, STICKER_WORD, UNDO_FOR, UNDO_MAX } from './catalog'
 import { NO_INSETS, pick, pictureSpot, toScreen } from './layout'
 import { CARDS, HOP, PARTS, STEP, inSlot, outSlot, thingIndex, ticks, type Action, type Dir, type EventKind, type Hit, type SimEvent, type State, type Tool } from './model'
 import { next } from './random'
@@ -274,24 +274,6 @@ describe('a tap', () => {
     expect(of(tapOn(s, { kind: 'moony' }), 'poke')).toEqual([{ kind: 'poke', what: 'moony', x: moonyPoint.x, y: moonyPoint.y }])
   })
 
-  it('opens the flaps after a Land! card, lifts their corner before one, and finds none at land 3', () => {
-    const s = game()
-    const l = LANDS[1]
-    expect(of(tapOn(s, { kind: 'flap' }), 'poke')).toEqual([{ kind: 'poke', what: 'flap', x: l.x1 + 1, y: l.y0 }])
-    expect(s.land).toBe(1)
-    s.flap = 2
-    const at = s.tick
-    expect(of(tapOn(s, { kind: 'flap' }), 'flap')).toEqual([{ kind: 'flap', land: 2 }])
-    expect([s.land, s.landFrom, s.landAt, s.flap]).toEqual([2, 1, at, 0])
-    expect(s.burrows[1]).toMatchObject({ helloAt: at, sleepUntil: at + HELLO_SLEEP })
-    expect(s.burrows[2]!.helloAt).toBe(-1)
-    // Her drag on them folds them open the same way.
-    s.flap = 3
-    expect(of(doing(s, { kind: 'flap' }), 'flap')).toEqual([{ kind: 'flap', land: 3 }])
-    expect(s.land).toBe(3)
-    expect(() => act(s, { kind: 'flap' })).toThrow()
-  })
-
   it("places the hint's ghost on its spot, and a late tap after the hint moved on places nothing", () => {
     const s = game()
     s.found.push('digger')
@@ -333,7 +315,7 @@ describe('a tap', () => {
       const s = game()
       s.found.push('digger', 'gold', 'science', 'gears', 'hedges')
       const router = new Router((a) => act(s, a))
-      const view = viewAt(s, s.tick * STEP, 1180, 820, 2, true, NO_INSETS)
+      const view = startView(1180, 820, 2, true, NO_INSETS)
       const t = s.tick * STEP
       let at: [number, number]
       if (what === 'hedge') {
@@ -902,7 +884,7 @@ describe('the launch', () => {
 describe('Good night', () => {
   it('tucks the kinds in one by one from dusk, by her tap or by themselves, until Beep sleeps by the basket', () => {
     const s = game()
-    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket']
+    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket']
     const digger = add(s, 'digger', 7, 2)
     const lab = add(s, 'lab', 4, 2)
     rebuild(s)
@@ -991,16 +973,9 @@ describe('sessions, the board and the switches', () => {
     expect(s.handAt).toBeLessThanOrEqual(at + HINT_LOOK)
   })
 
-  it('drops a drag when the board turns, its sticker back; remembers the turn and the pause menu closing', () => {
+  it('remembers when the pause menu closed', () => {
     const s = game()
-    s.found.push('digger')
-    act(s, { kind: 'tool', tool: { kind: 'sticker', sticker: 'digger' } })
-    act(s, { kind: 'hold', x: 8, y: 3 })
     const at = s.tick
-    act(s, { kind: 'turned' })
-    expect(s.drag).toBeNull()
-    expect(s.tool).toEqual({ kind: 'pencil' })
-    expect(s.turnedAt).toBe(at)
     act(s, { kind: 'unpaused' })
     expect(s.pauseClosedAt).toBe(at)
   })

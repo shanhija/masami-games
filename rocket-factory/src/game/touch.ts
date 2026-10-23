@@ -1,10 +1,9 @@
-import { LANDS, cellOf, inLand, xOf, yOf } from './board'
-import { viewMoves } from './camera'
+import { cellOf, onBoard, xOf, yOf } from './board'
 import { PLACEABLE, SIZE } from './catalog'
 import { SLOP, areaDistance, gripLift, heldAt, hintGhost, hintPath, hitTest, pick, screenBox, toBoard, type Area, type View } from './layout'
 import { COLS, HOP, ROWS, sameTool, type Action, type Hit, type Placeable, type State, type Sticker, type Tool } from './model'
 import { blocked, planStroke } from './strokes'
-import { buildingBox, burrowBox, muncherPoint, type Box } from './where'
+import { buildingBox, burrowBox, muncherPoint, type Box, type Point } from './where'
 
 /**
  * The pointer router: every finger on the board, read by the rules of "A touch is read"
@@ -30,7 +29,7 @@ import { buildingBox, burrowBox, muncherPoint, type Box } from './where'
  *   sticker and holds it, and a drag out of the hedge's button draws a hedge line.
  * - A lift commits after BRIDGE, unless a touch within a cell goes on with it (one in the
  *   frame right after the lift's always may, however long that frame was: under ?fast a frame
- *   is longer than BRIDGE); a cancel, a turn, a page hide or a pause drops it with nothing
+ *   is longer than BRIDGE); a cancel, a window turn, a page hide or a pause drops it with nothing
  *   placed, and so does the rules' dropping it (another tool picked meanwhile).
  * - One finger has the board at a time: one that has started no stroke, dig or ghost hands it at
  *   once to the next finger that lands (a resting heel or thumb), a contact too wide for a
@@ -40,7 +39,7 @@ import { buildingBox, burrowBox, muncherPoint, type Box } from './where'
 
 /** A touch that lifts within TAP_FOR seconds, before it became a stroke, a dig or a ghost drag and no further than layout.SLOP off what it went down on, is a tap on it. */
 export const TAP_FOR = 2
-/** On bare ground a stroke begins after STROKE_TRAVEL px of travel with the finger in a second cell; a drag from the hint's spot or the next land's flaps after the same travel. */
+/** On bare ground a stroke begins after STROKE_TRAVEL px of travel with the finger in a second cell; a drag from the hint's spot after the same travel. */
 export const STROKE_TRAVEL = 24
 /** The axis lock: a stroke keeps its row (or column) until the finger strays LOCK cells from its middle line, and never less than LOCK_PX, so a wobbly finger draws straight. */
 export const LOCK = 0.85
@@ -72,8 +71,8 @@ const ANSWERS: ReadonlySet<Hit['kind']> = new Set<Hit['kind']>(['building', 'sta
 interface Finger {
   id: number
   role: 'inert' | 'press' | 'dig' | 'stroke' | 'ghost' | 'tray'
-  /** It went down on the land (on a muncher too): the kind rules count it as a touch. */
-  land: boolean
+  /** It went down on the board (on a muncher too): the kind rules count it as a touch. */
+  touched: boolean
   /** A finger or a pen, not the mouse: a hand covers what is under it. */
   touch: boolean
   at: number
@@ -104,7 +103,7 @@ interface Finger {
   hop: number
 }
 
-/** The board cell under board point (x, y), held on the board: a stroke dragged off the land runs on into closed land, where strokes.ts stops it. */
+/** The board cell under board point (x, y), held on the board: a stroke dragged off the board runs on along its edge, where strokes.ts stops it. */
 const cellAt = (x: number, y: number) => cellOf(Math.min(COLS - 1, Math.max(0, Math.floor(x))), Math.min(ROWS - 1, Math.max(0, Math.floor(y))))
 const inBox = (b: Box, x: number, y: number) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h
 /** The last hop the state has stepped through (belts hop every HOP ticks, on the tick before s.tick). */
@@ -174,8 +173,8 @@ export class Router {
   private board: Finger | null = null
   /** The stroke or ghost whose finger lifted at `at` from (x, y), not released yet, and how many frames have ticked since: a touch within a cell of it within BRIDGE, or in the frame right after the lift's, goes on with it. */
   private bridge: { finger: Finger; at: number; x: number; y: number; ticks: number } | null = null
-  /** How many fingers are down on the land, for the kind rules' touches. */
-  private lands = 0
+  /** How many fingers are down on the board, for the kind rules' touches. */
+  private touching = 0
   /** A picked sticker's ghost follows the mouse with no button down. */
   private hovering = false
 
@@ -194,8 +193,8 @@ export class Router {
     const f = this.track(id, sx, sy, t, press, hit, area, 'inert', null)
     f.cell = cellAt(bx, by)
     f.hop = hopOf(s)
-    if (hit.kind !== 'table') this.landed(f)
-    if (this.frozen(s, view, t)) return
+    if (hit.kind !== 'table') this.touchedBoard(f)
+    if (this.frozen(view)) return
     // The lift bridge first: a touch within a cell of a lifted stroke or ghost goes on with it, even within a muncher's reach, so a fingertip that skips by a muncher never lays half a belt.
     const b = this.bridge
     if (b !== null) {
@@ -215,7 +214,7 @@ export class Router {
     }
     if (hit.kind === 'table' || !this.take(f)) return
     // During the launch a press is a tap for the rules to answer (a tap on the rocket pops its number), never an edit.
-    if (hit.kind === 'flap' || s.launch !== null) {
+    if (s.launch !== null) {
       f.role = 'press'
       return
     }
@@ -262,7 +261,7 @@ export class Router {
    */
   tray(s: State, view: View, id: number, sticker: Sticker, sx: number, sy: number, t: number, press: Press): void {
     this.settle(t, false)
-    this.track(id, sx, sy, t, press, { kind: 'table' }, null, this.frozen(s, view, t) || s.launch !== null ? 'inert' : 'tray', sticker)
+    this.track(id, sx, sy, t, press, { kind: 'table' }, null, this.frozen(view) || s.launch !== null ? 'inert' : 'tray', sticker)
   }
 
   /** A pointer moved to (sx, sy) with its button down. */
@@ -272,7 +271,7 @@ export class Router {
     if (f === undefined || (sx === f.x && sy === f.y)) return
     f.x = sx
     f.y = sy
-    if (f.role === 'inert' || f.role === 'dig' || this.frozen(s, view, t)) return
+    if (f.role === 'inert' || f.role === 'dig' || this.frozen(view)) return
     this.follow(s, view, f, sx, sy)
   }
 
@@ -289,7 +288,7 @@ export class Router {
       this.move(s, view, id, sx, sy, t)
       if (this.board !== f) return
       // While the view moves under it, a lift only lets go.
-      if (this.frozen(s, view, t)) return this.stop(f)
+      if (this.frozen(view)) return this.stop(f)
       if (f.role === 'stroke') {
         this.endTurn(s, view, f, sx, sy)
         this.bridge = { finger: f, at: t, x: sx, y: sy, ticks: 0 }
@@ -320,7 +319,7 @@ export class Router {
   /** The mouse moved to (sx, sy) with no button down: hover names what a click would take, and a picked sticker's ghost follows the pointer (over the table it greys, strokes.ts). */
   hoverAt(s: State, view: View, sx: number, sy: number, t: number): void {
     this.settle(t, false)
-    if (this.board !== null || this.frozen(s, view, t) || s.launch !== null) {
+    if (this.board !== null || this.frozen(view) || s.launch !== null) {
       this.hover = null
       return
     }
@@ -341,8 +340,8 @@ export class Router {
 
   /**
    * The frame's tick at sim time t: a lifted stroke or ghost that nothing went on with commits;
-   * a press on a riding thing follows it through the hop; while the view moves (the land's ease,
-   * the turn, the turn-me picture) the board's finger lets go with nothing done; and once a
+   * a press on a riding thing follows it through the hop; under the turn-me picture the
+   * board's finger lets go with nothing done; and once a
    * launch runs a stroke, a ghost or a dig lets go too, while a press waits to be its tap.
    */
   tick(s: State, view: View, t: number): void {
@@ -350,7 +349,7 @@ export class Router {
     if (this.bridge !== null) this.bridge.ticks++
     const f = this.board
     if (f !== null && f.role === 'press') this.ride(s, f)
-    if (this.frozen(s, view, t)) {
+    if (this.frozen(view)) {
       this.bridge = null
       if (f !== null) this.stop(f)
     } else if (s.launch !== null) {
@@ -359,41 +358,41 @@ export class Router {
     }
   }
 
-  /** The board turned, the page hid or the game paused: a stroke or ghost drops with nothing placed (a lifted one too), a dig ends, a hovering ghost goes, and every finger down is forgotten, so its lift taps nothing. */
+  /** The window turned, the page hid or the game paused: a stroke or ghost drops with nothing placed (a lifted one too), a dig ends, a hovering ghost goes, and every finger down is forgotten, so its lift taps nothing. */
   drop(): void {
     this.bridge = null
     if (this.board !== null) this.stop(this.board)
     this.leave()
-    if (this.lands > 0) this.send({ kind: 'touch', down: false })
-    this.lands = 0
+    if (this.touching > 0) this.send({ kind: 'touch', down: false })
+    this.touching = 0
     this.fingers.clear()
   }
 
-  /** Whether the board takes no input at all now: the land eases out or the table turns under the finger, or a phone held upright shows the turn-me picture. (During the launch it takes taps: `s.launch`.) */
-  private frozen(s: State, view: View, t: number): boolean {
-    return viewMoves(s, t) || view.hud.held === 'turnMe'
+  /** Whether the board takes no input at all: a phone held upright shows the turn-me picture. (During the launch it takes taps: `s.launch`.) */
+  private frozen(view: View): boolean {
+    return view.hud.held === 'turnMe'
   }
 
   /** A new finger in the router's map, down at (sx, sy) at t on `hit`. */
   private track(id: number, sx: number, sy: number, t: number, press: Press, hit: Hit, area: Area | null, role: Finger['role'], sticker: Sticker | null): Finger {
-    const f: Finger = { id, role, land: false, touch: press === 'touch' || press === 'heel', at: t, x0: sx, y0: sy, x: sx, y: sy, hit, area, strayed: false, cell: -1, footprint: null, last: -1, cells: [], axis: null, sticker, dx: 0, dy: 0, tool: null, hop: -1 }
+    const f: Finger = { id, role, touched: false, touch: press === 'touch' || press === 'heel', at: t, x0: sx, y0: sy, x: sx, y: sy, hit, area, strayed: false, cell: -1, footprint: null, last: -1, cells: [], axis: null, sticker, dx: 0, dy: 0, tool: null, hop: -1 }
     this.fingers.set(id, f)
     return f
   }
 
-  /** Finger f is on the land: a touch for the kind rules. */
-  private landed(f: Finger): void {
-    f.land = true
-    this.lands++
+  /** Finger f is on the board: a touch for the kind rules. */
+  private touchedBoard(f: Finger): void {
+    f.touched = true
+    this.touching++
     this.send({ kind: 'touch', down: true })
   }
 
-  /** Finger f lifted or was cancelled: the last one off the land tells the kind rules. */
+  /** Finger f lifted or was cancelled: the last one off the board tells the kind rules. */
   private forget(f: Finger): void {
     this.fingers.delete(f.id)
-    if (!f.land) return
-    this.lands--
-    if (this.lands === 0) this.send({ kind: 'touch', down: false })
+    if (!f.touched) return
+    this.touching--
+    if (this.touching === 0) this.send({ kind: 'touch', down: false })
   }
 
   /** The board for finger f: when it is free, or from a finger that has started no stroke and no ghost, which hands it on at once and is inert from then on (a heel or a thumb resting on the glass; one resting on a patch or the pond stops digging). A stroke or a ghost keeps it. */
@@ -459,9 +458,8 @@ export class Router {
   /**
    * Finger f is at (sx, sy): a ghost follows it, a stroke draws on toward it, a tray press
    * that left the tray picks its sticker and holds it (the hedge's starts a hedge line), and a
-   * press may become a stroke, a ghost drag from the hint's spot, or the flaps' drag that folds
-   * them open once a Land! card has come (before it, lifted, the press taps them). A stroke or a
-   * ghost whose tool another pick has replaced lets go.
+   * press may become a stroke or a ghost drag from the hint's spot. A stroke or a ghost whose
+   * tool another pick has replaced lets go.
    */
   private follow(s: State, view: View, f: Finger, sx: number, sy: number): void {
     const [bx, by] = toBoard(view, sx, sy)
@@ -479,7 +477,7 @@ export class Router {
         return
       case 'stroke':
         if (!sameTool(s.tool, f.tool!)) return this.letGo(f)
-        this.draw(s, f, bx, by, view)
+        this.draw(f, bx, by, view)
         return
       case 'tray':
         if (inBox(view.hud.tray!, sx, sy)) return
@@ -487,7 +485,7 @@ export class Router {
           f.role = 'inert'
           return
         }
-        this.landed(f)
+        this.touchedBoard(f)
         if (f.sticker !== 'hedge') return pickSticker(f.sticker!)
         // The hedge's button dragged out: the hedge in hand, and its line from the first open cell the finger enters.
         if (s.tool.kind !== 'hedge') this.send({ kind: 'tool', tool: { kind: 'hedge' } })
@@ -495,20 +493,13 @@ export class Router {
         f.tool = s.tool
         f.cells = []
         f.axis = null
-        this.draw(s, f, bx, by, view)
+        this.draw(f, bx, by, view)
         return
       case 'press': {
         if (f.area !== null && areaDistance(f.area, sx, sy) > SLOP) f.strayed = true
         // During the launch a press stays a tap.
         if (s.launch !== null) return
         const travel = Math.hypot(sx - f.x0, sy - f.y0)
-        // Before a Land! card the flaps only lift their corner, as a tap on them does.
-        if (f.hit.kind === 'flap') {
-          if (s.flap === 0 || travel < STROKE_TRAVEL) return
-          this.send({ kind: 'flap' })
-          this.stop(f)
-          return
-        }
         if (f.hit.kind === 'spot') {
           if (travel >= STROKE_TRAVEL) pickSticker(f.sticker as Placeable)
           return
@@ -532,7 +523,7 @@ export class Router {
         f.role = 'stroke'
         f.axis = null
         f.tool = s.tool
-        this.draw(s, f, bx, by, view)
+        this.draw(f, bx, by, view)
         return
       }
       case 'inert':
@@ -542,9 +533,9 @@ export class Router {
   }
 
   /** A stroke draws on toward board point (bx, by): the cells so far go to the rules whenever they change. A hedge line out of the tray begins at the first open cell the finger enters. */
-  private draw(s: State, f: Finger, bx: number, by: number, view: View): void {
+  private draw(f: Finger, bx: number, by: number, view: View): void {
     if (f.cells.length === 0) {
-      if (!inLand(s.land, Math.floor(bx), Math.floor(by))) return
+      if (!onBoard(Math.floor(bx), Math.floor(by))) return
       f.cells.push(cellAt(bx, by))
       this.send({ kind: 'drag', cells: [...f.cells] })
       return
@@ -587,10 +578,10 @@ export class Router {
  * a command for the shell, at sim time t; null when the game leaves the key to the browser.
  * 1 to 9 pick the sticker kinds in PLACEABLE's order (the digger is always 1, the oven 2), B
  * the pencil (on the lit pencil its next pattern, as a tap on its button), H the hedge, X the
- * peel, Z or Ctrl+Z Oops, Space tickles the muncher nearest the land's middle, Enter presses
+ * peel, Z or Ctrl+Z Oops, Space tickles the muncher nearest the view's middle (`middle`, a board point), Enter presses
  * Play and closes a card, Esc or P the pause menu, M the sound, F full screen.
  */
-export function keyAction(s: State, t: number, code: string, ctrl: boolean): Action | Shell | null {
+export function keyAction(s: State, t: number, code: string, ctrl: boolean, middle: Point): Action | Shell | null {
   if (ctrl) return code === 'KeyZ' ? { kind: 'oops' } : null
   const digit = /^(?:Digit|Numpad)([1-9])$/.exec(code)
   if (digit !== null) return { kind: 'tool', tool: { kind: 'sticker', sticker: PLACEABLE[Number(digit[1]) - 1]! } }
@@ -604,15 +595,12 @@ export function keyAction(s: State, t: number, code: string, ctrl: boolean): Act
     case 'KeyZ':
       return { kind: 'oops' }
     case 'Space': {
-      // The muncher nearest the land's middle that a tickle would still send home.
-      const l = LANDS[s.land]
-      const mx = (l.x0 + l.x1 + 1) / 2
-      const my = (l.y0 + l.y1 + 1) / 2
+      // The muncher nearest the view's middle that a tickle would still send home.
       let best: { id: number; d: number } | null = null
       for (const m of s.munchers) {
         if (m.mode === 'home' || m.mode === 'watch' || m.mode === 'caught') continue
         const p = muncherPoint(m, t)
-        const d = (p.x - mx) ** 2 + (p.y - my) ** 2
+        const d = (p.x - middle.x) ** 2 + (p.y - middle.y) ** 2
         if (best === null || d < best.d) best = { id: m.id, d }
       }
       return best === null ? null : { kind: 'tickle', id: best.id }

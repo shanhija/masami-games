@@ -2,7 +2,7 @@ import { PAD, xOf, yOf } from '../game/board'
 import { CHEEKS, NIBBLE_FOR, SHRUG_FOR } from '../game/catalog'
 import { STEP, since, type HomeWhy, type Muncher, type MuncherMode, type State, type Thing } from '../game/model'
 import { muncherPoint, type Box } from '../game/where'
-import { C, MOONY, MUNCHER, NIGHT, THING, TAU, addCapsule, addCircle, arch, blush, circlePath, clamp01, detail, dieCut, eyes, fill, groundShadow, heldAge, loop, mix, openMouth, pen, phaseOf, replay, scaled, shine, smallEntry, smile, smooth, tipped, zees, type SheetEntry } from './look'
+import { C, MOONY, MUNCHER, NIGHT, THING, TAU, addCapsule, addCircle, arch, blush, circlePath, clamp01, detail, dieCut, eyes, fill, groundShadow, heldAge, loop, mix, openMouth, pen, phaseOf, replay, scaled, shine, smallEntry, smile, smooth, starPath, tipped, zees, type SheetEntry } from './look'
 import { drawStillThing, drawThing } from './things'
 
 /**
@@ -14,8 +14,8 @@ import { drawStillThing, drawThing } from './things'
  * eyes and a small soft smile. Its feet hide under the bottom bumps, so it walks with a
  * waddle. Its side bumps are its cheeks: each puffs out one step for each thing it eats, with
  * the thing showing on it. No teeth, no claws, never a frown: it giggles, hops, pats its full
- * cheeks and burps. Each burrow's munchers wear their own mark (a bow, freckles, a flower) so
- * she can name them. It is never a smooth pink ball with a tuft (rule 11): the bumps and the
+ * cheeks and burps. Each burrow's munchers wear their own mark (a bow, freckles, a flower, a
+ * star, stripes, a diamond) so she can name them. It is never a smooth pink ball with a tuft (rule 11): the bumps and the
  * calyx make a silhouette nobody owns.
  *
  * `MuncherPicture` is one frame of a muncher (`muncherPicture` reads it off the state), and
@@ -29,7 +29,7 @@ import { drawStillThing, drawThing } from './things'
 
 /** One frame of a muncher: what the renderer reads off the state (`muncherPicture`), and what the sheet and the tests make up. */
 export interface MuncherPicture {
-  /** Its burrow, 0 A, 1 B or 2 C: its mark is a bow, freckles or a flower. */
+  /** Its burrow, 0 A to 5 F: its mark is a bow, freckles, a flower, a star, stripes or a diamond. */
   burrow: number
   mode: MuncherMode
   /** Why it goes home while its mode is 'home', else null. */
@@ -620,29 +620,63 @@ function berry(ctx: CanvasRenderingContext2D, pic: MuncherPicture, r: Rig, lod: 
   ctx.stroke()
   ctx.lineCap = cap
   // The burrow's mark.
-  if (pic.burrow === 0) {
-    ctx.beginPath()
-    addBow(ctx)
-    fill(ctx, MUNCHER.bow)
-  } else if (pic.burrow === 1 && lod !== 'S') {
-    ctx.beginPath()
-    for (const side of [-1, 1])
-      for (const [fx, fy] of [
-        [-0.032, 0.072],
-        [0, 0.088],
-        [0.032, 0.072],
-      ] as const)
-        addCircle(ctx, FACE.x + side * FACE.gap * 0.62 + fx, FACE.eyeY + fy, 0.017)
-    fill(ctx, MUNCHER.freckle)
-  } else if (pic.burrow === 2) {
-    ctx.beginPath()
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * TAU - Math.PI / 2
-      addCircle(ctx, FLOWER.x + Math.cos(a) * 0.034, FLOWER.y + Math.sin(a) * 0.034, 0.027)
-    }
-    fill(ctx, C.white)
-    circlePath(ctx, FLOWER.x, FLOWER.y, 0.022)
-    fill(ctx, MUNCHER.flower)
+  switch (pic.burrow) {
+    case 0:
+      ctx.beginPath()
+      addBow(ctx)
+      fill(ctx, MUNCHER.bow)
+      break
+    case 1:
+      if (lod === 'S') break
+      ctx.beginPath()
+      for (const side of [-1, 1])
+        for (const [fx, fy] of [
+          [-0.032, 0.072],
+          [0, 0.088],
+          [0.032, 0.072],
+        ] as const)
+          addCircle(ctx, FACE.x + side * FACE.gap * 0.62 + fx, FACE.eyeY + fy, 0.017)
+      fill(ctx, MUNCHER.freckle)
+      break
+    case 2:
+      ctx.beginPath()
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * TAU - Math.PI / 2
+        addCircle(ctx, MARK.x + Math.cos(a) * 0.034, MARK.y + Math.sin(a) * 0.034, 0.027)
+      }
+      fill(ctx, C.white)
+      circlePath(ctx, MARK.x, MARK.y, 0.022)
+      fill(ctx, MUNCHER.flower)
+      break
+    case 3:
+      starPath(ctx, MARK.x, MARK.y, 0.055)
+      fill(ctx, MUNCHER.star)
+      break
+    case 4:
+      // Three short stripes, a little apart, down the front of its head.
+      if (lod === 'S') break
+      ctx.beginPath()
+      for (const dx of [-0.034, 0, 0.034]) {
+        ctx.moveTo(MARK.x + dx, MARK.y - 0.034)
+        ctx.lineTo(MARK.x + dx, MARK.y + 0.034)
+      }
+      ctx.lineCap = 'round'
+      ctx.lineWidth = 0.018
+      ctx.strokeStyle = MUNCHER.stripe
+      ctx.stroke()
+      ctx.lineCap = cap
+      break
+    case 5:
+      ctx.beginPath()
+      ctx.moveTo(MARK.x, MARK.y - 0.052)
+      ctx.lineTo(MARK.x + 0.04, MARK.y)
+      ctx.lineTo(MARK.x, MARK.y + 0.052)
+      ctx.lineTo(MARK.x - 0.04, MARK.y)
+      ctx.closePath()
+      fill(ctx, MUNCHER.diamond)
+      break
+    default:
+      throw new Error(`burrow ${pic.burrow} has no mark`)
   }
   // The face: big eyes under sleepy lids, a small soft mouth.
   const fx = FACE.x + r.lookX
@@ -760,8 +794,8 @@ function addBow(ctx: CanvasRenderingContext2D) {
   }
   addCircle(ctx, BOW.x, BOW.y, 0.02)
 }
-/** Burrow C's daisy, tucked in on the front of its head under the calyx, on the berry so its white petals show. */
-const FLOWER = { x: 0.15, y: -0.49 }
+/** Where the marks on the front of the head sit, under the calyx, on the berry: burrow C's daisy (its white petals show), D's star, E's stripes and F's diamond. */
+const MARK = { x: 0.15, y: -0.49 }
 /** The nightcap: a floppy cone over the calyx, its tail flopped down the back to a pompom, added to the path being built. */
 const NIGHTCAP_TIP = { x: -0.33, y: -0.63 }
 function addNightcap(ctx: CanvasRenderingContext2D) {
@@ -943,8 +977,8 @@ export const SHEET = (): SheetEntry[] => [
     ),
   ),
   muncher('watch the launch with a flag', () => still('watch', 2, { cheeks: [] })),
-  ...[0, 1, 2, 3, 4].flatMap((n) =>
-    [0, 1, 2].map((b) => muncher(`burrow ${'ABC'[b]}, ${n} in its cheeks`, () => still('sit', b, { cheeks: (['greenBottle', 'orangeBottle', 'blueBar', 'gear'] as const).slice(0, n) }))),
+  ...[0, 2, 4].flatMap((n) =>
+    [0, 1, 2, 3, 4, 5].map((b) => muncher(`burrow ${'ABCDEF'[b]}, ${n} in its cheeks`, () => still('sit', b, { cheeks: (['greenBottle', 'orangeBottle', 'blueBar', 'gear'] as const).slice(0, n) }))),
   ),
   muncher('the scout', (t) => still('walk', 0, { scout: true, cheeks: [], step: loop(t, 2.1, 0) })),
   muncher('facing left, walking', (t) => still('walk', 1, { facing: -1, step: loop(t, 1.67, 0) })),

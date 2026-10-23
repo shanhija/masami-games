@@ -1,5 +1,5 @@
 import { choose, waitAfter, type Profile } from './brain'
-import { GROUND, LANDS, cellOf, inLand, xOf, yOf } from './board'
+import { CORNER, GROUND, cellOf, inCorner, xOf, yOf } from './board'
 import { inputHeld } from './camera'
 import type { Game } from './game'
 import type { Ranked } from './hint'
@@ -16,7 +16,7 @@ import type { Box, Point } from './where'
  * five-year-olds who play whole games through the same doors as a real finger. A Child plays
  * a running Game once a frame: what it does next comes from brain.ts (`choose` and the PACE
  * of its profile), and the script of that step (hint.ts) becomes gestures. A finger on the
- * canvas goes through Game.pointer, so the stage's view (camera.ts viewAt) and the pointer
+ * canvas goes through Game.pointer, so the stage's view (camera.ts startView) and the pointer
  * router (touch.ts) read it as they read a real one; a sticker dragged out of the tray goes
  * through Game.trayDown and Game.trayPointer; a HUD button is the very call its button makes
  * (Tray.tsx, Hud.tsx, Cards.tsx, Pause.tsx). The child never reaches past the router: a
@@ -38,8 +38,7 @@ import type { Box, Point } from './where'
  *   pause menu's Keep going over the sleeping factory) are the HUD's own calls.
  * While a card, the choice card, the path, the start card or the Good night card covers the
  * board, the only thing to tap is that layer (the cards take no tap until LOOK after they flip
- * up), and while the board takes no input (the land's ease, the turn, the launch, a phone held
- * upright) the child waits.
+ * up), and while the board takes no input (the launch, a phone held upright) the child waits.
  *
  * The finger is measured in millimetres at the screen's CSS px per mm (Finger, Screen): taps
  * scatter, one in ten lands well off, taps last a while and slide, strokes wobble to their
@@ -47,7 +46,7 @@ import type { Box, Point } from './where'
  * heel of the hand lands first. A thumb may rest on the glass all session, and a frantic
  * tapper hits at munchers every FRANTIC_EVERY while they are out. Besides the profiles that
  * follow the hint there are the chaos child (taps, strokes, stickers, peels and Oops anywhere)
- * and the belts-everywhere child (long strokes all over the land).
+ * and the belts-everywhere child (long strokes all over the start block, until the camera pans).
  *
  * The child's own generator gives every choice it makes, so a seed replays a game. Its
  * gestures are input, like a real finger's, so they may use floating point and trigonometry:
@@ -343,34 +342,11 @@ const probes = (a: Area): Pt[] => (a.kind === 'disc' ? [[a.x, a.y]] : PROBES.map
 
 /**
  * The screen point a tap on `hit` aims at in the frame at sim time t: a point of one of its
- * targets' areas on the canvas that the hit test gives to it (the next land's flaps: the
- * middle of the widest of the strips east, north and south of the land); null when there is
- * none now (it is gone, or something above it in the hit order covers it).
+ * targets' areas on the canvas that the hit test gives to it; null when there is none now (it
+ * is off screen, gone, or something above it in the hit order covers it).
  */
 export function aimAt(s: State, view: View, t: number, hit: Hit): Pt | null {
   const ok = (p: Pt) => onCanvas(view.hud, p[0], p[1]) && sameHit(hitTest(s, view, p[0], p[1], t), hit)
-  if (hit.kind === 'flap') {
-    // Each flap from the middle of the land's edge out to the free area's edge, in twentieths of a cell.
-    const l = LANDS[s.land]
-    const mx = (l.x0 + l.x1 + 1) / 2
-    const my = (l.y0 + l.y1 + 1) / 2
-    const sides = [
-      [l.x1 + 1, my, 1, 0],
-      [mx, l.y0, 0, -1],
-      [mx, l.y1 + 1, 0, 1],
-    ] as const
-    let best: Pt | null = null
-    let room = 0
-    for (const [x, y, dx, dy] of sides) {
-      let k = 0
-      while (k < 80 && inBox(view.hud.free, ...toScreen(view, x + (dx * (k + 1)) / 20, y + (dy * (k + 1)) / 20))) k++
-      if (k > room) {
-        room = k
-        best = toScreen(view, x + (dx * k) / 40, y + (dy * k) / 40)
-      }
-    }
-    return best !== null && ok(best) ? best : null
-  }
   for (const tg of targets(s, view, t)) {
     if (!sameHit(tg.hit, hit)) continue
     for (const p of probes(tg.area)) if (ok(p)) return p
@@ -619,7 +595,7 @@ export class Child {
     if (s.playing) {
       this.played += this.countedAt === null ? 0 : Math.max(0, t - this.countedAt)
       this.countedAt = t
-      this.rest(game, view, t)
+      this.rest(game, view)
     }
     if (this.gesture !== null) {
       if (!this.gesture.run(game, t)) return
@@ -678,7 +654,7 @@ export class Child {
     if (game.path) return next !== undefined && next.kind === 'choose' ? null : { kind: 'closePath' }
     if (s.card !== null) return since(s.card.at, t) < LOOK ? 'wait' : next !== undefined && next.kind === 'card' ? null : { kind: 'card' }
     if (game.hud.ask) return next !== undefined && next.kind === 'choose' ? null : { kind: 'choose', card: 'bubbles' }
-    if (view.hud.held === 'turnMe' || inputHeld(s, t)) return 'wait'
+    if (view.hud.held === 'turnMe' || inputHeld(s)) return 'wait'
     return null
   }
 
@@ -687,7 +663,7 @@ export class Child {
     const s = game.state
     const play = this.kid.play
     if (play === 'chaos' || play === 'belts') {
-      this.queue.push(...(play === 'chaos' ? this.chaos(game, view, t) : this.belts(s)))
+      this.queue.push(...(play === 'chaos' ? this.chaos(game, view, t) : this.belts()))
       return
     }
     if (s.playing && this.played >= this.kid.bedtime && s.night === null && s.launch === null) {
@@ -820,12 +796,12 @@ export class Child {
   }
 
   /** The thumb, for a child that rests one on the glass: down once the game is playing, at its rest point, and jiggling there all session. */
-  private rest(game: Game, view: View, t: number): void {
+  private rest(game: Game, view: View): void {
     const at = this.kid.thumb
     if (at === null) return
     const mm = this.kid.mm(view)
     if (this.thumb === null) {
-      if (inputHeld(game.state, t)) return
+      if (inputHeld(game.state)) return
       let x: number
       let y: number
       const f = view.hud.free
@@ -851,14 +827,13 @@ export class Child {
     if (this.gesture !== null) this.log.gestures.frantic = (this.log.gestures.frantic ?? 0) + 1
   }
 
-  /** A cell of the open land, at random. */
-  private cell(s: State): number {
-    const l = LANDS[s.land]
-    return cellOf(l.x0 + Math.floor(this.r() * (l.x1 - l.x0 + 1)), l.y0 + Math.floor(this.r() * (l.y1 - l.y0 + 1)))
+  /** A cell of the start block, at random. */
+  private cell(): number {
+    return cellOf(CORNER.x + Math.floor(this.r() * CORNER.w), CORNER.y + Math.floor(this.r() * CORNER.h))
   }
 
-  /** A walk of about `n` cells over the open land from cell c: straight runs of up to `run` cells, then a turn left or right. */
-  private walk(s: State, c: number, n: number, run: number): number[] {
+  /** A walk of about `n` cells over the start block from cell c: straight runs of up to `run` cells, then a turn left or right. */
+  private walk(c: number, n: number, run: number): number[] {
     const cells = [c]
     let d = Math.floor(this.r() * 4)
     for (let tries = 0; cells.length < n && tries < 4 * n; tries++) {
@@ -867,7 +842,7 @@ export class Child {
         const last = cells[cells.length - 1]!
         const x = xOf(last) + DX[d]!
         const y = yOf(last) + DY[d]!
-        if (!inLand(s.land, x, y)) break
+        if (!inCorner(x, y)) break
         cells.push(cellOf(x, y))
       }
       d = (d + (this.r() < 0.5 ? 1 : 3)) % 4
@@ -884,12 +859,11 @@ export class Child {
     const anywhere = (): Intent => ({ kind: 'point', x: f.x + this.r() * f.w, y: f.y + this.r() * f.h })
     const pick = <T>(xs: readonly T[]): T => xs[Math.floor(this.r() * xs.length)]!
     if (u < 0.3) return [anywhere()]
-    if (u < 0.5) return [{ kind: 'trace', cells: this.walk(s, this.cell(s), 2 + Math.floor(this.r() * 9), 4) }]
+    if (u < 0.5) return [{ kind: 'trace', cells: this.walk(this.cell(), 2 + Math.floor(this.r() * 9), 4) }]
     if (u < 0.65) {
       const left = tray.stickers.filter((b) => b.left > 0)
       if (left.length === 0) return [anywhere()]
-      const l = LANDS[s.land]
-      return [{ kind: 'carry', sticker: pick(left).sticker as Placeable, x: l.x0 + this.r() * (l.x1 + 1 - l.x0), y: l.y0 + this.r() * (l.y1 + 1 - l.y0) }]
+      return [{ kind: 'carry', sticker: pick(left).sticker as Placeable, x: CORNER.x + this.r() * CORNER.w, y: CORNER.y + this.r() * CORNER.h }]
     }
     if (u < 0.75) {
       const things = targets(s, view, t).filter((tg) => tg.hit.kind === 'building' || tg.hit.kind === 'belt' || tg.hit.kind === 'hedge' || tg.hit.kind === 'thing')
@@ -900,13 +874,13 @@ export class Child {
     }
     if (u < 0.83) return [{ kind: 'oops' }]
     if (u < 0.9) return [{ kind: 'button', key: pick<TrayKey>(['pencil', 'peel', ...tray.stickers.map((b) => b.sticker), ...(tray.hedge === null ? [] : ['hedge' as const])]) }]
-    if (u < 0.95 && tray.hedge !== null && tray.hedge.left > 0) return [{ kind: 'tool', tool: { kind: 'hedge' } }, { kind: 'trace', cells: this.walk(s, this.cell(s), 2 + Math.floor(this.r() * 5), 3) }]
+    if (u < 0.95 && tray.hedge !== null && tray.hedge.left > 0) return [{ kind: 'tool', tool: { kind: 'hedge' } }, { kind: 'trace', cells: this.walk(this.cell(), 2 + Math.floor(this.r() * 5), 3) }]
     const out = s.munchers.filter((m) => m.mode !== 'watch')
     return out.length === 0 ? [anywhere()] : [{ kind: 'tickle', id: pick(out).id }]
   }
 
-  /** The belts-everywhere child's stroke: the pencil, then a long snake of 10 to 40 cells from anywhere on the land. */
-  private belts(s: State): Intent[] {
-    return [{ kind: 'tool', tool: { kind: 'pencil' } }, { kind: 'trace', cells: this.walk(s, this.cell(s), 10 + Math.floor(this.r() * 31), 10) }]
+  /** The belts-everywhere child's stroke: the pencil, then a long snake of 10 to 40 cells from anywhere in the start block. */
+  private belts(): Intent[] {
+    return [{ kind: 'tool', tool: { kind: 'pencil' } }, { kind: 'trace', cells: this.walk(this.cell(), 10 + Math.floor(this.r() * 31), 10) }]
   }
 }

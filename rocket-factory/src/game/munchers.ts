@@ -1,12 +1,12 @@
-import { BURROWS, FLOWER_OF, GROUND, LANDS, PAD, PAD_RING, cellOf, onBoard, stepCell, xOf, yOf } from './board'
+import { BURROWS, FLOWER_OF, GROUND, PAD, PAD_RING, cellOf, onBoard, stepCell, xOf, yOf } from './board'
 import { padDrums, working } from './band'
 import { beepTo, sendWhereWanted } from './beep'
 import { hasMouths } from './belts'
 import {
   AFTER_CARD,
   AFTER_PAUSE,
-  AFTER_TURN,
   BOWL_PER_MUNCHER,
+  BURROW_WAKES,
   CAUGHT_MAX,
   CHEEKS,
   COUNT_AT,
@@ -47,8 +47,9 @@ import {
   WALK_ON,
   WALK_STEP,
   WARN,
+  progressOf,
 } from './catalog'
-import { CELLS, COLS, DIRS, HZ, OVER, PARTS, PRED, SLOTS, STEP, THINGS, inSlot, isShiny, noCounts, outSlot, thingIndex, type Building, type Dir, type HomeWhy, type Kind, type Land, type Muncher, type MuncherMode, type State, type Target, type Thing, type Visit } from './model'
+import { CELLS, COLS, DIRS, HZ, OVER, PARTS, PRED, SLOTS, STEP, THINGS, inSlot, isShiny, noCounts, outSlot, thingIndex, type Building, type Dir, type HomeWhy, type Kind, type Muncher, type MuncherMode, type State, type Target, type Thing, type Visit } from './model'
 import { building, gives, pushHead } from './trade'
 import { heapPoint, muncherPoint, type Point } from './where'
 
@@ -59,8 +60,9 @@ import { heapPoint, muncherPoint, type Point } from './where'
  * parent's switch, Good night and the launch's watchers. The seams with the other files are in
  * factory-game-work/wave2b-seams.md.
  *
- * Hunger (stepBurrows, once a second). A burrow whose land is open and that may wake (burrow A
- * after Gears!, a new land's burrow HELLO_SLEEP after it waved hello) grows hungry by the
+ * Hunger (stepBurrows, once a second). A burrow that may wake (its card is found: burrow A
+ * after Gears!, B after Nose! and C after More!, those two HELLO_SLEEP after they waved hello;
+ * D, E and F never yet) grows hungry by the
  * HUNGER terms, band.ts `working` deciding what works and `padDrums` when the pad counts,
  * unless it sleeps, its munchers are out, it is night or the launch runs. At HUNGER_FULL the
  * WARN warning starts and the visit comes out after it; while the kind rules hold a visit
@@ -79,7 +81,7 @@ import { heapPoint, muncherPoint, type Point } from './where'
  * nearest by walking distance, never one it tried this visit or another muncher has, ties to
  * the lower cell and then the lower building id. A belt cell's food is what rides it now and
  * what the buildings upstream of it put out (the net followed down from every spout), so a
- * line counts while it runs light. Walking distance is a search over the open land's cells
+ * line counts while it runs light. Walking distance is a search over the board's cells
  * with belts, flowers, ground and stumps open, and buildings, water, trees, mounds, the pad's
  * ring and hedges closed; only when nothing at all is in reach does it search with hedges
  * open, and then it nibbles the first hedge on its way. At every cell it reaches it takes the
@@ -110,7 +112,7 @@ import { heapPoint, muncherPoint, type Point } from './where'
  * choice here needs the seeded generator.
  */
 
-/** Burrow A, the land 1 burrow: it sleeps until Gears!, and its first visit is the scout. */
+/** Burrow A, the first burrow: it sleeps until Gears!, and its first visit is the scout. */
 const A = 0
 
 /** Cells no muncher ever stands on, whatever is built: the pond, trees, the burrows' mounds, the pad and the cells round it. */
@@ -161,12 +163,15 @@ const SIDES: readonly (readonly number[])[] = MOUNDS.map((mound, i) => {
   return [...out].sort(byDoor(i))
 })
 
-/** Where the launch's watchers sit, on the pad's ring just below the pad, one for each burrow open (by burrow), spread so they look even. */
-const WATCH: Record<Land, readonly number[]> = {
-  1: [cellOf(PAD.x + 1, PAD.y + 3)],
-  2: [cellOf(PAD.x, PAD.y + 3), cellOf(PAD.x + 2, PAD.y + 3)],
-  3: [cellOf(PAD.x, PAD.y + 3), cellOf(PAD.x + 1, PAD.y + 3), cellOf(PAD.x + 2, PAD.y + 3)],
-}
+/** Where the launch's watchers sit, on the pad's ring, one seat for each burrow (by burrow): A, B and C in the middle three seats of the row just below the pad, then D and E at its two ends and F beside the pad. */
+const WATCH: readonly number[] = [
+  cellOf(PAD.x, PAD.y + 3),
+  cellOf(PAD.x + 1, PAD.y + 3),
+  cellOf(PAD.x + 2, PAD.y + 3),
+  cellOf(PAD.x + 3, PAD.y + 3),
+  cellOf(PAD.x - 1, PAD.y + 3),
+  cellOf(PAD.x + 3, PAD.y + 1),
+]
 
 /** The buildings a muncher naps on, by how much it wants each (the same as the belts): the bottle makers most, then the workshop, then ovens. */
 const NAP_RANK: Partial<Record<Kind, number>> = { greenMaker: 0, orangeMaker: 0, workshop: 1, oven: 2 }
@@ -208,12 +213,9 @@ function napsOn(s: State, m: Muncher): Building {
 /** Every part of the rocket is full (no visit starts then; with Fuel! found the munchers out hop home for the launch). */
 const rocketFull = (s: State) => PARTS.every((p, i) => s.rocket.got[i]! >= PART_INFO[p].n)
 
-/** A cell a muncher may walk on now: in the open land, under no building, never the pond, a tree, a mound or the pad's ring, and no hedge unless `hedges` is true (a stump is always open). */
+/** A cell a muncher may walk on now: under no building, never the pond, a tree, a mound or the pad's ring, and no hedge unless `hedges` is true (a stump is always open). */
 function walkable(s: State, c: number, hedges: boolean): boolean {
-  const w = LANDS[s.land]
-  const x = xOf(c)
-  const y = yOf(c)
-  return NEVER[c] === 0 && s.owner[c]! < 0 && x >= w.x0 && x <= w.x1 && y >= w.y0 && y <= w.y1 && (hedges || s.hedge[c] !== 1)
+  return NEVER[c] === 0 && s.owner[c]! < 0 && (hedges || s.hedge[c] !== 1)
 }
 /** A cell muncher m may stand on: one it may walk on, or its own mound (a burrow walled in all round holds its munchers at the door). */
 const standable = (s: State, m: Muncher, c: number) => walkable(s, c, false) || MOUNDS[m.burrow]!.includes(c)
@@ -578,10 +580,16 @@ function inDoor(s: State, m: Muncher): void {
 // ---------------------------------------------------------------------------------------
 // Hunger and visits
 
-/** Burrow i may wake: its land is open, A only after Gears!, a new land's burrow HELLO_SLEEP after it waved hello. */
+/** Burrow i is awake: the card that wakes it (catalog.ts BURROW_WAKES) is found. D, E and F have none: they sleep, snoring, and never visit. */
+export function burrowAwake(s: State, i: number): boolean {
+  const card = BURROW_WAKES[i]!
+  return card !== null && s.found.includes(card)
+}
+
+/** Burrow i may wake: it is awake, and a burrow whose card has just come, B and C, HELLO_SLEEP after it waved hello. */
 function mayWake(s: State, i: number): boolean {
   const b = s.burrows[i]!
-  return s.land >= BURROWS[i]!.land && (i !== A || s.found.includes('gears')) && (b.helloAt < 0 || s.tick - b.helloAt >= HELLO_SLEEP)
+  return burrowAwake(s, i) && (b.helloAt < 0 || s.tick - b.helloAt >= HELLO_SLEEP)
 }
 
 /** The working machines on the board, and those on burrow i's flowers and near them (a machine counts once, by its nearest cell). */
@@ -610,7 +618,7 @@ function growth(s: State, i: number): number {
   return sum + HUNGER.onFlowers * f.on + HUNGER.nearFlowers * f.near + (padDrums(s) ? HUNGER.pad : 0)
 }
 
-/** The kind rules hold burrow i's visit back now: one visit at a time (none out, no other burrow warning), QUIET_AFTER since the last one got home, a touch within TOUCHED_WITHIN (or a finger down), no card up or closed within AFTER_CARD, the pause menu closed and the board turned long enough ago, the session older than SESSION_CALM, the rocket not full, no night and no launch. */
+/** The kind rules hold burrow i's visit back now: one visit at a time (none out, no other burrow warning), QUIET_AFTER since the last one got home, a touch within TOUCHED_WITHIN (or a finger down), no card up or closed within AFTER_CARD, the pause menu closed long enough ago, the session older than SESSION_CALM, the rocket not full, no night and no launch. */
 function heldBack(s: State, i: number): boolean {
   const t = s.tick
   const within = (at: number, span: number) => at >= 0 && t - at < span
@@ -623,7 +631,6 @@ function heldBack(s: State, i: number): boolean {
     s.card !== null ||
     within(s.cardClosedAt, AFTER_CARD) ||
     within(s.pauseClosedAt, AFTER_PAUSE) ||
-    within(s.turnedAt, AFTER_TURN) ||
     t - s.sessionAt <= SESSION_CALM ||
     rocketFull(s) ||
     s.night !== null ||
@@ -631,12 +638,12 @@ function heldBack(s: State, i: number): boolean {
   )
 }
 
-/** How many munchers burrow i sends now: 1, plus 1 for each working machine on its flowers (the drumming pad counts) up to FLOWER_EXTRA, plus 1 with VISIT_BUSY machines working, at most VISIT_CAP for the land open; 1 with the Few switch. */
+/** How many munchers burrow i sends now: 1, plus 1 for each working machine on its flowers (the drumming pad counts) up to FLOWER_EXTRA, plus 1 with VISIT_BUSY machines working, at most VISIT_CAP for how far the path has come; 1 with the Few switch. */
 function visitSize(s: State, i: number): number {
   if (s.switches.munchers === 'few') return 1
   const f = songOf(s, i)
   const on = f.on + (padDrums(s) ? 1 : 0)
-  return Math.min(VISIT_CAP[s.land], 1 + Math.min(FLOWER_EXTRA, on) + (f.working >= VISIT_BUSY ? 1 : 0))
+  return Math.min(VISIT_CAP[progressOf(s.found)], 1 + Math.min(FLOWER_EXTRA, on) + (f.working >= VISIT_BUSY ? 1 : 0))
 }
 
 /** The warning is over and nothing holds it back: burrow i's visit comes into its doorway, its hunger back to 0. */
@@ -950,13 +957,13 @@ function act(s: State, m: Muncher): void {
   }
 }
 
-/** The launch: from her tap every burrow open sends a watcher (once it has no visit out) to sit by the pad with a little flag, hopping there in time for the count. */
+/** The launch: from her tap every burrow awake sends a watcher (once it has no visit out) to sit by the pad with a little flag, hopping there in time for the count. */
 function sendWatchers(s: State): void {
   if (s.launch === null || s.visit !== null || s.night !== null || s.switches.munchers === 'none') return
   BURROWS.forEach((site, i) => {
-    if (site.land > s.land || s.munchers.some((m) => m.burrow === i && m.mode === 'watch')) return
+    if (!burrowAwake(s, i) || s.munchers.some((m) => m.burrow === i && m.mode === 'watch')) return
     const door = site.door
-    const spot = WATCH[s.land][i]!
+    const spot = WATCH[i]!
     const to = mid(spot)
     s.munchers.push({
       id: s.nextMuncher++,

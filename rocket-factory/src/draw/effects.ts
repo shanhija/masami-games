@@ -1,10 +1,9 @@
-import { BURROWS, LANDS, cellOf, xOf, yOf } from '../game/board'
+import { BURROWS, cellOf, xOf, yOf } from '../game/board'
 import { SIZE, TOWER_FLIGHT } from '../game/catalog'
-import { DX, DY, HOP, HZ, KINDS, OVER, STEP, isMaker, newBuilding, slotCell, thingIndex, type Building, type Kind as BuildingKind, type Muncher, type Placeable, type SimEvent, type State, type Thing } from '../game/model'
+import { CELLS, DX, DY, HOP, HZ, KINDS, OVER, STEP, isMaker, newBuilding, slotCell, thingIndex, type Building, type Kind as BuildingKind, type Muncher, type Placeable, type SimEvent, type State, type Thing } from '../game/model'
 import { listening, nearFlowers } from '../game/munchers'
 import { blankState } from '../game/rules'
-import { muncherDrawn, pictureDoor } from '../game/layout'
-import { buildingBox, burrowBox, heapPoint, padBox, type Box, type Point } from '../game/where'
+import { buildingBox, burrowBox, heapPoint, muncherPoint, padBox, type Box, type Point } from '../game/where'
 import { BEEP, BELT, BUILDING, C, GLASS, HEDGE, LAND, NIGHT, THING, TAU, addCircle, arch, clamp01, heartPath, loop, mix, pen, smooth, sparklePath, starPath, type SheetEntry } from './look'
 import { MOUTH } from './critters'
 import { drawThing } from './things'
@@ -22,11 +21,9 @@ import { drawThing } from './things'
  * the factory's own particles (the notes, the gulps, the rocket's fills) halve, and the
  * visiting burrow gets no notes, so she can follow the visit.
  *
- * Positions are board cells. Each particle has a board point and its own drift in the
- * upright frame (screen up), so on the upright board (a quarter turn, layout.ts) confetti
- * still falls down the screen and every shape stays upright: `draw` reads the board's turn
- * off the context's transform. A traveller (a note, a shot, a gulp) eases from one board
- * point to another. One fixed pool, reused from the oldest, so nothing is made per frame.
+ * Positions are board cells. Each particle has a board point and its own drift from it
+ * (screen up is -y). A traveller (a note, a shot, a gulp) eases from one board point to
+ * another. One fixed pool, reused from the oldest, so nothing is made per frame.
  */
 
 /** At most this many particles are alive at once; past that the oldest makes way. */
@@ -80,8 +77,8 @@ const pick = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length
 const middle = (b: Box): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 })
 const cellMiddle = (c: number): Point => ({ x: xOf(c) + 0.5, y: yOf(c) + 0.5 })
 
-/** A building for the song's memory: its id, kind and place, so a new game, whose ids start again, never inherits an old building's notes. */
-const songKey = (b: Building) => b.id * 4096 + KINDS.indexOf(b.kind) * 256 + cellOf(b.x, b.y)
+/** A building for the song's memory: its id, kind and place, each field in its own digits, so a new game, whose ids start again, never inherits an old building's notes. */
+const songKey = (b: Building) => (b.id * KINDS.length + KINDS.indexOf(b.kind)) * CELLS + cellOf(b.x, b.y)
 
 /** A sticker she holds up, on the spot it snaps to (its footprint's top-left cell), where it fits: the notes it would send once it works there show before she places it. */
 export interface HeldGhost {
@@ -134,8 +131,6 @@ export function drawHintRing(ctx: CanvasRenderingContext2D, r: number, t: number
 export class Effects {
   private pool: Particle[] = Array.from({ length: POOL }, () => ({ kind: 'puff', age: 0, life: 0, x: 0, y: 0, x1: 0, y1: 0, ox: 0, oy: 0, vx: 0, vy: 0, g: 0, drag: 0, size: 0, angle: 0, spin: 0, colour: C.white, thing: 'bubble' }))
   private next = 0
-  /** The board's turn on screen when it was last drawn (radians), for placing what spawns above a picture. */
-  private turn = 0
   /** Every other one of the factory's own particles is left out while munchers are out. */
   private skip = false
   /** Per building (by `songKey`), the last bar it sent a note in, and which burrow its notes go to (on its flowers, or near them) or null; the last bar a held sticker's ghost sent one in. */
@@ -156,18 +151,6 @@ export class Effects {
     let n = 0
     for (const p of this.pool) if (p.age < p.life) n++
     return n
-  }
-
-  /** The board's turn when it was last drawn in quarter turns (layout.ts View.turn): where the pictures put a muncher and a burrow's door. */
-  private get quarter(): number {
-    return -this.turn / (Math.PI / 2)
-  }
-
-  /** The upright offset (ox, oy) from board point (x, y) as a board point, on the board as it was last turned. */
-  private above(x: number, y: number, ox: number, oy: number): Point {
-    const c = Math.cos(-this.turn)
-    const s = Math.sin(-this.turn)
-    return { x: x + c * ox - s * oy, y: y + s * ox + c * oy }
   }
 
   /** The oldest slot, reset: a particle of `kind` at board point (x, y) drifting from (ox, oy), lasting `life`, set off after `wait`. */
@@ -231,7 +214,7 @@ export class Effects {
   /**
    * `n` pieces of confetti in thing colours over a span `w` wide round (x, y) + (ox, oy):
    * tossed up and fluttering down from a burst, or for a card's rain let go along the top and
-   * falling the whole land's height.
+   * falling the whole view's height.
    */
   private confetti(x: number, y: number, ox: number, oy: number, n: number, w: number, wait: number, rain: boolean) {
     for (let i = 0; i < n; i++) {
@@ -298,9 +281,10 @@ export class Effects {
    * Sets off what this step's events call for, each where it says it happens, then the song's
    * notes for this moment of the bar (`notes`), the held sticker's ghost's among them. `t` is
    * the sim time in seconds, the same the pictures are drawn at, so a shot can aim where its
-   * muncher will be when the suds land.
+   * muncher will be when the suds land. `view` is the board box the screen shows, where a card's
+   * confetti falls.
    */
-  spawn(events: readonly SimEvent[], s: State, t: number, ghost: HeldGhost | null): void {
+  spawn(events: readonly SimEvent[], s: State, t: number, ghost: HeldGhost | null, view: Box): void {
     const out = s.munchers.length > 0
     /** The factory's own particles halve while munchers are out. */
     const ambient = () => {
@@ -387,18 +371,13 @@ export class Effects {
           break
         }
         case 'card': {
-          // The celebration: confetti falls over the whole land from above the top of the screen.
-          const w = LANDS[s.land]
-          const across = w.x1 - w.x0 + 1
-          const down = w.y1 - w.y0 + 1
-          const turned = Math.abs(Math.sin(this.turn)) > 0.5
-          const p = { x: (w.x0 + w.x1 + 1) / 2, y: (w.y0 + w.y1 + 1) / 2 }
-          this.confetti(p.x, p.y, 0, -(turned ? across : down) / 2 - 0.2, 44, turned ? down : across, 0, true)
+          // The celebration: confetti falls over the board the screen shows, from above its top.
+          const p = middle(view)
+          this.confetti(p.x, p.y, 0, -view.h / 2 - 0.2, 44, view.w, 0, true)
           break
         }
         case 'hopOut': {
-          // Out of the door the burrow's picture shows (upright, not the board's south edge).
-          const d = pictureDoor(e.burrow, this.quarter)
+          const d = BURROWS[e.burrow]!.door
           this.puffs(d.x, d.y, 0, -0.05, 3, 0.22, 0.13, C.white, 0)
           break
         }
@@ -424,7 +403,7 @@ export class Effects {
         case 'tickleBusy': {
           const m = this.muncher(s, e.id)
           if (m === null) break
-          const p = muncherDrawn(m, t, this.quarter)
+          const p = muncherPoint(m, t)
           this.sparkles(p.x, p.y, 0, -0.55, 3, 0.3, C.sparkle, 0, 'sparkle')
           break
         }
@@ -442,8 +421,8 @@ export class Effects {
           if (from === null || target === null) break
           const tower = middle(buildingBox(from))
           const bed = s.buildings.find((b) => b.napper === target.id)
-          const m = bed === undefined ? muncherDrawn(target, t + TOWER_FLIGHT * STEP, this.quarter) : { ...middle(buildingBox(bed)), lift: 0 }
-          this.travel('shot', this.above(tower.x, tower.y, 0, WAND), this.above(m.x, m.y, MOUTH.x, MOUTH.y - 0.06 - m.lift), TOWER_FLIGHT * STEP, 0.12, C.white)
+          const m = bed === undefined ? muncherPoint(target, t + TOWER_FLIGHT * STEP) : { ...middle(buildingBox(bed)), lift: 0 }
+          this.travel('shot', { x: tower.x, y: tower.y + WAND }, { x: m.x + MOUTH.x, y: m.y + MOUTH.y - 0.06 - m.lift }, TOWER_FLIGHT * STEP, 0.12, C.white)
           break
         }
         case 'suds':
@@ -460,7 +439,7 @@ export class Effects {
         case 'picnic': {
           const m = this.muncher(s, e.id)
           if (m === null) break
-          const p = muncherDrawn(m, t, this.quarter)
+          const p = muncherPoint(m, t)
           this.hearts(p.x, p.y, 0, -0.75, 3)
           break
         }
@@ -541,7 +520,6 @@ export class Effects {
         case 'push':
         case 'drink':
         case 'cardClosed':
-        case 'flap':
         case 'warn':
         case 'napEnd':
         case 'home':
@@ -592,7 +570,7 @@ export class Effects {
     const note = (box: Box, burrow: number, big: boolean, colour: string) => {
       const from = middle(box)
       const to = middle(burrowBox(burrow))
-      this.travel('note', this.above(from.x, from.y, rand(-0.2, 0.2), ROOF), this.above(to.x, to.y, rand(-0.2, 0.2), MOUND), NOTE_FOR, big ? NOTE_BIG : NOTE_SMALL, colour)
+      this.travel('note', { x: from.x + rand(-0.2, 0.2), y: from.y + ROOF }, { x: to.x + rand(-0.2, 0.2), y: to.y + MOUND }, NOTE_FOR, big ? NOTE_BIG : NOTE_SMALL, colour)
     }
     const send = (b: Building, burrow: number, big: boolean) => {
       if (!due(BEAT[b.kind]! + (b.kind === 'pad' ? 0 : 2 * (b.id % 4)), this.sent.get(songKey(b)))) return
@@ -637,13 +615,9 @@ export class Effects {
     }
   }
 
-  /** Moves every particle on by dt and draws them at sim time t, in board cells (the context is in board cells, turned as the board is), each upright on screen. Leaves the context as it found it. */
+  /** Moves every particle on by dt and draws them at sim time t, in board cells (the context is in board cells). Leaves the context as it found it. */
   draw(ctx: CanvasRenderingContext2D, t: number, dt: number): void {
     this.update(dt)
-    const m = ctx.getTransform()
-    this.turn = Math.atan2(m.b, m.a)
-    const c = Math.cos(-this.turn)
-    const sn = Math.sin(-this.turn)
     const cap = ctx.lineCap
     for (const p of this.pool) {
       if (p.age < 0 || p.age >= p.life) continue
@@ -659,11 +633,10 @@ export class Effects {
         if (p.x1 !== p.x || p.y1 !== p.y) oy -= 0.45 * arch(u)
       }
       if (p.kind === 'shot') oy -= 0.35 * arch(u)
-      const x = mix(p.x, p.x1, k) + c * ox - sn * oy
-      const y = mix(p.y, p.y1, k) + sn * ox + c * oy
+      const x = mix(p.x, p.x1, k) + ox
+      const y = mix(p.y, p.y1, k) + oy
       ctx.save()
       ctx.translate(x, y)
-      ctx.rotate(-this.turn)
       switch (p.kind) {
         case 'puff': {
           // A little cloud of three balls, grown in and shrunk away.
@@ -817,15 +790,15 @@ function replay(label: string, box: Box, every: number, setup: (s: State) => voi
         restart()
         const from = t - (t % every)
         s.tick = Math.floor(from * HZ)
-        fx.spawn(events(s), s, from, ghost)
+        fx.spawn(events(s), s, from, ghost, box)
         for (let at = from; at < t; at += STEP) {
           s.tick = Math.floor(at * HZ)
-          fx.spawn([], s, at, ghost)
+          fx.spawn([], s, at, ghost, box)
           fx.update(STEP)
         }
       } else {
         s.tick = Math.floor(t * HZ)
-        fx.spawn(Math.floor(t / every) > Math.floor(last / every) ? events(s) : [], s, t, ghost)
+        fx.spawn(Math.floor(t / every) > Math.floor(last / every) ? events(s) : [], s, t, ghost, box)
         fx.update(t - last)
       }
       last = t

@@ -1,6 +1,6 @@
 import { cellOf, stepCell, xOf, yOf } from '../game/board'
 import { PATTERNS } from '../game/catalog'
-import { DX, DY, THINGS, opposite, type Belts, type Dir } from '../game/model'
+import { CELLS, DX, DY, THINGS, opposite, type Belts, type Dir } from '../game/model'
 import {
   BELT,
   BUILDING,
@@ -990,7 +990,7 @@ function layout(): BeltPic[] {
   ]
 }
 
-/** ?sheet=beltart: belts as at land 3 (open it with &px=50 or &px=80): a layout moving and jammed, every pattern straight and round a bend, the pop and the curl, hedges, the stroke ghost, the end signs and the hint's path. */
+/** ?sheet=beltart: belts as in a busy factory (open it with &px=50 or &px=80): a layout moving and jammed, every pattern straight and round a bend, the pop and the curl, hedges, the stroke ghost, the end signs and the hint's path. */
 export const SHEET = (): SheetEntry[] => {
   const lay = layout()
   const fork = lay.find((p) => p.fork !== -1)!
@@ -1062,7 +1062,7 @@ export const SHEET = (): SheetEntry[] => {
       label: 'hedges and stumps',
       box: { x: 0.8, y: 0.8, w: 6.4, h: 3.4 },
       draw: (ctx, t) => {
-        const hedge = new Uint8Array(240)
+        const hedge = new Uint8Array(CELLS)
         for (const c of [cellOf(1, 1), cellOf(2, 1), cellOf(3, 1), cellOf(3, 2), cellOf(3, 3), cellOf(5, 1), cellOf(6, 3)]) hedge[c] = 1
         hedge[cellOf(4, 1)] = 2
         hedge[cellOf(5, 3)] = 2

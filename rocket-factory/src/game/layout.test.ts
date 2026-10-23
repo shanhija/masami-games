@@ -1,49 +1,42 @@
 /**
  * The board on the screen: the HUD's frame and the cell sizes at the plan's screens (the iPads
- * in full screen, Safari's with its bars, a phone on its side), the board-to-screen map with
- * the upright quarter turn, and what a touch lands on, case by case in the plan's hit order
- * (plans/rocket-factory.md, The board and the view, Beep and the child's hands, The HUD).
+ * in full screen, Safari's with its bars, a phone on its side), the board-to-screen map, and
+ * what a touch lands on in view, case by case in the plan's hit order (plans/rocket-factory.md,
+ * The board and the view, Beep and the child's hands, The HUD).
  */
 import { describe, expect, it } from 'vitest'
 
 import { BURROWS, cellOf } from './board'
 import { owners } from './belts'
-import { viewAt } from './camera'
+import { startCamera, startView, viewOf } from './camera'
 import { GHOST_DELAY, HELP_FULL } from './catalog'
-import { GRIP, GUTTER, MUNCHER_REACH, NO_INSETS, RANK, SLOP, STRIP, TRAY_LIFT, TRAY_PAD, fingerFor, fitCell, heldAt, hintGhost, hitTest, hudFrame, landBox, muncherDrawn, muncherReach, onButton, pictureDoor, pictureSpot, screenBox, targets, toBoard, toScreen, trayBoxes, type Insets, type View } from './layout'
+import { GRIP, GUTTER, MUNCHER_REACH, NO_INSETS, RANK, SLOP, STRIP, TRAY_LIFT, TRAY_PAD, fingerFor, heldAt, hintGhost, hitTest, hudFrame, muncherReach, onButton, pictureSpot, screenBox, targets, toBoard, toScreen, trayBoxes, type Insets, type View } from './layout'
 import { STEP, inSlot, newBuilding, outSlot, thingIndex, ticks, type Dir, type Hit, type Kind, type Muncher, type MuncherMode, type State, type Thing } from './model'
 import { FINGER, SCREENS as CHILD_SCREENS, landing, off } from './child'
 import { rng } from './random'
 import { blankState } from './rules'
-import { heapPoint, moonyPoint, muncherPoint } from './where'
+import { heapPoint, moonyPoint } from './where'
 
 /** The home indicator's inset on the iPads without a home button (the 10.9-inch Air, 1180x820). */
 const HOME: Insets = { ...NO_INSETS, bottom: 20 }
 
-/** The plan's screens and what land 3's cells come to on each: the iPads in full screen, Safari's with its bars, and a notched phone on its side inside its insets. */
+/** The plan's screens and what the start block's cells come to on each: the iPads in full screen, Safari's with its bars, and a notched phone on its side inside its insets. */
 const SCREENS = [
-  { name: 'Air 1180x820', w: 1180, h: 820, safe: HOME, land3: 52 },
-  { name: 'iPad 1024x768', w: 1024, h: 768, safe: NO_INSETS, land3: 49 },
-  { name: 'Air upright 820x1180', w: 820, h: 1180, safe: HOME, land3: 50 },
-  { name: 'Safari 1024x662', w: 1024, h: 662, safe: NO_INSETS, land3: 41 },
-  { name: 'Safari 1180x710', w: 1180, h: 710, safe: HOME, land3: 43 },
-  { name: 'Safari upright 820x1070', w: 820, h: 1070, safe: HOME, land3: 44 },
-  { name: 'phone 750x320', w: 750, h: 320, safe: NO_INSETS, land3: 25 },
+  { name: 'Air 1180x820', w: 1180, h: 820, safe: HOME, cell: 52 },
+  { name: 'iPad 1024x768', w: 1024, h: 768, safe: NO_INSETS, cell: 49 },
+  { name: 'Air upright 820x1180', w: 820, h: 1180, safe: HOME, cell: 39 },
+  { name: 'Safari 1024x662', w: 1024, h: 662, safe: NO_INSETS, cell: 41 },
+  { name: 'Safari 1180x710', w: 1180, h: 710, safe: HOME, cell: 43 },
+  { name: 'Safari upright 820x1070', w: 820, h: 1070, safe: HOME, cell: 39 },
+  { name: 'phone 750x320', w: 750, h: 320, safe: NO_INSETS, cell: 25 },
 ] as const
 
 describe('the HUD and the cells', () => {
-  it("fits land 3's cells to the plan's screens, whole px, as big as the HUD allows", () => {
-    for (const sc of SCREENS) expect(fitCell(hudFrame(sc.w, sc.h, true, sc.safe), 3), sc.name).toBe(sc.land3)
-    // The plan's 53 and 50 for the Air assumed no home indicator: without its inset the Air is 54 sideways and 51 upright.
-    expect(fitCell(hudFrame(1180, 820, true, NO_INSETS), 3)).toBe(54)
-    expect(fitCell(hudFrame(820, 1180, true, NO_INSETS), 3)).toBe(51)
-    // Lands 1 and 2 are bigger, with room for the next land's flaps.
-    for (const sc of SCREENS) {
-      const hud = hudFrame(sc.w, sc.h, true, sc.safe)
-      expect(fitCell(hud, 1), sc.name).toBeGreaterThan(fitCell(hud, 2))
-      expect(fitCell(hud, 2), sc.name).toBeGreaterThan(fitCell(hud, 3))
-    }
-    expect([1, 2].map((land) => fitCell(hudFrame(1024, 768, true, NO_INSETS), land as 1 | 2))).toEqual([69, 56])
+  it("fits the start block's cells to the plan's screens, whole px, as big as the HUD allows", () => {
+    for (const sc of SCREENS) expect(startCamera(hudFrame(sc.w, sc.h, true, sc.safe)).cell, sc.name).toBe(sc.cell)
+    // The plan's 53 for the Air sideways assumed no home indicator: without its inset it is 54. Upright the block is as wide as the window allows, 39 px cells, with room for rows of the board south of it.
+    expect(startCamera(hudFrame(1180, 820, true, NO_INSETS)).cell).toBe(54)
+    expect(startCamera(hudFrame(820, 1180, true, NO_INSETS)).cell).toBe(39)
   })
 
   it('keeps a 64 px strip, a tray 16 px plus the bottom inset over the edge with 72, 64 or 60 px buttons, and 20 px gutters on a touch screen', () => {
@@ -97,7 +90,7 @@ describe('the HUD and the cells', () => {
     expect(p.free.x).toBe(p.column!.x + p.column!.w)
     expect(p.free.x + p.free.w).toBe(p.tray!.x)
     expect(p.button).toBe(56)
-    expect(fitCell(p, 3)).toBe(25)
+    expect(startCamera(p).cell).toBe(25)
     const small = hudFrame(750, 320, true, NO_INSETS)
     expect(small.button).toBe(56)
     // With the home indicator's inset the column's five buttons shrink to fit.
@@ -162,7 +155,7 @@ describe('the tray, the HUD buttons and the reach', () => {
     expect(at(16)).toBeCloseTo(SLOP + 0.36 * 16, 9)
   })
 
-  it('holds a sticker by its bottom edge: its footprint\'s middle n / 2 + GRIP cells above the fingertip, turned or not, and fingerFor is its inverse', () => {
+  it('holds a sticker by its bottom edge: its footprint\'s middle n / 2 + GRIP cells above the fingertip, and fingerFor is its inverse', () => {
     for (const [w, h] of [
       [1180, 820],
       [820, 1180],
@@ -179,114 +172,45 @@ describe('the tray, the HUD buttons and the reach', () => {
 })
 
 describe('the map', () => {
-  it('goes from the board to the screen and back, turned or not and while turning', () => {
+  it('goes from the board to the screen and back, and a cell is a cell wide along the screen', () => {
     const hud = hudFrame(1180, 820, true, HOME)
-    for (const turn of [0, 1, 0.37]) {
-      const v: View = { w: 1180, h: 820, dpr: 2, cell: 52, upright: turn > 0.5, turn, ox: 140.5, oy: 700, hud }
-      for (let i = 0; i < 40; i++) {
-        const x = -2 + (i * 7.31) % 24
-        const y = -1 + (i * 3.17) % 14
-        const [sx, sy] = toScreen(v, x, y)
-        const [bx, by] = toBoard(v, sx, sy)
-        expect(bx, `turn ${turn}`).toBeCloseTo(x, 9)
-        expect(by, `turn ${turn}`).toBeCloseTo(y, 9)
-      }
-      // A cell is a cell's width on the screen whichever way the board points.
-      const [ax, ay] = toScreen(v, 3, 4)
-      const [bx, by] = toScreen(v, 4, 4)
-      expect(Math.hypot(bx - ax, by - ay)).toBeCloseTo(52, 9)
+    const v: View = { w: 1180, h: 820, dpr: 2, cell: 52, ox: 140.5, oy: 700, hud }
+    for (let i = 0; i < 40; i++) {
+      const x = -2 + (i * 7.31) % 60
+      const y = -1 + (i * 3.17) % 38
+      const [sx, sy] = toScreen(v, x, y)
+      const [bx, by] = toBoard(v, sx, sy)
+      expect(bx).toBeCloseTo(x, 9)
+      expect(by).toBeCloseTo(y, 9)
     }
+    const [ax, ay] = toScreen(v, 3, 4)
+    const [bx, by] = toScreen(v, 4, 4)
+    expect([bx - ax, by - ay]).toEqual([52, 0])
   })
 
-  it("turns the board upright with the munchers' east front at the top and the pad at the bottom by the tray", () => {
-    const s = blankState(1)
-    s.land = 3
-    s.landFrom = 3
-    const v = viewAt(s, 0, 820, 1180, 2, true, HOME)
-    expect([v.upright, v.turn, v.cell]).toEqual([true, 1, 50])
-    // East is up the screen and south to the right, a cell at a time, on whole pixels.
-    const [ax, ay] = toScreen(v, 10, 6)
-    expect(toScreen(v, 11, 6)).toEqual([ax, ay - 50])
-    expect(toScreen(v, 10, 7)).toEqual([ax + 50, ay])
-    expect([Number.isInteger(ax), Number.isInteger(ay)]).toEqual([true, true])
-    // The board fills the free area's height: the east edge at its top, the pad's west edge at its bottom over the tray.
-    const board = screenBox(v, landBox(3))
-    expect(board.y).toBeGreaterThanOrEqual(v.hud.free.y)
-    expect(board.y + board.h).toBeLessThanOrEqual(v.hud.tray!.y)
-    expect(board.h).toBe(20 * 50)
-    const pad = screenBox(v, { x: 1, y: 4, w: 3, h: 3 })
-    expect(pad.y + pad.h).toBeGreaterThan(board.y + board.h - 5 * 50)
-    // North (the top row) is at the left.
-    expect(screenBox(v, { x: 0, y: 0, w: 20, h: 1 }).x).toBe(board.x)
-  })
-
-  it("puts a spot of an upright picture round its footprint's middle, and a burrow picture's door at the middle of its bottom edge, sideways and upright", () => {
-    const s = blankState(1)
-    s.land = 3
-    s.landFrom = 3
+  it("puts a spot of a picture round its footprint's middle, sideways and upright", () => {
     for (const [w, h] of [
       [1180, 820],
       [820, 1180],
     ] as const) {
-      const v = viewAt(s, 0, w, h, 2, true, HOME)
-      // The picture's top-left is the footprint's screen box's top-left, whichever way the board is turned.
+      const v = startView(w, h, 2, true, HOME)
+      // The picture's top-left is the footprint's screen box's top-left.
       const box = screenBox(v, { x: 6, y: 6, w: 2, h: 2 })
       expect(pictureSpot(v, 6, 6, 2, 0, 0)).toEqual([box.x, box.y])
       expect(pictureSpot(v, 6, 6, 2, 1, 2)).toEqual([box.x + v.cell, box.y + 2 * v.cell])
-      BURROWS.forEach((b, i) => {
-        const door = pictureDoor(i, v.turn)
-        const mound = screenBox(v, { x: b.x, y: b.y, w: 2, h: 2 })
-        const [x, y] = toScreen(v, door.x, door.y)
-        expect([x, y], `burrow ${i} at ${w}x${h}`).toEqual([mound.x + mound.w / 2, mound.y + mound.h])
-      })
     }
-    // Sideways the picture's door is board.ts's door; upright it is the middle of the mound's west edge.
-    BURROWS.forEach((b, i) => {
-      expect(pictureDoor(i, 0)).toEqual(b.door)
-      expect(pictureDoor(i, 1)).toEqual({ x: b.x, y: b.y + 1 })
-    })
-  })
-
-  it("bends a muncher's hop by its door to the door of its burrow's picture, waits in that doorway, and draws it where the sim has it everywhere else", () => {
-    const door = BURROWS[1]!.door
-    const m: Muncher = { id: 1, burrow: 1, mode: 'peek', modeAt: 0, cell: cellOf(door.x, door.y), toward: cellOf(door.x, door.y), stepAt: 0, stepFor: 50, hop: { x0: door.x, y0: door.y, x1: door.x, y1: door.y, at: 0, until: 0 }, homeWhy: null, target: null, tried: [], cheeks: [], grabAt: -1, idleSince: -1, outAt: -1, scout: false, shotBy: -1 }
-    const pic = pictureDoor(1, 1)
-    // Waiting in the doorway: at the picture's door upright, at board.ts's sideways.
-    expect(muncherDrawn(m, 1, 1)).toEqual({ ...pic, lift: muncherPoint(m, 1).lift })
-    expect(muncherDrawn(m, 1, 0)).toEqual(muncherPoint(m, 1))
-    // A long hop out of the door starts at the picture's door, leaves the bend behind it after 1.5 cells, and ends where the sim ends it.
-    m.mode = 'out'
-    m.hop = { x0: door.x, y0: door.y, x1: door.x + 6, y1: door.y, at: 0, until: 360 }
-    const at = (u: number) => muncherDrawn(m, u * 6, 1)
-    expect(at(0)).toEqual({ ...pic, lift: muncherPoint(m, 0).lift })
-    for (const u of [0.3, 0.6, 1]) {
-      expect(at(u).x, `out ${u}`).toBeCloseTo(muncherPoint(m, u * 6).x, 9)
-      expect(at(u).y, `out ${u}`).toBeCloseTo(muncherPoint(m, u * 6).y, 9)
-    }
-    // Home again: the hop ends in the picture's doorway.
-    m.mode = 'home'
-    m.hop = { x0: door.x + 6, y0: door.y, x1: door.x, y1: door.y, at: 0, until: 360 }
-    expect(muncherDrawn(m, 6, 1).x).toBeCloseTo(pic.x, 9)
-    expect(muncherDrawn(m, 6, 1).y).toBeCloseTo(pic.y, 9)
-    expect(muncherDrawn(m, 1.2, 1).x).toBeCloseTo(muncherPoint(m, 1.2).x, 9)
-    // A walker never bends.
-    m.mode = 'walk'
-    m.hop = null
-    expect(muncherDrawn(m, 3, 1)).toEqual(muncherPoint(m, 3))
   })
 })
 
 // ---------------------------------------------------------------------------------------
 // The hit order
 
-/** A blank game with land 3 open at tick 6000 (no stamp fresh), on a sideways Air in full screen: 52 px cells. */
+/** A blank game at tick 6000 (no stamp fresh), on a sideways Air in full screen: 52 px cells. */
 function game(w = 1180, h = 820): { s: State; v: View; t: number; at: (x: number, y: number) => Hit } {
   const s = blankState(1)
-  s.land = 3
-  s.landFrom = 3
   s.tick = 6000
   const t = s.tick * STEP
-  const v = viewAt(s, t, w, h, 2, true, HOME)
+  const v = startView(w, h, 2, true, HOME)
   return { s, v, t, at: (x, y) => hitTest(s, v, ...toScreen(v, x, y), t) }
 }
 /** A straight belt over the cells, every one pointing `dir`. */
@@ -455,48 +379,44 @@ describe('what a touch lands on', () => {
     expect(at(11.5, 10.5)).toEqual({ kind: 'ground', cell: cellOf(11, 10) })
   })
 
-  it('answers the table in the gutters, round the land and west of it, and the flaps east, north and south of it whenever there is a next land', () => {
+  it('answers the table in the gutters and west and north of the board, and the board beyond the start block as the board answers', () => {
     const { s, v, t, at } = game()
     expect(hitTest(s, v, 10, 400, t)).toEqual({ kind: 'table' })
     expect(hitTest(s, v, 1170, 400, t)).toEqual({ kind: 'table' })
-    // Land 3 fills 1040 of the free area's 1140 px: the table shows either side, and the edge cells are the land's.
+    // The start block fills 1040 of the free area's 1140 px: the table shows west of the board, the edge cells are the board's, and the board goes on east.
     expect(hitTest(s, v, v.hud.free.x + 20, 400, t)).toEqual({ kind: 'table' })
     expect(at(19.9, 7.5)).toEqual({ kind: 'flowers', cell: cellOf(19, 7) })
     expect(at(0.1, 10.5)).toEqual({ kind: 'ground', cell: cellOf(0, 10) })
-    // Land 3 has no next land: no flaps round it.
     expect(at(10.5, -0.05)).toEqual({ kind: 'table' })
-    expect(hitTest(s, v, v.hud.free.x + v.hud.free.w - 20, 400, t)).toEqual({ kind: 'table' })
-    // Land 1, with the flaps of land 2 east, north and south of it: a tap there lifts their corner before the Land! card and opens them after it.
-    s.land = 1
-    s.landFrom = 1
-    for (const flap of [0, 2] as const) {
-      s.flap = flap
-      const one = viewAt(s, t, 1180, 820, 2, true, HOME)
-      const at1 = (x: number, y: number) => hitTest(s, one, ...toScreen(one, x, y), t)
-      expect(at1(12.5, 5.5)).toEqual({ kind: 'ground', cell: cellOf(12, 5) })
-      expect(at1(13.2, 5.5)).toEqual({ kind: 'flap' })
-      expect(at1(6, 1.8)).toEqual({ kind: 'flap' })
-      expect(at1(6, 10.2)).toEqual({ kind: 'flap' })
-      expect(at1(-0.3, 5.5)).toEqual({ kind: 'table' })
-      // Closed land's rocks and burrows answer nothing but the flaps over them.
-      expect(at1(14.5, 8.5)).toEqual({ kind: 'flap' })
-    }
-    // Land 2's flaps are land 3's.
-    s.land = 2
-    s.landFrom = 2
-    s.flap = 0
-    const two = viewAt(s, t, 1180, 820, 2, true, HOME)
-    expect(hitTest(s, two, ...toScreen(two, 16.2, 5.5), t)).toEqual({ kind: 'flap' })
-    expect(hitTest(s, two, ...toScreen(two, 8, 0.8), t)).toEqual({ kind: 'flap' })
+    expect(hitTest(s, v, v.hud.free.x + v.hud.free.w - 20, 400, t)).toEqual({ kind: 'flowers', cell: cellOf(20, 6) })
+    // Through a camera over the far east, burrow D, its flowers, its gold on them and a tree answer; nothing west of the board does.
+    const far = viewOf({ x: 47, y: 8, cell: 52 }, 1180, 820, 2, true, HOME)
+    const atFar = (x: number, y: number) => hitTest(s, far, ...toScreen(far, x, y), t)
+    expect(atFar(47.5, 5.5)).toEqual({ kind: 'burrow', burrow: 3 })
+    expect(atFar(46.5, 4.5)).toEqual({ kind: 'flowers', cell: cellOf(46, 4) })
+    expect(atFar(49.5, 5.5)).toEqual({ kind: 'patch', cell: cellOf(49, 5) })
+    expect(atFar(56.5, 9.5)).toEqual({ kind: 'tree', cell: cellOf(56, 9) })
+    expect(atFar(55.5, 12.5)).toEqual({ kind: 'ground', cell: cellOf(55, 12) })
+  })
+
+  it('lists only what the free area shows: no cell, burrow or machine far out of view, and munchers anywhere', () => {
+    const { s, t, v } = game()
+    const cells = targets(s, v, t).flatMap((x) => ('cell' in x.hit ? [x.hit.cell] : []))
+    expect(cells.length).toBeGreaterThan(200)
+    expect(cells.every((c) => c % 60 <= 22 && Math.floor(c / 60) <= 13)).toBe(true)
+    const burrows = targets(s, v, t).flatMap((x) => (x.hit.kind === 'burrow' ? [x.hit.burrow] : []))
+    expect(burrows.sort()).toEqual([0, 1, 2])
+    build(s, 'oven', 40, 20)
+    expect(targets(s, v, t).some((x) => x.hit.kind === 'building' && x.hit.id === 2)).toBe(false)
+    const m = muncher(s, 9, 50, 30, 'walk')
+    expect(targets(s, v, t).some((x) => x.hit.kind === 'muncher' && x.hit.id === m.id)).toBe(true)
   })
 
   it('grows every small target to a fingertip on the phone: 28 px round a point, 56 px across a cell', () => {
     const s = blankState(1)
-    s.land = 3
-    s.landFrom = 3
     s.tick = 6000
     const t = s.tick * STEP
-    const v = viewAt(s, t, 750, 320, 2, true, NO_INSETS)
+    const v = startView(750, 320, 2, true, NO_INSETS)
     expect(v.cell).toBe(25)
     s.burrows[1]!.heap[thingIndex('gear')] = 1
     const [hx, hy] = toScreen(v, heapPoint(1).x, heapPoint(1).y - 0.2)
@@ -508,7 +428,7 @@ describe('what a touch lands on', () => {
     expect(hitTest(s, v, tx - 16, ty, t)).toEqual({ kind: 'ground', cell: cellOf(8, 10) })
   })
 
-  it('lands on the same things turned upright, with the pictures standing up the screen', () => {
+  it('lands on the same things in an upright window, the pictures standing up the screen as they do sideways', () => {
     const sideways = game()
     const upright = game(820, 1180)
     for (const g of [sideways, upright]) {
@@ -518,26 +438,17 @@ describe('what a touch lands on', () => {
       g.s.buildings[1]!.stack.push('gear')
       g.s.hedge[cellOf(8, 9)] = 1
     }
-    expect(upright.v.turn).toBe(1)
+    expect(upright.v.hud.held).toBe('upright')
     for (const [x, y] of [[9.5, 6.5], [10.75, 6.5], [5.5, 11.5], [6.5, 7.5], [2.5, 5.5], [17.5, 11.5], [0.5, 8.5], [8.5, 9.5], [10.5, 1.5], [9.5, 0.5], [11.5, 10.5], [12.5, 2.5]] as const) {
       expect(upright.at(x, y), `${x}, ${y}`).toEqual(sideways.at(x, y))
     }
-    // A muncher's body stands up the screen from its feet: upright, up the screen is east.
+    // A muncher's body stands up the screen from its feet.
     muncher(upright.s, 3, 9, 9, 'walk')
     const [fx, fy] = toScreen(upright.v, 9.5, 9.5)
-    expect(hitTest(upright.s, upright.v, fx, fy - 0.38 * upright.v.cell - MUNCHER_REACH + 2, upright.t)).toEqual({ kind: 'muncher', id: 3 })
-    // One waiting in its doorway answers where its burrow's picture shows the door: upright, at the bottom of the mound, not its side.
-    const door = BURROWS[1]!.door
-    const peek = muncher(upright.s, 4, door.x, door.y, 'peek')
-    peek.burrow = 1
-    peek.hop = { x0: door.x, y0: door.y, x1: door.x, y1: door.y, at: 0, until: 0 }
-    const ring = targets(upright.s, upright.v, upright.t).find((x) => x.hit.kind === 'muncher' && x.hit.id === 4)!.area
-    const [dx, dy] = toScreen(upright.v, pictureDoor(1, 1).x, pictureDoor(1, 1).y)
-    expect(ring).toEqual({ kind: 'disc', x: dx, y: dy - 0.38 * upright.v.cell, r: MUNCHER_REACH })
-    // The oven's roof stack is along the top of its picture on the screen, which is its east side on the board.
+    expect(hitTest(upright.s, upright.v, fx, fy - 0.38 * upright.v.cell - muncherReach(upright.v) + 2, upright.t)).toEqual({ kind: 'muncher', id: 3 })
+    // The oven's roof stack is along the top of its picture.
     const oven = screenBox(upright.v, { x: 6, y: 6, w: 2, h: 2 })
     expect(hitTest(upright.s, upright.v, oven.x + oven.w / 2, oven.y + 2, upright.t)).toEqual({ kind: 'stack', id: 1 })
-    expect(toBoard(upright.v, oven.x + oven.w / 2, oven.y + 2)[0]).toBeGreaterThan(7.9)
   })
 
   it('lists every target for ?debug, each in its place in the order', () => {

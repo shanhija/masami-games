@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 
-import { viewAt } from './camera'
+import { startView } from './camera'
 import type { Child, Finger, Kid, Screen } from './child'
 import { Game } from './game'
 import type { View } from './layout'
@@ -21,7 +21,7 @@ export function memoryStorage(): Map<string, string> {
 
 /** The view the stage draws for the game's frame at screen sc on a touch screen, handed to the game (Stage.tsx). */
 export function stage(g: Game, sc: Screen): View {
-  const v = viewAt(g.state, g.frameTime, sc.w, sc.h, 2, true, sc.safe)
+  const v = startView(sc.w, sc.h, 2, true, sc.safe)
   g.setView(v)
   return v
 }

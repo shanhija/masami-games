@@ -23,7 +23,7 @@ import { lintNet } from './strokes'
 
 /** What the path brings, in the order the careful child meets it (the hint picks Bubbles! first), and the launch landing. */
 type Milestone = CardId | 'landed'
-const ORDER: readonly Milestone[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel', 'landed']
+const ORDER: readonly Milestone[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel', 'landed']
 if (ORDER.length !== PATH.length + 1 || PATH.some((c) => !ORDER.includes(c.id))) throw new Error('the play-through names every card of the path')
 
 /**
@@ -40,10 +40,10 @@ const WINDOWS: Record<Milestone, readonly [string, string]> = {
   gears: ['1:00', '6:00'],
   bubbles: ['4:00', '12:00'],
   hedges: ['7:00', '18:00'],
-  land2: ['11:00', '25:00'],
+  nose: ['11:00', '25:00'],
   stars: ['15:00', '32:00'],
   snacks: ['18:00', '40:00'],
-  land3: ['23:00', '48:00'],
+  more: ['23:00', '48:00'],
   rocket: ['29:00', '58:00'],
   fuel: ['31:00', '62:00'],
   landed: ['33:00', '70:00'],
@@ -122,7 +122,7 @@ function holdsThePath(seeds: readonly number[], last: Milestone): void {
 
 describe('the careful child follows the hint', () => {
   it('to the first Land!, every card on time, the ledger and the lint whole all the way', { timeout: 60_000 }, () => {
-    holdsThePath([1, 2, 3], 'land2')
+    holdsThePath([1, 2, 3], 'nose')
   })
 
   it.runIf(process.env.FACTORY_LONG === '1')('through every card to the launch, on ten seeds', { timeout: 120_000 }, () => {

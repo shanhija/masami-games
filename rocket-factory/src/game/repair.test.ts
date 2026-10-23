@@ -47,6 +47,9 @@ afterEach(() => {
 /** The board the hint gave up on, as the page loads it, Play pressed. */
 function stall(): State {
   const s = stateFromKeep(parseKeep(readFileSync(new URL('./stall-at-science.keep.json', import.meta.url), 'utf8')), 1)
+  // A keep that is not a version 2 save reads as a fresh game, which would pass for this board without a word: it holds its buildings and its three cards.
+  expect(s.buildings.map((b) => `${b.kind}@${b.x},${b.y}`).sort()).toEqual(['digger@10,7', 'digger@9,2', 'lab@6,8', 'oven@11,5', 'oven@6,6', 'pad@1,4'])
+  expect(s.found).toEqual(['digger', 'gold', 'science'])
   act(s, { kind: 'play' })
   return s
 }
@@ -211,7 +214,6 @@ describe('the repair cascade, each case alone', () => {
 
   it('her machine on a planned belt between its ends: the peel of that machine, never a belt into its mouth', () => {
     const s = emptyBoard()
-    s.land = 3
     s.found = ['digger', 'gold', 'science']
     add(s, 'pad', 1, 4)
     add(s, 'greenMaker', 8, 5)
@@ -313,7 +315,7 @@ describe("Beep's carries for the hint", () => {
   })
 
   it("lifts what stands for good at the end of a hump into the pad: gears on the orange maker's bridge once the body and the nose are full", () => {
-    const s = demoState('land3', 1)
+    const s = demoState('busy', 1)
     const pad = s.buildings.find((b) => b.kind === 'pad')!
     const hump = s.net.mouths.get(pad.id)!.find((x) => x >= OVER)!
     expect(slotCell(hump)).toBe(cellOf(2, 7))
@@ -332,7 +334,7 @@ describe("Beep's carries for the hint", () => {
 
 describe('the chaos child, then the careful child following the hint', () => {
   /** Moments of seed 1's careful game the chaos child starts from. */
-  const MOMENTS: readonly Demo[] = LONG ? ['start', 'card-science', 'card-gears', 'land2', 'card-stars', 'card-land3', 'card-rocket'] : ['start', 'card-science', 'card-gears']
+  const MOMENTS: readonly Demo[] = LONG ? ['start', 'card-science', 'card-gears', 'card-nose', 'card-stars', 'card-more', 'card-rocket'] : ['start', 'card-science', 'card-gears']
   const SEEDS = LONG ? [1, 2, 3, 4, 5, 6] : [1]
   const sc = screenNamed('1024x768')
   for (const moment of MOMENTS)

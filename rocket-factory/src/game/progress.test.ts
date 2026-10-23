@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { FLOWER_OF, GROUND, PAD_RING, cellInLand, cellOf, xOf, yOf } from './board'
+import { FLOWER_OF, GROUND, PAD_RING, cellOf, xOf, yOf } from './board'
 import { HELLO_SLEEP, PART_INFO, REGROW, SESSION_CALM } from './catalog'
 import { demoState } from './fixtures'
 import { CELLS, HOP, HZ, PARTS, inSlot, outSlot, thingIndex, ticks, type State } from './model'
@@ -15,10 +15,10 @@ import { act, step } from './rules'
 import { lintNet, stickersLeft } from './strokes'
 
 /** The full factory a while into its run, as the careful child's game has it: every kind of building, belts with things on them, bridges and joins. The first call plays the game (a second or so). */
-const rich = () => demoState('land3', 5)
-/** A cell of s's land where a hedge or a stump could be: grass, with nothing on it, off the pad's ring. */
+const rich = () => demoState('busy', 5)
+/** A cell of the board where a hedge or a stump could be: grass, with nothing on it, off the pad's ring. */
 const freeCell = (s: State) => {
-  for (let c = 0; c < CELLS; c++) if (GROUND[c] === 'grass' && FLOWER_OF[c]! < 0 && cellInLand(s.land, c) && s.owner[c]! < 0 && s.belts.out[c]! < 0 && s.hedge[c] === 0 && !PAD_RING.has(c)) return c
+  for (let c = 0; c < CELLS; c++) if (GROUND[c] === 'grass' && FLOWER_OF[c]! < 0 && s.owner[c]! < 0 && s.belts.out[c]! < 0 && s.hedge[c] === 0 && !PAD_RING.has(c)) return c
   throw new Error('no free cell')
 }
 /** A keep as plain JSON, to damage one field at a time. */
@@ -42,7 +42,8 @@ function sentHome(s: State): void {
 
 describe('the keys', () => {
   it('saves under its own names', () => {
-    expect([SAVE_KEY, OLD_KEY]).toEqual(['rocket-factory', 'rocket-factory-old'])
+    // The version 2 save has its own keys, so a version 1 save under 'rocket-factory' stays untouched.
+    expect([SAVE_KEY, OLD_KEY]).toEqual(['rocket-factory-2', 'rocket-factory-2-old'])
   })
 })
 
@@ -53,14 +54,14 @@ describe('parseKeep', () => {
     expect(parseKeep(serializeKeep(freshKeep()))).toEqual(freshKeep())
   })
 
-  it('starts fresh for nothing stored, text that is not JSON, and JSON that is not a version 1 save', () => {
-    for (const junk of [null, '', '{', 'null', '42', '"hi"', '[]', '{}', text({ ...json(freshKeep()), v: 2 }), text({ ...json(freshKeep()), v: '1' })]) {
+  it('starts fresh for nothing stored, text that is not JSON, and JSON that is not a version 2 save', () => {
+    for (const junk of [null, '', '{', 'null', '42', '"hi"', '[]', '{}', text({ ...json(freshKeep()), v: 1 }), text({ ...json(freshKeep()), v: '2' })]) {
       expect(parseKeep(junk), String(junk)).toEqual(freshKeep())
     }
   })
 
   it('keeps everything it can from a save that is all wrong types', () => {
-    const d = { v: 1, second: 'x', land: 7, flap: 'yes', belts: 5, hedges: {}, stumps: 'a', buildings: {}, nextId: -3, nextMuncher: null, basket: [], found: 'all', choice: 4, lab: 2, rocket: [], launches: 1.5, burrows: 'b', patterns: 99, pattern: -1, help: [], switches: 0 }
+    const d = { v: 2, second: 'x', belts: 5, hedges: {}, stumps: 'a', buildings: {}, nextId: -3, nextMuncher: null, basket: [], found: 'all', choice: 4, lab: 2, rocket: [], launches: 1.5, burrows: 'b', patterns: 99, pattern: -1, help: [], switches: 0 }
     const k = parseKeep(text(d))
     expect(k).toEqual({ ...freshKeep(), buildings: [], patterns: 10 })
   })
@@ -98,14 +99,15 @@ describe('parseKeep', () => {
     expect(cells[x]).toBe(good.replace(/:../, ':-o'))
     expect(cells.slice(x + 1, x + 4)).toEqual(['.', '.', '.'])
     expect(cells[x + 4]).toBe(row[x + 4])
-    expect(k.belts[short]).toBe(Array(20).fill('.').join(' '))
+    expect(k.belts[short]).toBe(Array(60).fill('.').join(' '))
   })
 
-  it('keeps a pending flap only for the land after the open one, and patterns within those the game knows', () => {
+  it('keeps patterns within those the game knows, and holds the big map: 36 rows of 60 cells, six burrows, no land or flap', () => {
     const d = json(freshKeep())
-    expect(parseKeep(text({ ...d, flap: 2 })).flap).toBe(2)
-    expect(parseKeep(text({ ...d, flap: 3 })).flap).toBe(0)
-    expect(parseKeep(text({ ...d, land: 2, flap: 3 })).flap).toBe(3)
+    expect(d.belts).toHaveLength(36)
+    for (const row of d.belts as string[]) expect(row.split(' ')).toHaveLength(60)
+    expect(d.burrows).toHaveLength(6)
+    expect([d.v, 'land' in d, 'flap' in d]).toEqual([2, false, false])
     const k = parseKeep(text({ ...d, patterns: 3, pattern: 5 }))
     expect([k.patterns, k.pattern]).toEqual([3, 2])
   })
@@ -157,10 +159,12 @@ describe('a load', () => {
 
   it("sends everyone home: a muncher's cheeks land on its burrow's heap", () => {
     const s = rich()
+    // Whatever B's munchers already out would put on its heap (a visit may be on), and one more muncher's cheeks.
+    const before = keepOf(s).burrows[1]!.heap
     s.munchers.push({ id: 7, burrow: 1, mode: 'sit', modeAt: s.tick, cell: cellOf(13, 8), toward: cellOf(13, 8), stepAt: s.tick, stepFor: 50, hop: null, homeWhy: null, target: null, tried: [], cheeks: ['gear', 'greenBottle'], grabAt: -1, idleSince: -1, outAt: s.tick, scout: false, shotBy: -1 })
     const heap = keepOf(s).burrows[1]!.heap
-    expect(heap.gear).toBe((s.burrows[1]!.heap[thingIndex('gear')] ?? 0) + 1)
-    expect(heap.greenBottle).toBe(1)
+    expect(heap.gear).toBe((before.gear ?? 0) + 1)
+    expect(heap.greenBottle).toBe((before.greenBottle ?? 0) + 1)
   })
 
   it('puts a building only where its sticker could be placed now, and what it held in the basket', () => {
@@ -215,7 +219,6 @@ describe('a load', () => {
     const d = json(freshKeep())
     const rows = (d.belts as string[]).map((r) => r.split(' '))
     rows[8]![0] = '20--000' // the pond
-    rows[0]![5] = '20--000' // closed land at land 1
     rows[6]![6] = '20--000:-b' // under the start oven
     rows[5]![9] = '20--000'
     rows[5]![10] = '02--000' // head-on with its neighbour
@@ -223,7 +226,7 @@ describe('a load', () => {
     rows[4]![9] = '20--000'
     d.belts = rows.map((r) => r.join(' '))
     const loaded = stateFromKeep(parseKeep(text(d)), 1)
-    for (const [x, y] of [[0, 8], [5, 0], [6, 6], [9, 5], [10, 5]]) expect(loaded.belts.out[cellOf(x!, y!)], `${x}, ${y}`).toBe(-1)
+    for (const [x, y] of [[0, 8], [6, 6], [9, 5], [10, 5]]) expect(loaded.belts.out[cellOf(x!, y!)], `${x}, ${y}`).toBe(-1)
     expect(loaded.belts.out[cellOf(8, 4)]).toBe(0)
     expect(loaded.belts.fork[cellOf(8, 4)]).toBe(-1)
     expect(loaded.basket[thingIndex('blueBar')]).toBe(1)
@@ -247,7 +250,7 @@ describe('a load', () => {
 
   it('keeps a hedge and a stump on bare rocks, where her hedge tool draws them too', () => {
     const s = rich()
-    const rocks = Array.from({ length: CELLS }, (_, c) => c).filter((c) => (GROUND[c] === 'blue' || GROUND[c] === 'gold') && cellInLand(s.land, c) && s.owner[c]! < 0 && s.belts.out[c]! < 0 && s.hedge[c] === 0)
+    const rocks = Array.from({ length: CELLS }, (_, c) => c).filter((c) => (GROUND[c] === 'blue' || GROUND[c] === 'gold') && s.owner[c]! < 0 && s.belts.out[c]! < 0 && s.hedge[c] === 0)
     const [hedge, stump] = rocks as [number, number]
     act(s, { kind: 'tool', tool: { kind: 'hedge' } })
     act(s, { kind: 'drag', cells: [hedge] })
@@ -292,7 +295,7 @@ describe('a load', () => {
 
 describe('the equality test', () => {
   it("steps a load of the save just as the state itself steps, everyone sent home, through the new session's calm and 4 minutes past it, visits and all", { timeout: 30_000 }, () => {
-    for (const [name, seed] of [['factory', 4], ['land3', 6]] as const) {
+    for (const [name, seed] of [['factory', 4], ['busy', 6]] as const) {
       const s = demoState(name, seed)
       // Not on a whole second, so the load must keep the beat.
       for (let i = 0; i < 137; i++) step(s)

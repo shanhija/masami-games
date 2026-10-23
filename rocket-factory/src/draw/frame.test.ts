@@ -3,7 +3,7 @@
  * rules.ts blankState by setting fields (the scenes' states; belts with forks, joins, bridges
  * and loops laid by hand and run hop by hop by belts.ts; every kind of building in every
  * state; munchers in every mode and every way home; flights; a card up; the night; the launch
- * from its tap to its end; the upright turn and the land's ease; strokes, hedge lines, peel
+ * from its tap to its end; strokes, hedge lines, peel
  * drags and held stickers as strokes.ts plans them; cells popping in and curling away; the
  * events' particles; ?debug). Every frame comes back balanced with nothing drawn NaN, draws no
  * text but the overlay's and makes no gradient; the bakes stay inside the cache's budget and
@@ -15,11 +15,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { hop, rebuild } from '../game/belts'
 import { cell as layCell, put } from '../game/beltKit'
-import { BURROWS, LANDS, cellOf } from '../game/board'
-import { TURN, viewAt } from '../game/camera'
-import { GROW, NIBBLE_FOR } from '../game/catalog'
-import { NO_INSETS, hintGhost, pictureDoor, toScreen, type View } from '../game/layout'
-import { CARDS, HOP, STEP, inSlot, outSlot, ticks, type Dir, type Hit, type Muncher, type MuncherMode, type SimEvent, type State } from '../game/model'
+import { BURROWS, cellOf } from '../game/board'
+import { startView } from '../game/camera'
+import { NIBBLE_FOR } from '../game/catalog'
+import { NO_INSETS, hintGhost, toScreen, type View } from '../game/layout'
+import { CARDS, HOP, STEP, inSlot, outSlot, overIn, type Dir, type Hit, type Muncher, type MuncherMode, type SimEvent, type State } from '../game/model'
 import { blankState } from '../game/rules'
 import { planStroke } from '../game/strokes'
 import { beepPoint, thingPoint } from '../game/where'
@@ -27,7 +27,7 @@ import { BUDGET } from './cache'
 import { HOME_WHYS, MUNCHER_MODES } from './critters'
 import { fakeContext } from './fakeContext'
 import { Renderer } from './frame'
-import { AT, SCREENS, busyFactory, drawing, firstFactory, goodNight, landOpening, launching, scenes, turning } from './scenes'
+import { AT, SCREENS, busyFactory, drawing, firstFactory, goodNight, launching, scenes } from './scenes'
 
 /** What the art the renderer calls was handed: Beep's transform at each call, how often the print and the belts are painted, the end signs drawn, how far each dotted path reaches, where each hint ring and each muncher is drawn, the countdown's side, and each live thing's fizz seed. */
 const seen = vi.hoisted(() => ({
@@ -123,7 +123,7 @@ function stage(w: number, h: number, dpr: number, debug: boolean) {
   r.resize(Math.round(w * dpr), Math.round(h * dpr), dpr)
   const draw = (s: State, events: readonly SimEvent[], finger: Finger, hover: Hit | null): View => {
     const t = (s.tick - 0.5) * STEP
-    const view = viewAt(s, t, w, h, dpr, true, NO_INSETS)
+    const view = startView(w, h, dpr, true, NO_INSETS)
     main.check(`a frame at tick ${s.tick}`, () => r.draw(s, t, view, events, STEP, finger, hover), debug ? 'allowed' : 'none')
     expect(pool.pixels(), 'the bakes inside the budget').toBeLessThanOrEqual(BUDGET)
     return view
@@ -159,7 +159,6 @@ const run = (s: State, cells: readonly (readonly [number, number, Dir, Dir])[]) 
 function belts(): State {
   const s = blankState(9)
   s.tick = AT
-  s.land = 3
   s.buildings = [s.buildings[0]!]
   // A loop round (5..7, 2..4), its gap at (5, 2).
   run(s, [
@@ -188,7 +187,7 @@ function belts(): State {
   const things = ['blueRock', 'goldBar', 'gear', 'bubble', 'greenBottle', 'orangeBottle'] as const
   let k = 0
   for (let c = 0; c < s.belts.out.length; c++) if (s.belts.out[c]! >= 0) for (const x of [inSlot(c), outSlot(c)]) if ((c + x) % 3 !== 0 || c === cellOf(14, 2) || c === cellOf(15, 2) || c === cellOf(15, 3) || c === cellOf(14, 3)) put(s, x, things[k++ % things.length]!)
-  put(s, 2 * 240 + 2 * cellOf(11, 7), 'gear')
+  put(s, overIn(cellOf(11, 7)), 'gear')
   return s
 }
 
@@ -217,7 +216,7 @@ describe('the renderer', { timeout: 30_000 }, () => {
     for (const debug of [false, true])
       for (const [w, h, dpr] of SIZES) {
         const { draw, pool } = stage(w, h, dpr, debug)
-        for (const make of [() => firstFactory(1), () => busyFactory(2), () => goodNight(3), () => launching(4, 6), () => launching(5, 14), () => landOpening(6, 0.8), () => turning(7, 0.2), () => drawing(8, 'stroke'), () => drawing(9, 'ghost')]) {
+        for (const make of [() => firstFactory(1), () => busyFactory(2), () => goodNight(3), () => launching(4, 6), () => launching(5, 14), () => drawing(8, 'stroke'), () => drawing(9, 'ghost')]) {
           const s = make()
           draw(s, [], { x: w / 2, y: h / 2, touch: true }, null)
           s.tick += 7
@@ -272,7 +271,7 @@ describe('the renderer', { timeout: 30_000 }, () => {
     bakesClean(pool)
   })
 
-  it('bakes the layout once, again only when it changes or a stroke has landed, and the print once per land, size and turn', () => {
+  it('bakes the layout once, again only when it changes or a stroke has landed, and the print once over the cells in view', () => {
     const { draw } = stage(1024, 768, 2, false)
     const s = belts()
     draw(s, [], null, null)
@@ -355,7 +354,7 @@ describe('the renderer', { timeout: 30_000 }, () => {
   it('draws flights, a card up, the night falling and its lights, burrows waking and waving, and the launch from its tap to its end', () => {
     const { draw, pool } = stage(1180, 820, 1.82, false)
     const s = busyFactory(14)
-    s.card = { id: 'land3', at: s.tick - 30 }
+    s.card = { id: 'more', at: s.tick - 30 }
     s.flights = Array.from({ length: 8 }, (_, i) => ({ thing: (['gear', 'blueBar', 'greenBottle', 'bubble'] as const)[i % 4], x0: 2 + i, y0: 9, x1: 13, y1: 5, at: s.tick - i * 4, until: s.tick + 20, arc: 0.5 + i * 0.3 }))
     s.burrows.forEach((b, i) => {
       b.warnAt = i === 0 ? s.tick - 60 : -1
@@ -365,7 +364,7 @@ describe('the renderer', { timeout: 30_000 }, () => {
     })
     for (let i = 0; i < 24; i++) {
       s.tick += 4
-      draw(s, i === 0 ? [{ kind: 'card', id: 'land3' }, { kind: 'poke', what: 'burrow', x: 15, y: 9 }] : [], null, null)
+      draw(s, i === 0 ? [{ kind: 'card', id: 'more' }, { kind: 'poke', what: 'burrow', x: 15, y: 9 }] : [], null, null)
     }
     const night = goodNight(15)
     for (let i = 0; i < 20; i++) {
@@ -380,33 +379,6 @@ describe('the renderer', { timeout: 30_000 }, () => {
     after.tick += 20
     draw(after, [], null, null)
     bakesClean(pool)
-  })
-
-  it('turns the table and eases the land out: the print drawn live while the table turns, its bake drawn through the easing view', () => {
-    for (const [w, h] of [SCREENS[2], SCREENS[0]] as const) {
-      const { draw, pool } = stage(w, h, 1.82, false)
-      const s = turning(18, 0)
-      const prints = seen.prints
-      for (let i = 0; i <= ticks(TURN) + 6; i += 2) {
-        s.tick = AT + i
-        draw(s, [], null, null)
-      }
-      // Live every frame of the turn, then baked once at the settled view.
-      expect(seen.prints - prints).toBeGreaterThan(ticks(TURN) / 2 - 2)
-      const settled = seen.prints
-      s.tick += 10
-      draw(s, [], null, null)
-      expect(seen.prints).toBe(settled)
-      // The land easing out from land 1 to land 2, its flaps folding: the new land's print baked once while it moves, once more where it settles.
-      const e = landOpening(19, 0)
-      const before = seen.prints
-      for (let i = 0; i <= GROW + 10; i += 3) {
-        e.tick = AT + i
-        draw(e, [], null, null)
-      }
-      expect(seen.prints - before).toBe(2)
-      bakesClean(pool)
-    }
   })
 
   it('draws strokes, hedge lines, peel drags and held stickers as strokes.ts plans them, under the finger, the mouse or neither', () => {
@@ -503,7 +475,7 @@ describe('the renderer', { timeout: 30_000 }, () => {
     const trace = () => {
       const calls: string[] = []
       const t = (s.tick - 0.5) * STEP
-      const view = viewAt(s, t, 1024, 768, 2, true, NO_INSETS)
+      const view = startView(1024, 768, 2, true, NO_INSETS)
       const spy = new Proxy(main.ctx, {
         get(target, key: string) {
           const v = Reflect.get(target, key) as unknown
@@ -651,27 +623,6 @@ describe('the one next step', () => {
     expect(seen.progress).toEqual([1])
   })
 
-  it("rings the flaps' wiggling corner when opening the next land is the next step, sideways and upright", () => {
-    for (const [w, h] of [SCREENS[1], SCREENS[2]] as const) {
-      const { draw } = stage(w, h, 2, false)
-      const s = firstFactory(33)
-      s.flap = 2
-      s.hint = { step: { kind: 'flap' }, at: AT - 30 }
-      seen.rings.length = 0
-      const view = draw(s, [], null, null)
-      const [x, y] = toScreen(view, LANDS[1].x1 + 1.28, LANDS[1].y0 + 0.28)
-      expect(seen.rings, `${w}x${h}`).toHaveLength(1)
-      expect(seen.rings[0]!.e).toBeCloseTo(2 * x, 4)
-      expect(seen.rings[0]!.f).toBeCloseTo(2 * y, 4)
-      // Waiting for her tap with something else to do first: the corner wiggles, but rings nothing.
-      s.hint = { step: { kind: 'rocket' }, at: AT - 30 }
-      s.tick++
-      seen.rings.length = 0
-      draw(s, [], null, null)
-      expect(seen.rings).toEqual([])
-    }
-  })
-
   it('draws no bounce for a hint naming what has gone since it looked, and never throws on a link with no path', () => {
     const { draw } = stage(1024, 768, 2, false)
     const s = busyFactory(32)
@@ -696,8 +647,8 @@ describe('the one next step', () => {
   })
 })
 
-describe("the burrows' doors upright", () => {
-  it("puts a muncher in its doorway at the door of its burrow's picture, and starts its hop out from there, sideways and upright", () => {
+describe("the burrows' doors", () => {
+  it("puts a muncher in its doorway at the door board.ts gives its burrow, and starts its hop out from there, sideways and upright", () => {
     for (const [w, h] of [SCREENS[1], SCREENS[2]] as const) {
       const { draw } = stage(w, h, 2, false)
       const s = busyFactory(33)
@@ -712,8 +663,7 @@ describe("the burrows' doors upright", () => {
       out.hop = { x0: door.x, y0: door.y, x1: door.x, y1: door.y + 1, at: s.tick, until: s.tick + 60 }
       seen.munchers.length = 0
       const view = draw(s, [], null, null)
-      const pic = pictureDoor(1, view.turn)
-      const [px, py] = toScreen(view, pic.x, pic.y)
+      const [px, py] = toScreen(view, door.x, door.y)
       const drawn = seen.munchers.filter((m) => m.mode === 'peek' || m.mode === 'out')
       expect(drawn).toHaveLength(2)
       // The one hopping out has only just left the door (half a step into a one second hop): still beside it.
@@ -740,10 +690,10 @@ describe("the burrows' doors upright", () => {
     expect(seen.flags).toEqual([2])
   })
 
-  it('stands the countdown beside the pad on the side away from the munchers watching', () => {
+  it('stands the countdown beside the pad, on the side toward the screen\'s middle when the watchers sit below it', () => {
     for (const [[w, h], side] of [
       [SCREENS[1], 1],
-      [SCREENS[2], -1],
+      [SCREENS[2], 1],
     ] as const) {
       const { draw } = stage(w, h, 2, false)
       seen.sides.length = 0
@@ -755,8 +705,8 @@ describe("the burrows' doors upright", () => {
 
 describe('the fizz', () => {
   it('gives each thing riding a belt its own fizz, which it keeps as it rides', () => {
-    // A big screen, where things on land 1 are big enough to fizz.
-    const { draw } = stage(1920, 1080, 1, false)
+    // A big screen, where the start block's cells are big enough for things to fizz.
+    const { draw } = stage(2560, 1440, 1, false)
     const s = firstFactory(35)
     put(s, inSlot(cellOf(7, 4)), 'blueRock')
     put(s, outSlot(cellOf(4, 6)), 'blueBar')

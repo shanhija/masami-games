@@ -184,9 +184,8 @@ describe('the buildings', () => {
       }
       pictures.add(log(found(card, JOIN_SEEN), 3))
     }
-    // Every card its own picture (the two Land! cards share the new burrow's); at its start the stars are where the full card lit them, and none of it is the lab at rest.
-    expect(pictures.size).toBe(CARDS.length - 1)
-    expect(log(found('land2', JOIN_SEEN), 3)).toBe(log(found('land3', JOIN_SEEN), 3))
+    // Every card its own picture; at its start the stars are where the full card lit them, and none of it is the lab at rest.
+    expect(pictures.size).toBe(CARDS.length)
     expect(log(found('gears', 0), 3)).not.toBe(log(found('gears', JOIN_SEEN), 3))
     expect(log(found('gears', JOIN_SEEN), 3)).not.toBe(log({ ...restingPic('lab'), progress: 1 }, 3))
   })

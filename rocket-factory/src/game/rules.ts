@@ -1,8 +1,8 @@
 import { LIFTOFF, NIGHT_LEAD, PART_OF, padDrums } from './band'
 import { BEEP_HOME, beepHome, beepPose, beepTo, carryBasket, carryHeap, carrySlot, carryStack, dig, digRefused, patSticker, restBeep, sendEach } from './beep'
-import { BURROWS, LANDS, PAD, START_OVEN, xOf, yOf } from './board'
+import { BURROWS, PAD, START_OVEN, xOf, yOf } from './board'
 import { emptyNet, hop, owners, rebuild, thingsOn } from './belts'
-import { CARD_FOR, CARD_IDLE, COUNT_AT, DIG_GAP, HELLO_SLEEP, HINT_EVERY, LAUNCH_FOR, LIFT_WAIT, NIGHT_TUCK, PART_INFO, SIZE, STICKER_WORD, UNDO_FOR, UNDO_MAX } from './catalog'
+import { CARD_FOR, CARD_IDLE, COUNT_AT, DIG_GAP, HINT_EVERY, LAUNCH_FOR, LIFT_WAIT, NIGHT_TUCK, PART_INFO, SIZE, STICKER_WORD, UNDO_FOR, UNDO_MAX } from './catalog'
 import { aimOf, brokeBetween, reachOf, stepHint } from './hint'
 import { stepJams } from './jams'
 import { hintGhost, hintPath } from './layout'
@@ -71,18 +71,14 @@ const PENCIL: Tool = { kind: 'pencil' }
 const burrow = (): Burrow => ({ hunger: 0, sleepUntil: -1, warnAt: -1, heap: noCounts(), friend: false, visits: 0, helloAt: -1, pawsAt: -1 })
 
 /**
- * A fresh game at tick 0: land 1, the pad (id 0) and the oven standing at the start (id 1),
- * no belts, the three burrows asleep in their own way (munchers.ts reads which may wake),
+ * A fresh game at tick 0: the pad (id 0) and the oven standing at the start (id 1),
+ * no belts, the six burrows asleep in their own way (munchers.ts reads which may wake),
  * Beep by the basket, the pencil in hand, every switch on and the munchers on Many.
  */
 export function blankState(seed: number): State {
   const s: State = {
     tick: 0,
     rng: seed | 0,
-    land: 1,
-    landFrom: 1,
-    landAt: -1,
-    flap: 0,
     belts: {
       out: new Int8Array(CELLS).fill(-1),
       in: new Int8Array(CELLS).fill(-1),
@@ -139,7 +135,6 @@ export function blankState(seed: number): State {
     missAt: -1,
     lastTouchAt: -1,
     touching: false,
-    turnedAt: -1,
     pauseClosedAt: -1,
     sessionAt: 0,
     playing: false,
@@ -373,7 +368,7 @@ function dropDrag(s: State): void {
   s.drag = null
 }
 
-/** The drag ends: planned again on the layout as it is at this moment and applied at once (commit), or dropped (dropDrag). A drag a turn, Good night or the launch already dropped leaves nothing to release. */
+/** The drag ends: planned again on the layout as it is at this moment and applied at once (commit), or dropped (dropDrag). A drag Good night or the launch already dropped leaves nothing to release. */
 function release(s: State, commitIt: boolean): void {
   const d = s.drag
   if (d === null) return
@@ -421,8 +416,7 @@ function pickTool(s: State, tool: Tool): void {
  * stack and a heap Beep carries where wanted; the basket gives what something wants. With the
  * pencil a building shows its recipe; with the peel the first tap lifts a building or a belt's
  * run and a second tap on it takes it back, and a hedge comes back at once. The hedge tool
- * plants one hedge where it can. A burrow shows its paw prints, the flaps fold open after a
- * Land! card, the hint's ghost is placed. At Good night a tap on the kind in its nightcap
+ * plants one hedge where it can. A burrow shows its paw prints, the hint's ghost is placed. At Good night a tap on the kind in its nightcap
  * tucks it in. A tap anywhere but on what the peel lifted puts that down.
  */
 function tap(s: State, hit: Hit): void {
@@ -525,10 +519,6 @@ function tap(s: State, hit: Hit): void {
       s.lifted = null
       poke(s, 'moony', moonyPoint)
       return
-    case 'flap':
-      s.lifted = null
-      flaps(s)
-      return
     case 'spot': {
       s.lifted = null
       const ghost = hintGhost(s, s.tick * STEP)
@@ -537,28 +527,6 @@ function tap(s: State, hit: Hit): void {
       return
     }
   }
-}
-
-/** The next land's folded flaps, tapped or dragged: after a Land! card they fold open (the view eases out over GROW from landAt; the new burrow's munchers wave hello and sleep HELLO_SLEEP); before one the corner only lifts. Land 3 has none. */
-function flaps(s: State): void {
-  if (s.land === 3) throw new Error('land 3 has no flaps')
-  if (s.flap === 0) {
-    const l = LANDS[s.land]
-    poke(s, 'flap', { x: l.x1 + 1, y: l.y0 })
-    return
-  }
-  const land = s.flap
-  s.landFrom = s.land
-  s.land = land
-  s.landAt = s.tick
-  s.flap = 0
-  BURROWS.forEach((site, i) => {
-    if (site.land !== land) return
-    const b = s.burrows[i]!
-    b.helloAt = s.tick
-    b.sleepUntil = s.tick + HELLO_SLEEP
-  })
-  s.events.push({ kind: 'flap', land })
 }
 
 // ---------------------------------------------------------------------------------------
@@ -591,7 +559,7 @@ function launch(s: State): void {
 /**
  * A tap while the rocket flies, when nothing on the board changes and Beep is aboard (the
  * router sends no edit then): on the rocket during the countdown the number standing by the pad
- * pops with its sound; a tree shakes, flowers sway, and anywhere else on the land the ground
+ * pops with its sound; a tree shakes, flowers sway, and anywhere else on the board the ground
  * puffs where she tapped.
  */
 function cheer(s: State, hit: Hit): void {
@@ -716,19 +684,12 @@ export function act(s: State, a: Action): void {
     case 'choose':
       if (choiceWaits(s)) s.choice = a.card
       break
-    case 'flap':
-      flaps(s)
-      break
     case 'launch':
       // A second tap on the launch button, or one on a button the state has already left behind, does nothing.
       if (launchReady(s)) launch(s)
       break
     case 'card':
       if (s.card !== null) closeCard(s)
-      break
-    case 'turned':
-      s.turnedAt = s.tick
-      dropDrag(s)
       break
     case 'session':
       // The hint's hand shows at once from the session's stamp (hint.ts stepHint).

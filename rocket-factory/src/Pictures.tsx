@@ -6,11 +6,12 @@ import { STICKER_BOX, drawHole, drawSticker } from './draw/buildings'
 import { MUNCHER_BOX, drawMuncher, type MuncherPicture } from './draw/critters'
 import { Renderer } from './draw/frame'
 import { drawBurrow } from './draw/land'
-import { ROCKET_BOX, drawLittleRocket, drawRocket } from './draw/rocket'
-import { C, roundStroke } from './draw/look'
+import { ROCKET_BOX, drawLittleNose, drawLittleRocket, drawRocket } from './draw/rocket'
+import { C, roundStroke, scaled } from './draw/look'
 import { drawThing } from './draw/things'
 import type { PartView } from './game/hud'
-import { landBox, type View } from './game/layout'
+import { CORNER } from './game/board'
+import type { View } from './game/layout'
 import { STEP, type BeepPic, type CardId, type MunchersMode, type ScienceMode, type State, type Sticker, type Thing } from './game/model'
 import type { Box } from './game/where'
 import { Portrait } from './Portrait'
@@ -68,8 +69,8 @@ function row(ctx: CanvasRenderingContext2D, things: readonly Thing[], size: numb
 
 /**
  * Each card's one picture: what it brings, as the board shows it. A sticker card shows its
- * sticker, a thing's card the thing, Land! a new burrow waving hello, the rocket's cards the
- * rocket (Fuel! with its orange fire beside it).
+ * sticker, a thing's card the thing, Nose! the rocket's nose, More! a small pile of stickers,
+ * the rocket's cards the rocket (Fuel! with its orange fire beside it).
  */
 const CARD_PICTURES: Record<CardId, { box: Box; draw: (ctx: CanvasRenderingContext2D, t: number) => void }> = {
   digger: { box: STICKER_BOX, draw: (ctx, t) => drawSticker(ctx, 'digger', t) },
@@ -78,10 +79,25 @@ const CARD_PICTURES: Record<CardId, { box: Box; draw: (ctx: CanvasRenderingConte
   gears: { box: box(-0.5, -0.5, 1, 1), draw: (ctx, t) => drawThing(ctx, 'gear', THING_SIZE, t, 1) },
   bubbles: { box: box(-0.75, -0.6, 1.5, 1.1), draw: (ctx, t) => row(ctx, ['bubble', 'bubble', 'bubble'], 0.5, 0.48, t) },
   hedges: { box: STICKER_BOX, draw: (ctx, t) => drawSticker(ctx, 'hedge', t) },
-  land2: { box: box(0, 0.35, 2, 1.7), draw: (ctx, t) => drawBurrow(ctx, { burrow: 1, hunger: 0, warnAge: Infinity, out: false, friend: false, pokeAge: Infinity, helloAge: t % 4 }, t) },
+  nose: { box: box(-0.5, -0.5, 1, 1), draw: (ctx) => drawLittleNose(ctx, 0.92) },
   stars: { box: box(-0.5, -0.5, 1, 1), draw: (ctx, t) => drawThing(ctx, 'orangeBottle', THING_SIZE, t, 1) },
   snacks: { box: STICKER_BOX, draw: (ctx, t) => drawSticker(ctx, 'bowl', t) },
-  land3: { box: box(0, 0.35, 2, 1.7), draw: (ctx, t) => drawBurrow(ctx, { burrow: 2, hunger: 0, warnAge: Infinity, out: false, friend: false, pokeAge: Infinity, helloAge: t % 4 }, t) },
+  more: {
+    box: box(-0.1, -0.05, 1.3, 1.25),
+    draw: (ctx, t) => {
+      // A little pile: two stickers side by side and one on top of them.
+      for (const [sticker, x, y] of [
+        ['oven', 0.02, 0.62],
+        ['digger', 0.62, 0.62],
+        ['greenMaker', 0.32, 0.08],
+      ] as const) {
+        ctx.save()
+        ctx.translate(x, y)
+        scaled(ctx, 0.56, () => drawSticker(ctx, sticker, t))
+        ctx.restore()
+      }
+    },
+  },
   rocket: { box: box(-0.5, -0.55, 1, 1.1), draw: (ctx) => drawLittleRocket(ctx, 1) },
   fuel: {
     box: box(-0.62, -0.55, 1.24, 1.1),
@@ -175,7 +191,7 @@ export function PatternPic({ pattern, className }: { pattern: number; className:
 
 /**
  * The factory itself, drawn once by the renderer (draw/frame.ts) into a small canvas, the
- * land fitted to it: the Good night card's factory asleep, and the old factory Bring back
+ * start block fitted to it: the Good night card's factory asleep, and the old factory Bring back
  * would fetch. A new state draws it again.
  */
 export function FactoryPic({ state, className }: { state: State; className: string }) {
@@ -191,17 +207,14 @@ export function FactoryPic({ state, className }: { state: State; className: stri
       el.width = Math.round(w * dpr)
       el.height = Math.round(h * dpr)
       renderer.resize(el.width, el.height, dpr)
-      const land = landBox(state.land)
-      const cell = Math.min(w / land.w, h / land.h)
+      const cell = Math.min(w / CORNER.w, h / CORNER.h)
       const view: View = {
         w,
         h,
         dpr,
         cell,
-        upright: false,
-        turn: 0,
-        ox: (w - land.w * cell) / 2 - land.x * cell,
-        oy: (h - land.h * cell) / 2 - land.y * cell,
+        ox: (w - CORNER.w * cell) / 2 - CORNER.x * cell,
+        oy: (h - CORNER.h * cell) / 2 - CORNER.y * cell,
         hud: { held: 'sideways', free: { x: 0, y: 0, w, h }, strip: null, column: null, tray: null, button: 0, gap: 0 },
       }
       renderer.draw(state, state.tick * STEP, view, [], 0, null, null)

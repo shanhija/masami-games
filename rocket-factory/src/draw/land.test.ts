@@ -1,23 +1,23 @@
 /**
- * Runs the land on the fake context: the print of every land, with dots or the grid, flat and
- * turned upright, at the game's cell sizes; every cell of it again at every moment after a
- * tap; the flaps folding open and their corner lifting; every burrow in every stage, warning,
- * out, a friend, poked and waving hello; heaps of every size, paw prints walking out and
- * fading, the basket. Nothing may crash, draw NaN, leave the context changed, draw text or make
- * a gradient, and each drawing stays in the box its callers bake or place it by. Holds the
- * print to the board (the flaps cover exactly the next land beyond this one, the pond and the
- * flowers sit where board.ts puts them), the burrow to its picture rules (never a dark door, a
- * face only when it should lean out), the heap to twelve and its flag to six. Looks are judged
- * on ?sheet=land.
+ * Runs the land on the fake context: the print over the cells a bake covers, with dots or the
+ * grid, at the game's cell sizes, in the start block, far out on the board and past its edge;
+ * every cell of it again at every moment after a tap; every burrow in every stage, warning,
+ * out, a friend, poked and waving hello, each wearing its own mark; heaps of every size, paw
+ * prints walking out and fading, the basket. Nothing may crash, draw NaN, leave the context
+ * changed, draw text or make a gradient, and each drawing stays in the box its callers bake or
+ * place it by. Holds the print to the board and to its area (only the cells it covers are
+ * painted, the ponds and the flowers sit where board.ts puts them), the burrow to its picture
+ * rules (never a dark door, a face only when it should lean out), the heap to twelve and its
+ * flag to six. Looks are judged on ?sheet=land.
  */
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { BURROWS, FLOWER_OF, GROUND, LANDS, cellInLand, cellOf, xOf, yOf } from '../game/board'
+import { BURROWS, FLOWER_OF, GROUND, PONDS, cellOf, inCorner, xOf, yOf } from '../game/board'
 import { HEAP_HINT, PAWS_FOR, STAGE_AT } from '../game/catalog'
-import { CELLS, STEP, THINGS, type Land } from '../game/model'
+import { CELLS, COLS, ROWS, STEP, THINGS } from '../game/model'
 import type { Box } from '../game/where'
 import { clipped, colours, edges, fakeContext, poking, resetPen } from './fakeContext'
-import { HEAP_DRAWN, HELLO_FOR, POKE_FOR, SHEET, drawBasket, drawBurrow, drawCellPrint, drawFlapCorner, drawFlaps, drawHeap, drawPaws, drawPrint, flapCorner, flapWiggle, type BurrowPic } from './land'
+import { HEAP_DRAWN, HELLO_FOR, POKE_FOR, SHEET, drawBasket, drawBurrow, drawCellPrint, drawHeap, drawPaws, drawPrint, type BurrowPic } from './land'
 import { C, LAND, MUNCHER, pen } from './look'
 
 afterEach(resetPen)
@@ -25,136 +25,64 @@ afterEach(resetPen)
 /** Ages in seconds since a tap: just now, mid-shake, settling, done, long ago, never. */
 const AGES = [0, 0.05, 0.2, 0.45, 0.8, 1.3, 1e4, Infinity] as const
 const TIMES = [0, 0.37, 2.9, 1e5 + 0.21] as const
-/** The board flat, and turned upright (east up), with the shadow turned to stay down-right on screen. */
-const TURNS = [0, -Math.PI / 2] as const
+/** The start block with its table round it, a stretch of the far east, and the board's south-east corner with the table past it: the areas the renderer bakes. */
 const BOARD: Box = { x: -1, y: -1, w: 22, h: 14 }
-
-const turnShadow = (turn: number) => {
-  pen.shadowX = 0.06 * Math.cos(-turn) - 0.06 * Math.sin(-turn)
-  pen.shadowY = 0.06 * Math.sin(-turn) + 0.06 * Math.cos(-turn)
-}
+const EAST: Box = { x: 38, y: 0, w: 24, h: 14 }
+const CORNER_SE: Box = { x: 44, y: 28, w: 18, h: 10 }
+const AREAS = [BOARD, EAST, CORNER_SE] as const
+/** Whether cell c is one the area covers (a cell it touches). */
+const covered = (a: Box, c: number) => xOf(c) < a.x + a.w && xOf(c) + 1 > a.x && yOf(c) < a.y + a.h && yOf(c) + 1 > a.y
 
 describe('the print', () => {
-  it('draws every land with dots or the grid, flat and upright, inside the area it is baked over', () => {
+  it('draws the print with dots or the grid over each area, inside it, filling it with the table', () => {
     const { ctx, check, measure } = fakeContext()
     const out: string[] = []
     for (const ppm of [30, 50, 80])
-      for (const land of [1, 2, 3] as const)
-        for (const grid of [false, true])
-          for (const turn of TURNS) {
-            pen.ppm = ppm
-            turnShadow(turn)
-            const what = `land ${land}${grid ? ' grid' : ''} turned ${turn.toFixed(2)} at ${ppm} px`
-            const b = measure(() => check(what, () => drawPrint(clipped(ctx), land, grid, BOARD, turn), 'none'))
-            out.push(...poking(what, b, edges(BOARD, 0), 1e-9))
-            // The table fills the whole area.
-            expect([b.x0, b.y0, b.x1, b.y1], what).toEqual([BOARD.x, BOARD.y, BOARD.x + BOARD.w, BOARD.y + BOARD.h])
-          }
+      for (const area of AREAS)
+        for (const grid of [false, true]) {
+          pen.ppm = ppm
+          const what = `area ${area.x}, ${area.y}${grid ? ' grid' : ''} at ${ppm} px`
+          const b = measure(() => check(what, () => drawPrint(clipped(ctx), grid, area), 'none'))
+          out.push(...poking(what, b, edges(area, 0), 1e-9))
+          // The table fills the whole area.
+          expect([b.x0, b.y0, b.x1, b.y1], what).toEqual([area.x, area.y, area.x + area.w, area.y + area.h])
+        }
     expect(out).toEqual([])
   })
 
-  it('tints the flowers where board.ts puts them, and the pond where it is', () => {
-    // A print of land 3 fills the flowers' tint once, over every flower cell.
-    const used = colours((ctx) => drawPrint(ctx, 3, false, BOARD, 0))
+  it('tints the flowers and draws the ponds and trees where board.ts puts them, only for the cells the area covers', () => {
+    const everything: Box = { x: -1, y: -1, w: COLS + 2, h: ROWS + 2 }
+    const used = colours((ctx) => drawPrint(ctx, false, everything))
     expect(used.filter((c) => c === LAND.flowerTint).length).toBe(1)
-    expect(used).toContain(LAND.pond)
+    expect(used.filter((c) => c === LAND.pond).length).toBe(PONDS.length)
     expect(used.filter((c) => c === LAND.tree).length).toBe(GROUND.filter((g) => g === 'tree').length)
-    // Land 1 holds one burrow's flowers in part, and two of the trees.
-    const land1 = colours((ctx) => drawPrint(ctx, 1, false, BOARD, 0))
-    expect(land1.filter((c) => c === LAND.tree).length).toBe(GROUND.filter((g, c) => g === 'tree' && cellInLand(1, c)).length)
+    // Each area holds only its own trees and ponds: the print of the corner draws the corner's, not the whole board's.
+    for (const area of AREAS) {
+      const part = colours((ctx) => drawPrint(ctx, false, area))
+      const cells = Array.from({ length: CELLS }, (_, c) => c).filter((c) => covered(area, c))
+      expect(part.filter((c) => c === LAND.tree).length, `trees in ${area.x}, ${area.y}`).toBe(cells.filter((c) => GROUND[c] === 'tree').length)
+      expect(part.filter((c) => c === LAND.pond).length, `ponds in ${area.x}, ${area.y}`).toBe(PONDS.filter((p) => covered(area, cellOf(p.x, p.y)) || covered(area, cellOf(p.x + p.w - 1, p.y + p.h - 1))).length)
+    }
+    expect(colours((ctx) => drawPrint(ctx, false, BOARD)).filter((c) => c === LAND.tree).length).toBe(GROUND.filter((g, c) => g === 'tree' && inCorner(xOf(c), yOf(c))).length)
   })
 
-  it('draws every cell of every land again for a tap, at every moment after it, inside its cell', () => {
+  it('draws every cell of the start block again for a tap, and some of every other stretch of the board, at every moment after it, inside its cell', () => {
     const { ctx, check, measure } = fakeContext()
     const out: string[] = []
-    for (const land of [1, 2, 3] as const)
-      for (let c = 0; c < CELLS; c++) {
-        if (!cellInLand(land, c)) continue
-        const cell: Box = { x: xOf(c), y: yOf(c), w: 1, h: 1 }
-        AGES.forEach((age, a) => {
-          // Each cell at every age, the grid and the turn taking turns so all meet across the cells.
-          const grid = (c + a) % 2 === 0
-          const turn = TURNS[(c + a + land) % 2]!
-          pen.ppm = a % 2 === 0 ? 50 : 80
-          turnShadow(turn)
-          const what = `land ${land} cell ${xOf(c)}, ${yOf(c)} (${GROUND[c]}${FLOWER_OF[c]! >= 0 ? ', flowers' : ''}) at ${age}`
-          const b = measure(() => check(what, () => drawCellPrint(clipped(ctx), land, grid, c, age, turn), 'none'))
-          // The corner dots are drawn whole (the same dots as the bake's next door); a shaken tree leans a little past its cell, a falling leaf a little more.
-          out.push(...poking(what, b, edges(cell, 0), GROUND[c] === 'tree' ? 0.1 : 0.033))
-        })
-      }
-    expect(out).toEqual([])
-  })
-
-  it('will not draw a cell the land has not opened yet', () => {
-    const { ctx } = fakeContext()
-    expect(() => drawCellPrint(ctx, 1, false, cellOf(19, 11), Infinity, 0)).toThrow(/not in land 1/)
-  })
-})
-
-describe('the flaps', () => {
-  /** The cells the flaps of `land` cover, from their paper's fill: the next land's cells outside this one. */
-  const nextOnly = (land: 1 | 2) => Array.from({ length: CELLS }, (_, c) => c).filter((c) => cellInLand((land + 1) as Land, c) && !cellInLand(land, c))
-
-  it('fold open over every moment, corner lifted or not, inside the next land', () => {
-    const { ctx, check, measure } = fakeContext()
-    const out: string[] = []
-    for (const land of [1, 2] as const) {
-      const w = LANDS[(land + 1) as Land]
-      const box: Box = { x: w.x0, y: w.y0, w: w.x1 + 1 - w.x0, h: w.y1 + 1 - w.y0 }
-      for (const u of [0, 0.02, 0.1, 0.3, 0.5, 0.7, 0.9, 0.99, 1])
-        for (const corner of [0, 0.3, 1])
-          for (const ppm of [50, 80]) {
-            pen.ppm = ppm
-            const what = `land ${land} flaps at ${u}, corner ${corner}, ${ppm} px`
-            const b = measure(() => check(what, () => drawFlaps(clipped(ctx), land, u, corner), 'none'))
-            if (u < 1) out.push(...poking(what, b, edges(box, 0), 1e-9))
-            else expect(b.x0, `${what}: nothing left once open`).toBeGreaterThan(b.x1)
-          }
+    for (let c = 0; c < CELLS; c++) {
+      if (!inCorner(xOf(c), yOf(c)) && c % 11 !== 0 && GROUND[c] !== 'pond') continue
+      const cell: Box = { x: xOf(c), y: yOf(c), w: 1, h: 1 }
+      AGES.forEach((age, a) => {
+        // Each cell at every age, the grid taking turns so both meet across the cells.
+        const grid = (c + a) % 2 === 0
+        pen.ppm = a % 2 === 0 ? 50 : 80
+        const what = `cell ${xOf(c)}, ${yOf(c)} (${GROUND[c]}${FLOWER_OF[c]! >= 0 ? ', flowers' : ''}) at ${age}`
+        const b = measure(() => check(what, () => drawCellPrint(clipped(ctx), grid, c, age), 'none'))
+        // The corner dots are drawn whole (the same dots as the bake's next door); a shaken tree leans a little past its cell, a falling leaf a little more.
+        out.push(...poking(what, b, edges(cell, 0), GROUND[c] === 'tree' ? 0.1 : 0.033))
+      })
     }
     expect(out).toEqual([])
-  })
-
-  it('cover exactly the next land beyond this one, and land 3 has none', () => {
-    for (const land of [1, 2] as const) {
-      const { ctx, measure } = fakeContext()
-      const b = measure(() => drawFlaps(clipped(ctx), land, 0, 0))
-      const w = LANDS[(land + 1) as Land]
-      expect([b.x0, b.y0, b.x1, b.y1]).toEqual([w.x0, w.y0, w.x1 + 1, w.y1 + 1])
-      // Every cell the flaps cover is outside this land and inside the next.
-      expect(nextOnly(land).length).toBe((w.x1 + 1 - w.x0) * (w.y1 + 1 - w.y0) - (LANDS[land].x1 + 1 - LANDS[land].x0) * (LANDS[land].y1 + 1 - LANDS[land].y0))
-    }
-    const { ctx, counts } = fakeContext()
-    drawFlaps(ctx, 3, 0, 1)
-    expect(counts.fill ?? 0).toBe(0)
-  })
-
-  it('wiggle their corner on a calm loop, never flat while it waits for her tap', () => {
-    for (let t = 0; t < 4; t += 0.05) {
-      expect(flapWiggle(t)).toBeGreaterThan(0.3)
-      expect(flapWiggle(t)).toBeLessThanOrEqual(1)
-    }
-  })
-
-  it('show the paper\'s warm back over a sticker\'s shadow and the ground under the corner only while it lifts', () => {
-    const flat = colours((ctx) => drawFlaps(ctx, 1, 0, 0))
-    const lifted = colours((ctx) => drawFlaps(ctx, 1, 0, 1))
-    expect(flat).not.toContain(LAND.ground)
-    expect(lifted.slice(flat.length)).toEqual([LAND.ground, C.shadow, C.warm])
-  })
-
-  it('lift their corner by more than half a cell, up to a whole one, at the land\'s north-east corner while it waits for her tap', () => {
-    for (const land of [1, 2] as const) {
-      const { ctx, measure } = fakeContext()
-      const at = flapCorner(land)
-      expect(at).toEqual({ x: LANDS[land].x1 + 1, y: LANDS[land].y0 })
-      for (let t = 0; t < 1.6; t += 0.1) {
-        const b = measure(() => drawFlapCorner(ctx, land, flapWiggle(t)))
-        expect(b.x0, `land ${land} at ${t}`).toBeCloseTo(at.x, 9)
-        expect(b.x1 - b.x0, `land ${land} at ${t}`).toBeGreaterThan(0.6)
-        expect(b.x1 - b.x0, `land ${land} at ${t}`).toBeLessThan(1.2)
-      }
-    }
   })
 })
 
@@ -166,7 +94,7 @@ describe('the burrows', () => {
     const { ctx, check, measure } = fakeContext()
     const out: string[] = []
     let k = 0
-    for (const burrow of [0, 1, 2])
+    for (const burrow of [0, 1, 2, 3, 4, 5])
       for (const hunger of HUNGERS)
         for (const away of [false, true])
           for (const friend of [false, true])
@@ -209,10 +137,10 @@ describe('the burrows', () => {
     expect(colours((ctx) => drawBurrow(ctx, pic({ friend: true }), 1))).toContain(C.heart)
   })
 
-  it('wear their own mark on the muncher that leans out, at a size its marks show (the freckles from M)', () => {
-    const marks = [MUNCHER.bow, MUNCHER.freckle, MUNCHER.flower]
+  it('wear their own mark on the muncher that leans out, at a size its marks show (the freckles and stripes from M): a bow, freckles, a flower, a star, stripes, a diamond', () => {
+    const marks = [MUNCHER.bow, MUNCHER.freckle, MUNCHER.flower, MUNCHER.star, MUNCHER.stripe, MUNCHER.diamond]
     pen.ppm = 80
-    for (const burrow of [0, 1, 2]) {
+    for (const burrow of [0, 1, 2, 3, 4, 5]) {
       const used = colours((ctx) => drawBurrow(ctx, pic({ burrow, hunger: 950 }), 1))
       marks.forEach((m, i) => expect(used.includes(m), `burrow ${burrow}, mark ${i}`).toBe(i === burrow))
     }
@@ -276,6 +204,6 @@ describe('the sheet', () => {
       for (const t of i % 2 === 0 ? [0, 2.6] : [1.1, 9.7]) check(`land: ${entry.label} at ${t}`, () => entry.draw(ctx, t), 'none')
     })
     expect(sheet.some((e) => e.label.startsWith('burrow'))).toBe(true)
-    expect(BURROWS.length).toBe(3)
+    expect(BURROWS.length).toBe(6)
   })
 })

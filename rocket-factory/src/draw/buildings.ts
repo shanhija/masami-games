@@ -231,8 +231,8 @@ const LAB = {
 /**
  * Each card's picture as the dome's nine stars draw it (x, y pairs in a box from -1 to 1, y
  * down, star i of LAB.stars going to point i): a gear's eight teeth round its hub, three
- * bubbles, a bush, a burrow's mound and door, a five-point star, a bowl with two bars, the
- * rocket, a flame; and for the cards before the lab, a digger's square, a bar, a flask.
+ * bubbles, a bush, a rocket's nose, a five-point star, a bowl with two bars, a little pile of
+ * stickers, the rocket, a flame; and for the cards before the lab, a digger's square, a bar, a flask.
  */
 const CONSTELLATION: Record<CardId, readonly number[]> = {
   digger: [-0.7, -0.7, 0, -0.7, 0.7, -0.7, 0.7, 0, 0.7, 0.7, 0, 0.7, -0.7, 0.7, -0.7, 0, 0, 0],
@@ -241,10 +241,10 @@ const CONSTELLATION: Record<CardId, readonly number[]> = {
   gears: [...Array.from({ length: 8 }, (_, k) => [Math.cos(((2 * k + 1) * Math.PI) / 8), Math.sin(((2 * k + 1) * Math.PI) / 8)]).flat(), 0, 0],
   bubbles: [-0.55, 0.05, -0.85, 0.6, -0.25, 0.6, 0.55, 0.05, 0.25, 0.6, 0.85, 0.6, 0, -0.95, -0.3, -0.4, 0.3, -0.4],
   hedges: [-0.95, 0.55, -1, 0, -0.6, -0.5, 0, -0.75, 0.6, -0.5, 1, 0, 0.95, 0.55, 0.3, 0.65, -0.3, 0.65],
-  land2: [-1, 0.75, -0.85, 0.05, -0.45, -0.55, 0, -0.75, 0.45, -0.55, 0.85, 0.05, 1, 0.75, 0, 0.75, 0, 0.25],
+  nose: [0, -1, -0.28, -0.55, 0.28, -0.55, -0.5, -0.05, 0.5, -0.05, -0.62, 0.45, 0.62, 0.45, 0, 0.85, 0, 0],
   stars: [...Array.from({ length: 5 }, (_, k) => [Math.cos(-Math.PI / 2 + (k * 2 * Math.PI) / 5), Math.sin(-Math.PI / 2 + (k * 2 * Math.PI) / 5)]).flat(), ...Array.from({ length: 4 }, (_, k) => [0.42 * Math.cos(-Math.PI / 2 + Math.PI / 5 + (k * 2 * Math.PI) / 5), 0.42 * Math.sin(-Math.PI / 2 + Math.PI / 5 + (k * 2 * Math.PI) / 5)]).flat()],
   snacks: [-1, -0.1, -0.8, 0.35, -0.4, 0.62, 0, 0.7, 0.4, 0.62, 0.8, 0.35, 1, -0.1, -0.25, -0.5, 0.3, -0.55],
-  land3: [-1, 0.75, -0.85, 0.05, -0.45, -0.55, 0, -0.75, 0.45, -0.55, 0.85, 0.05, 1, 0.75, 0, 0.75, 0, 0.25],
+  more: [-0.85, 0.65, -0.3, 0.65, 0.3, 0.65, 0.85, 0.65, -0.55, 0.15, 0, 0.15, 0.55, 0.15, -0.28, -0.35, 0.28, -0.35],
   rocket: [0, -1, -0.32, -0.45, 0.32, -0.45, -0.32, 0.4, 0.32, 0.4, -0.75, 0.85, 0.75, 0.85, 0, -0.1, 0, 0.9],
   fuel: [0, -1, 0.45, -0.35, 0.7, 0.2, 0.5, 0.65, 0, 0.85, -0.5, 0.65, -0.7, 0.2, -0.45, -0.35, 0, 0.25],
 }

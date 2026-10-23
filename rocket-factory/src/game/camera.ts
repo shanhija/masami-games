@@ -1,57 +1,45 @@
-import { GROW } from './catalog'
-import { fitScale, hudFrame, landBox, turnCS, type Insets, type View } from './layout'
-import { STEP, since, type State } from './model'
+import { CORNER } from './board'
+import { hudFrame, type HudFrame, type Insets, type View } from './layout'
+import type { State } from './model'
 
 /**
- * The view as a pure function of the state and the time. There is no camera to steer: the
- * land is always all on screen, fitted into what the HUD leaves free, with whole CSS px
- * cells once it has settled. When the next land's flaps fold open the view eases out from
- * the land before over GROW, and when the window goes upright or back the whole table makes
- * its quarter turn over TURN from s.turnedAt, so she sees her own factory turn. The renderer
- * draws with its frame's view and the hit test reads the very same one, so a tap lands on
- * what was drawn. plans/rocket-factory.md, The board and the view.
+ * The view as a pure function of a camera and the window. The board is bigger than a screen
+ * (60 x 36 cells), so the view looks at it through a camera: the board point at the middle of
+ * the free area, and CSS px per cell. The camera is the view's own, never the sim's: the sim
+ * never knows where it is. It starts fitted to the start block, today's first board (board.ts
+ * CORNER, the board's north-west corner), the way the whole board was fitted before the map
+ * grew; the board beyond the start block shows in the free area's margins, east and south.
+ * The renderer draws with its frame's view and the hit test reads the very same one, so a tap
+ * lands on what was drawn. plans/rocket-factory.md, The board and the view.
  */
 
-/** The table turns over TURN seconds after the board turned (s.turnedAt). */
-export const TURN = 0.5
-
-const ease = (u: number) => u * u * (3 - 2 * u)
-/** How far through a span of `span` seconds from tick stamp `at` sim time t is, 0 to 1 (1 for a stamp of -1). */
-const progress = (at: number, t: number, span: number) => Math.min(1, Math.max(0, since(at, t) / span))
-
-/**
- * The view at sim time t for a canvas w x h CSS px at pixel ratio dpr, on a touch screen or
- * not, with the window's safe areas. The land's box (layout.ts landBox: the land and the next
- * land's flaps) has its middle at the free area's middle. While the land eases out its box
- * grows from the old land's to the new one's; while the table turns the board turns from the
- * window's old way to its new one, fitted by its turned bounding box so it never slips under
- * the HUD. A moving view's cells are the exact fit shrunk by the settled view's rounding, so
- * its last frame is the settled view and nothing pops; a settled view has whole px cells and
- * its origin on a whole px.
- */
-export function viewAt(s: State, t: number, w: number, h: number, dpr: number, touch: boolean, safe: Insets): View {
-  const hud = hudFrame(w, h, touch, safe)
-  const upright = hud.held === 'upright'
-  // A phone never turns: on its side it shows the board as it is, upright it shows the turn-me picture.
-  const kt = hud.held === 'upright' || hud.held === 'sideways' ? ease(progress(s.turnedAt, t, TURN)) : 1
-  const turn = upright ? kt : 1 - kt
-  const kl = s.landFrom === s.land ? 1 : ease(progress(s.landAt, t, GROW * STEP))
-  const to = landBox(s.land)
-  const from = landBox(s.landFrom)
-  const b = kl === 1 ? to : { x: from.x + (to.x - from.x) * kl, y: from.y + (to.y - from.y) * kl, w: from.w + (to.w - from.w) * kl, h: from.h + (to.h - from.h) * kl }
-  const settled = kt === 1 && kl === 1
-  const end = fitScale(hud.free, to, upright ? 1 : 0)
-  const fit = fitScale(hud.free, b, turn)
-  const cell = settled ? Math.floor(fit) : fit * (Math.floor(end) / end)
-  const [c, sn] = turnCS(turn)
-  const mx = b.x + b.w / 2
-  const my = b.y + b.h / 2
-  const ox = hud.free.x + hud.free.w / 2 - (mx * c + my * sn) * cell
-  const oy = hud.free.y + hud.free.h / 2 - (my * c - mx * sn) * cell
-  return { w, h, dpr, cell, upright, turn, ox: settled ? Math.round(ox) : ox, oy: settled ? Math.round(oy) : oy, hud }
+/** Where the view looks: the board point at the middle of the free area, in cells, and CSS px per cell (whole px at a rest). */
+export interface Camera {
+  x: number
+  y: number
+  cell: number
 }
 
-/** The view moves at sim time t: the land eases out (GROW after s.landAt) or the table turns (TURN after s.turnedAt). The renderer paints its bakes once the view holds still again. */
-export const viewMoves = (s: State, t: number) => since(s.landAt, t) < GROW * STEP || since(s.turnedAt, t) < TURN
-/** The board takes no input while the view moves under the finger, nor during the launch, when the rocket flies over a board that slides away. */
-export const inputHeld = (s: State, t: number) => viewMoves(s, t) || s.launch !== null
+/** The start camera on a HUD frame: the start block (board.ts CORNER) fitted into what the HUD leaves free, as big as it goes in whole CSS px cells, its middle at the free area's middle. */
+export function startCamera(hud: HudFrame): Camera {
+  const cell = Math.floor(Math.min(hud.free.w / CORNER.w, hud.free.h / CORNER.h))
+  return { x: CORNER.x + CORNER.w / 2, y: CORNER.y + CORNER.h / 2, cell }
+}
+
+/**
+ * The view through `cam` for a canvas w x h CSS px at pixel ratio dpr, on a touch screen or
+ * not, with the window's safe areas: the camera's board point at the middle of the free area,
+ * the origin on a whole px (so whole px cells put the print's lines on whole device pixels).
+ */
+export function viewOf(cam: Camera, w: number, h: number, dpr: number, touch: boolean, safe: Insets): View {
+  const hud = hudFrame(w, h, touch, safe)
+  const ox = Math.round(hud.free.x + hud.free.w / 2 - cam.x * cam.cell)
+  const oy = Math.round(hud.free.y + hud.free.h / 2 - cam.y * cam.cell)
+  return { w, h, dpr, cell: cam.cell, ox, oy, hud }
+}
+
+/** The start view of a window: viewOf the start camera. Until the camera pans, this is every view there is. */
+export const startView = (w: number, h: number, dpr: number, touch: boolean, safe: Insets): View => viewOf(startCamera(hudFrame(w, h, touch, safe)), w, h, dpr, touch, safe)
+
+/** The board takes no input during the launch, when the rocket flies over a board that slides away. */
+export const inputHeld = (s: State) => s.launch !== null

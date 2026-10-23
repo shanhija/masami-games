@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { working } from './band'
 import { add, cell, emptyBoard, line } from './beltKit'
 import { hop, rebuild } from './belts'
-import { BUSY_WINDOW, HOLD, LAB_DRINK, LIFT_WAIT, PART_INFO, PATH, PATTERNS, RECIPES, STACK, card } from './catalog'
+import { BUSY_WINDOW, HELLO_SLEEP, HOLD, LAB_DRINK, LIFT_WAIT, PART_INFO, PATH, PATTERNS, RECIPES, STACK, card } from './catalog'
 import { bottleCost, choiceWaits, currentCard, labNeed, nextCard, openParts, stepMachines } from './machines'
 import { CARDS, HOP, HZ, PARTS, thingIndex, type CardId, type SimEvent, type State, type Thing } from './model'
 import { give, take, wants } from './trade'
@@ -383,7 +383,7 @@ describe('the path', () => {
   it("finds every card in order as its need is met, the choice either way, at the Science switch's Quicker costs too", () => {
     // Each bottle card comes a drink a second after the one before: while the choice waits the lab works toward Bubbles!, so her pick costs it nothing.
     const normal = walk(emptyBoard(), 'bubbles')
-    expect(normal.map((c) => c.id)).toEqual(['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel'])
+    expect(normal.map((c) => c.id)).toEqual(['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel'])
     expect(normal.map((c) => c.at)).toEqual([0, 20, 160, 460, 5260, 10060, 15460, 20560, 26260, 34360, 44560, 55360])
     const s = emptyBoard()
     s.switches.science = 'quicker'
@@ -399,12 +399,11 @@ describe('the path', () => {
       [108, 0],
     ])
     const quicker = walk(s, 'hedges')
-    expect(quicker.map((c) => c.id)).toEqual(['digger', 'gold', 'science', 'gears', 'hedges', 'bubbles', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel'])
+    expect(quicker.map((c) => c.id)).toEqual(['digger', 'gold', 'science', 'gears', 'hedges', 'bubbles', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel'])
     expect(quicker.map((c) => c.at)).toEqual([0, 20, 160, 340, 3220, 6100, 9340, 12400, 15820, 20680, 26800, 33280])
-    expect(s.flap).toBe(3)
   })
 
-  it("opens a land's flaps, brings a belt pattern, says the word and clears the jars as each card comes", () => {
+  it('wakes the burrow its card names (B with Nose!, C with More!, A never: its scout comes later), brings a belt pattern, says the word and clears the jars as each card comes', () => {
     const s = emptyBoard()
     const lab = add(s, 'lab', 8, 4)
     rebuild(s)
@@ -414,13 +413,16 @@ describe('the path', () => {
     lab.held[GREEN] = 1
     lab.held[ORANGE] = 3
     const events = run(s, LAB_DRINK + 1)
-    expect(s.found.at(-1)).toBe('land2')
-    expect(s.card).toEqual({ id: 'land2', at: LAB_DRINK })
+    expect(s.found.at(-1)).toBe('nose')
+    expect(s.card).toEqual({ id: 'nose', at: LAB_DRINK })
     expect(events.filter((x) => x.e.kind === 'card' || x.e.kind === 'say').map((x) => x.e)).toEqual([
-      { kind: 'card', id: 'land2' },
-      { kind: 'say', word: 'Land!' },
+      { kind: 'card', id: 'nose' },
+      { kind: 'say', word: 'Nose!' },
     ])
-    expect([s.flap, s.patterns]).toEqual([2, 5])
+    expect(s.patterns).toBe(5)
+    // Burrow B waves hello and sleeps HELLO_SLEEP; A and C are left as they were, and D, E and F have no card at all.
+    expect(s.burrows[1]).toMatchObject({ helloAt: LAB_DRINK, sleepUntil: LAB_DRINK + HELLO_SLEEP })
+    expect(s.burrows.filter((_, i) => i !== 1).map((b) => [b.helloAt, b.sleepUntil])).toEqual([[-1, -1], [-1, -1], [-1, -1], [-1, -1], [-1, -1]])
     expect(s.lab.got).toEqual([0, 0])
     expect(lab.held[ORANGE]).toBe(3)
     // Patterns stop at the last one there is.
@@ -564,7 +566,7 @@ describe('the path', () => {
     s.found.push('hedges')
     expect(nextCard(s)!.id).toBe('bubbles')
     s.found.push('bubbles')
-    expect(nextCard(s)!.id).toBe('land2')
+    expect(nextCard(s)!.id).toBe('nose')
     s.found = foundTo('stars')
     expect(labNeed(s)).toEqual([75, 20])
     s.lab.got = [200, 80]
@@ -584,7 +586,7 @@ describe('the path', () => {
     expect(openParts(s)).toEqual([])
     s.found = foundTo('gears')
     expect(openParts(s)).toEqual(['body'])
-    s.found = foundTo('land2')
+    s.found = foundTo('nose')
     expect(openParts(s)).toEqual(['body', 'nose'])
     s.found = foundTo('rocket')
     expect(openParts(s)).toEqual(['body', 'nose', 'engine'])

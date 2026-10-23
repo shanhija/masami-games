@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { add, emptyBoard, line, put, read } from './beltKit'
-import { cellOf } from './board'
+import { cellOf, xOf, yOf } from './board'
 import { hop, rebuild } from './belts'
 import { STROKE_MAX } from './catalog'
 import { CELLS, inSlot, outSlot, overIn, type Dir, type Placeable, type State } from './model'
@@ -148,14 +148,13 @@ describe('a stroke', () => {
     expect(bend.cells).toEqual(cells([[4, 5], [5, 5]]))
   })
 
-  it('stops at water, a tree, a burrow, the basket and closed land, its ghost a cell short', () => {
+  it('stops at water, a tree, a burrow and the basket, its ghost a cell short', () => {
     const s = board()
     const cases: [readonly (readonly [number, number])[], number][] = [
       [[[3, 8], [2, 8], [1, 8]], 2],
       [[[6, 8], [7, 8], [8, 8], [9, 8]], 2],
       [[[9, 3], [10, 3], [11, 3]], 2],
       [[[2, 5], [1, 5], [0, 5]], 2],
-      [[[11, 6], [12, 6], [13, 6]], 2],
     ]
     for (const [xy, n] of cases) {
       const t = structuredClone(s)
@@ -381,7 +380,6 @@ describe('a stroke', () => {
 
   it(`lays at most ${STROKE_MAX} cells`, () => {
     const s = board()
-    s.land = 3
     const path: [number, number][] = []
     for (let x = 4; x <= 17; x++) path.push([x, 5])
     for (let x = 17; x >= 4; x--) path.push([x, 6])
@@ -468,7 +466,7 @@ describe('a sticker ghost', () => {
     expect(grey('oven', 4, 4)).toBe('pad')
     expect(grey('oven', 0, 5)).toBe('basket')
     expect(grey('oven', 6, 5)).toBe('building')
-    expect(grey('oven', 12, 5)).toBe('land')
+    expect(grey('oven', 59, 10)).toBe('edge')
     expect(grey('oven', 7, 2)).toBe('rock')
     expect(grey('digger', 5, 2)).toBe('noRock')
     expect(grey('pump', 1, 8)).toBe('noPond')
@@ -627,15 +625,15 @@ describe('applyEdit', () => {
 })
 
 describe('random strokes, stickers and peels', () => {
-  it('keep the lint clean and every inverse exact', { timeout: 20_000 }, () => {
+  // 25 seeds: each step lints the whole board's 2160 cells, so the timeout stays ten times a quiet run.
+  it('keep the lint clean and every inverse exact', { timeout: 40_000 }, () => {
     const bad: string[] = []
     const STICKERS: Placeable[] = ['digger', 'oven', 'workshop', 'greenMaker', 'lab', 'tower', 'bowl', 'pump']
-    for (let seed = 1; seed <= 60 && bad.length < 10; seed++) {
+    for (let seed = 1; seed <= 25 && bad.length < 10; seed++) {
       const r = rng(seed)
       const int = (n: number) => Math.floor(r() * n)
       const s = blankState(seed)
       s.launches = 1
-      s.land = 3
       for (let step = 0; step < 60; step++) {
         const kind = r()
         let edit = null
@@ -650,8 +648,8 @@ describe('random strokes, stickers and peels', () => {
               continue
             }
             if (r() < 0.3) d = int(4)
-            const x = (c % 20) + [1, 0, -1, 0][d]!
-            const y = Math.floor(c / 20) + [0, 1, 0, -1][d]!
+            const x = xOf(c) + [1, 0, -1, 0][d]!
+            const y = yOf(c) + [0, 1, 0, -1][d]!
             if (x >= 0 && x < 20 && y >= 0 && y < 12) path.push(cellOf(x, y))
           }
           edit = planStroke(s, path, null).edit

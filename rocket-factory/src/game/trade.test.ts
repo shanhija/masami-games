@@ -56,7 +56,7 @@ describe('a mouth', () => {
     expect(s.events.filter((e) => e.kind === 'partFull')).toEqual([{ kind: 'partFull', part: 'legs' }])
     expect(wants(s, pad, 'blueBar')).toBe(false)
     expect(openPart(s, 'gear')).toBe(1)
-    s.found.push('bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket')
+    s.found.push('bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket')
     // The nose takes gears as the body does (catalog.ts PART_INFO).
     expect(THINGS.filter((t) => wants(s, pad, t))).toEqual(['gear', 'orangeBottle'])
   })
@@ -64,7 +64,7 @@ describe('a mouth', () => {
   it('fills the new rocket on the pad after a landing, every part open again with its own thing', () => {
     const s = emptyBoard()
     const pad = add(s, 'pad', 1, 4)
-    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel']
+    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel']
     s.launches = 1
     expect(THINGS.filter((t) => wants(s, pad, t))).toEqual(['blueBar', 'gear', 'orangeBottle'])
     take(s, pad, 'gear')

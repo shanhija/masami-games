@@ -270,6 +270,19 @@ export function drawLittleRocket(ctx: CanvasRenderingContext2D, size: number): v
   ctx.restore()
 }
 
+/** The rocket's nose alone, standing with its tip up, `size` across and centred on the origin: Nose!'s card. */
+export function drawLittleNose(ctx: CanvasRenderingContext2D, size: number): void {
+  ctx.save()
+  scaled(ctx, size / (2 * NOSE.h), () =>
+    tipped(ctx, -Math.PI / 2, 1, 1, () => {
+      ctx.translate(-(NOSE.x + LENGTH) / 2, 0)
+      dieCut(ctx, () => partPath(ctx, 'nose'), 0)
+      paintPart(ctx, 'nose')
+    }),
+  )
+  ctx.restore()
+}
+
 /** A part not built yet: its outline in dots, grey while it is closed and in its thing's colour once open. */
 function drawDots(ctx: CanvasRenderingContext2D, part: PartId, colour: string) {
   ctx.save()

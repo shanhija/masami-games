@@ -185,7 +185,7 @@ export const GLASS = { glass: '#EEF7F6', cork: '#C99A68', star: '#FFD23F' } as c
 /** Beep: a coral tin toy (the rocket's fin colour), a cream face plate, a cyan propeller and mittens; the hint's hand, Beep's mitten drawn big, takes a lighter shape and a fold of the cyan. */
 export const BEEP = { body: '#FF7F5E', light: '#FFA488', fold: '#E0603F', plate: '#FFF4E4', prop: '#4CC9E0', mittenLight: '#8FE0EE', mittenFold: '#2FA9C2', antenna: '#FFF1C9' } as const
 /** The munchers: walking raspberries. Each burrow's mark: a bow, freckles, a flower. */
-export const MUNCHER = { body: '#D93A78', light: '#EC6A9C', fold: '#B52860', belly: '#FFE3EC', calyx: '#4FAF5A', calyxLight: '#78C981', suds: '#FFFFFF', bow: '#4CC9E0', freckle: '#B52860', flower: '#FFD23F', nightcap: '#8FA8E8', flag: '#FFC93C', paw: 'rgba(217, 58, 120, 0.42)' } as const
+export const MUNCHER = { body: '#D93A78', light: '#EC6A9C', fold: '#B52860', belly: '#FFE3EC', calyx: '#4FAF5A', calyxLight: '#78C981', suds: '#FFFFFF', bow: '#4CC9E0', freckle: '#B52860', flower: '#FFD23F', star: '#FFAA33', stripe: '#2E9C9A', diamond: '#8B7BEA', nightcap: '#8FA8E8', flag: '#FFC93C', paw: 'rgba(217, 58, 120, 0.42)' } as const
 export const MOONY = { body: '#FFF3B8', light: '#FFFAE0', fold: '#E8D98A' } as const
 /** The rocket: cream with coral fins (Beep's colour), and the dotted outline of a part not yet built. */
 export const ROCKET = { body: '#FFF8EC', light: '#FFFFFF', fold: '#E8DCC8', fin: BEEP.body, window: LAND.pond, dots: '#9FB7B3', flame: '#FFC93C' } as const

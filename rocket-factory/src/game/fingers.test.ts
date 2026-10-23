@@ -25,10 +25,10 @@ const CAREFUL = { pace: 'eager', behaviour: 'careful' } as const
 const LONG = process.env.FACTORY_LONG === '1'
 /** What the path brings, in the careful child's order, and the launch landing. */
 type Milestone = CardId | 'landed'
-const ORDER: readonly Milestone[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel', 'landed']
+const ORDER: readonly Milestone[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel', 'landed']
 if (ORDER.length !== CARDS.length + 1) throw new Error('the play names every card')
 /** By when each milestone comes for the finger, in game minutes from Play: wide round the pure sim's curve (play.test.ts), so a tuning moves them without breaking this while a finger that loses its way does. */
-const LATEST: Record<Milestone, number> = { digger: 2, gold: 4, science: 5, gears: 7, bubbles: 14, hedges: 20, land2: 28, stars: 36, snacks: 45, land3: 54, rocket: 64, fuel: 68, landed: 75 }
+const LATEST: Record<Milestone, number> = { digger: 2, gold: 4, science: 5, gears: 7, bubbles: 14, hedges: 20, nose: 28, stars: 36, snacks: 45, more: 54, rocket: 64, fuel: 68, landed: 75 }
 /** The finger may take this much longer than the pure sim to a milestone, as a share of the pure sim's time. */
 const SLOWER = 1.35
 
@@ -87,6 +87,6 @@ describe('the careful eager child with the finger', () => {
 
   it.runIf(LONG)('plays the whole game at 1024x768, and to the first Land! at 1180x820 and 820x1180', { timeout: 600_000 }, () => {
     for (const seed of [1, 2, 5]) holds(screenNamed('1024x768'), seed, 'landed')
-    for (const name of ['1180x820', '820x1180']) for (const seed of [1, 2]) holds(screenNamed(name), seed, 'land2')
+    for (const name of ['1180x820', '820x1180']) for (const seed of [1, 2]) holds(screenNamed(name), seed, 'nose')
   })
 })

@@ -1,6 +1,6 @@
 /**
  * The step's speed (plans/rocket-factory.md, Engineering): a mean step under 20 microseconds on
- * a full land 3 with 4 munchers out. The land is the careful child's own (the land3 demo, a
+ * a busy factory with 4 munchers out. The factory is the careful child's own (the busy demo, a
  * minute after Rocket!), its visit home; then four munchers of burrow C (the one the blueprint
  * leaves undefended, so they stay out the longest) come into the doorway and play through the
  * real code: hopping out, the walks and their searches, sitting, napping, the hint looking
@@ -36,9 +36,8 @@ function fourOut(s: State, i: number): void {
 }
 
 describe('speed', () => {
-  it(`a step on a full land 3 with four munchers out takes a few microseconds (under ${BOUND} under the tests runner)`, { timeout: 60_000 }, () => {
-    const s = demoState('land3', 1)
-    expect(s.land).toBe(3)
+  it(`a step on a busy factory with four munchers out takes a few microseconds (under ${BOUND} under the tests runner)`, { timeout: 60_000 }, () => {
+    const s = demoState('busy', 1)
     for (let k = 0; k < ticks(120) && (s.visit !== null || s.munchers.length > 0); k++) step(s)
     fourOut(s, 2)
     for (let k = 0; k < ticks(5); k++) step(s)

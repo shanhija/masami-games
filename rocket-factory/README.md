@@ -1,6 +1,6 @@
 # Rocket Factory
 
-A kids' version of Factorio for a five-year-old, seen from straight above on the browser's canvas. Beep, a little coral tin robot, lives by a launch pad where a rocket waits as a dotted outline in four parts. The child taps rocks so Beep digs them, presses machines onto a mint-green board like stickers, and draws conveyor belts with one finger; things ride a belt the way she drew it. Ovens bake rocks into bars, the workshop makes gears, two bottle makers mix bottles of science, and the lab drinks the bottles to find new things: more stickers, more land, the next part of the rocket. Every working machine plays its part of the factory's song, and the song wakes the munchers: round raspberry critters who come out for the fizzy bottles, sit on belts stuffing their cheeks and nap on the bottle makers. Tickles, bubble towers fed by a belt, hedges and bowls of gold send them home. Fill the rocket and it flies to the moon.
+A kids' version of Factorio for a five-year-old, seen from straight above on the browser's canvas. Beep, a little coral tin robot, lives by a launch pad where a rocket waits as a dotted outline in four parts. The child taps rocks so Beep digs them, presses machines onto a mint-green board like stickers, and draws conveyor belts with one finger; things ride a belt the way she drew it. Ovens bake rocks into bars, the workshop makes gears, two bottle makers mix bottles of science, and the lab drinks the bottles to find new things: more stickers, the next part of the rocket. Every working machine plays its part of the factory's song, and the song wakes the munchers: round raspberry critters who come out for the fizzy bottles, sit on belts stuffing their cheeks and nap on the bottle makers. Tickles, bubble towers fed by a belt, hedges and bowls of gold send them home. Fill the rocket and it flies to the moon.
 
 Nothing is lost and nothing startles. Placing a sticker costs nothing and peeling it gives everything back, Oops undoes the last minute of edits, a tickled muncher sneezes back what it ate, and a muncher's heap by its door comes back with one tap. There is no timer, score or way to fail: exactly one next step bounces at a time, and after a while a hand shows how.
 
@@ -60,20 +60,20 @@ One fixed order with one choice. Each lab card costs about 5 to 6 minutes of wha
 | Science! | the first gold bar | green bottle maker, lab | |
 | Gears! | 5 green bottles | workshop, digger, oven | the rocket's body (30 gears) |
 | Bubbles! and Hedges!, side by side (she picks which comes first) | 80 green each | pump and 2 towers; 8 hedges | |
-| Land! | 90 green | tower, 3 hedges | land 2 and burrow B, the nose (10 gears) |
+| Nose! | 90 green | tower, 3 hedges | burrow B says hello and wakes, the nose (10 gears) |
 | Stars! | 85 green | orange bottle maker | |
 | Snacks! | 75 green, 20 orange | 2 bowls | |
-| Land! | 90 green, 45 orange | digger, oven, green bottle maker, tower, bowl, 3 hedges | land 3 and burrow C |
+| More! | 90 green, 45 orange | digger, oven, green bottle maker, tower, bowl, 3 hedges | burrow C says hello and wakes |
 | Rocket! | 130 green, 40 orange | | the engine (40 orange bottles) |
 | Fuel! | 180 green | | the launch, once the engine is full |
 
-Every card from Gears! on also brings a belt pattern. The scripted children who follow the hint at a table's pace (ten seeds) build their first factory by about 1:10, find Gears! at about 4:50, Bubbles! at about 10:20 and the first Land! at about 21:40, and see the rocket land at about 52 minutes; an eager child about 47, a slow one about 56.
+Every card from Gears! on also brings a belt pattern. The scripted children who follow the hint at a table's pace (ten seeds) build their first factory by about 1:10, find Gears! at about 4:50, Bubbles! at about 10:20 and Nose! at about 21:40, and see the rocket land at about 52 minutes; an eager child about 47, a slow one about 56.
 
 After the launch the rocket's parts open again and fill again, every sticker is endless, and the munchers keep visiting: free play on the whole board.
 
 ## The munchers
 
-The factory's song wakes them: each burrow's hunger grows faster with every working machine, and much faster for a machine on or near its ring of purple flowers. Its mound shows how close it is (a nightcap, then the nightcap slipping, a calyx over the sill, a sleepy face at the door), and at the top it wobbles for 5 s and they hop out. They go for the bottle makers (to nap on) and the bottle belts (to sit on and eat), then gears, then bars; a sitting muncher stops its belt, a napping one stops its machine and its band part turns into a kazoo. Full cheeks, nothing more to eat, a tickle, a bubble tower's suds or a picnic at a snack bowl send them home, and what they ate lands on a heap by the door. Hedges make them walk round (and a boxed-in muncher nibbles through one). Visits follow kind rules: one at a time, never during a card, a pause, the first two minutes of a sitting, Good night, or when nobody has touched the board for 30 s.
+Six burrows lie round the map: A, B and C by the start wake with Gears!, Nose! and More!, and D, E and F far out east, south-east and south sleep for now. The factory's song wakes them: each burrow's hunger grows faster with every working machine, and much faster for a machine on or near its ring of purple flowers. Its mound shows how close it is (a nightcap, then the nightcap slipping, a calyx over the sill, a sleepy face at the door), and at the top it wobbles for 5 s and they hop out. They go for the bottle makers (to nap on) and the bottle belts (to sit on and eat), then gears, then bars; a sitting muncher stops its belt, a napping one stops its machine and its band part turns into a kazoo. Full cheeks, nothing more to eat, a tickle, a bubble tower's suds or a picnic at a snack bowl send them home, and what they ate lands on a heap by the door. Hedges make them walk round (and a boxed-in muncher nibbles through one). Visits follow kind rules: one at a time, never during a card, a pause, the first two minutes of a sitting, Good night, or when nobody has touched the board for 30 s.
 
 ## For the parent
 
@@ -87,12 +87,12 @@ URL switches, read when the page loads. Any switch makes the run a test: it may 
 
 | Switch | Does |
 |---|---|
-| `?demo=<name>` | A moment of a real game instead of the save: `start`, `factory`, `card-<card>` for each card (`card-digger` to `card-fuel`), `sitting`, `napping`, `nibbling`, `picnic`, `polite`, `towers`, `land2`, `land3`, `dusk`, `night`, `ready`, `launch`, `after`. |
+| `?demo=<name>` | A moment of a real game instead of the save: `start`, `factory`, `card-<card>` for each card (`card-digger` to `card-fuel`), `sitting`, `napping`, `nibbling`, `picnic`, `polite`, `towers`, `busy`, `dusk`, `night`, `ready`, `launch`, `after`. |
 | `?nosave` | A fresh game, never saved. |
 | `?seed=<n>` | The random numbers' seed, so a run replays. |
 | `?autoplay` | With `?nosave` or `?demo`: a scripted child plays, for a parent to watch. |
 | `?fast=<n>` | The game runs n times faster. |
-| `?all` | Every card found and land 3 open, for looking. |
+| `?all` | Every card found, for looking. |
 | `?munchers=many` / `few` / `polite` / `none` | The munchers' switch. |
 | `?debug` | Every hit target, the belts' slots, each burrow's hunger, the frame rate. |
 | `?sheet=<group>` | Every drawing of a group in a grid: `things`, `land`, `beltart`, `buildings`, `rocket`, `beep`, `critters`, `effects`, `hand`, `scenes`. `&only=<text>` keeps the entries whose label has it, `&t=<seconds>` freezes time, `&px=<pixels per cell>`. |
@@ -102,7 +102,7 @@ URL switches, read when the page loads. Any switch makes the run a test: it may 
 Units are board cells and ticks (60 a second); x runs right, y runs down.
 
 - [`src/game/catalog.ts`](src/game/catalog.ts): every number: sizes, recipes and rates, the path (what each card needs and brings), the rocket's parts, the cost dial (`COST_SCALE`) and the Science switch's factor, the munchers' hunger, visits, naps, sleep and towers, the hint's waits.
-- [`src/game/board.ts`](src/game/board.ts): the one board (rocks, the pond, trees, the three burrows and their flowers, the pad) and its three lands.
+- [`src/game/board.ts`](src/game/board.ts): the one board, 60 x 36 cells and all open (today's first board is its north-west corner; rocks, three ponds, trees, six burrows and their flowers, the pad).
 - [`src/game/hint.ts`](src/game/hint.ts): the one next step, its ranks, and the blueprint (the factory the hint builds toward, searched offline for this board) with the way back to it when her own building leaves it.
 - [`src/game/sounds.ts`](src/game/sounds.ts) and [`src/game/band.ts`](src/game/band.ts): every sound's voice and level, and the song each kind of machine plays its part of.
 - [`src/draw/look.ts`](src/draw/look.ts): every colour as a token, and the look's rules.

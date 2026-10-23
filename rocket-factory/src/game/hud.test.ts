@@ -49,7 +49,7 @@ describe('the rocket card', () => {
       { part: 'engine', open: false, got: 0, n: PART_INFO.engine.n },
     ])
     expect(view(upTo('gears')).rocket.parts.map((p) => p.open)).toEqual([true, true, false, false])
-    expect(view(upTo('land2')).rocket.parts.map((p) => p.open)).toEqual([true, true, true, false])
+    expect(view(upTo('nose')).rocket.parts.map((p) => p.open)).toEqual([true, true, true, false])
     expect(view(upTo('rocket')).rocket.parts.map((p) => p.open)).toEqual([true, true, true, true])
   })
 
@@ -134,7 +134,7 @@ describe('the path', () => {
     const at = (s: State) => Object.fromEntries(view(s).path.map((c) => [c.id, c.at]))
     const s = upTo('science')
     expect(at(s)).toMatchObject({ digger: 'done', gold: 'done', science: 'done', gears: 'now', bubbles: 'later', fuel: 'later' })
-    expect(at(upTo('gears'))).toMatchObject({ gears: 'done', bubbles: 'now', hedges: 'now', land2: 'later' })
+    expect(at(upTo('gears'))).toMatchObject({ gears: 'done', bubbles: 'now', hedges: 'now', nose: 'later' })
     expect(Object.values(at(upTo('fuel')))).toEqual(PATH.map(() => 'done'))
   })
 })
@@ -143,7 +143,7 @@ describe('the tray', () => {
   it('holds the stickers in the order they first arrived: the oven from the start, then each card as she found it', () => {
     expect(arrivals(upTo(null))).toEqual(Object.keys(START_STICKERS))
     expect(arrivals(upTo('science'))).toEqual(['oven', 'digger', 'greenMaker', 'lab'])
-    expect(arrivals(upTo('land3'))).toEqual(['oven', 'digger', 'greenMaker', 'lab', 'workshop', 'pump', 'tower', 'orangeMaker', 'bowl'])
+    expect(arrivals(upTo('more'))).toEqual(['oven', 'digger', 'greenMaker', 'lab', 'workshop', 'pump', 'tower', 'orangeMaker', 'bowl'])
     const s = upTo('gears')
     s.choice = 'hedges'
     s.found.push('hedges', 'bubbles')

@@ -3,7 +3,7 @@
  * its rank against the next, the steps the board waits on (the choice card's among them), the
  * hold and the hand (for a child who sits still, one who keeps trying, and her peel's Oops),
  * the ghost's delay, a tower's dotted belt and her wobbly stroke along it, her own links counted, the link search (bridges, round buildings, two strokes past
- * STROKE_MAX), the Oops rule's reach, the look's speed on a full land 3, and the hint's own
+ * STROKE_MAX), the Oops rule's reach, the look's speed on a full factory, and the hint's own
  * factory built card by card with every script run the way rules.act will run it (strokes.ts's
  * planners, then applyEdit). The doability fuzz at the end runs the first step's script
  * through rules.act itself and steps the game, and plays a whole game the way a child who
@@ -12,10 +12,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { add, cell, emptyBoard, line, put } from './beltKit'
-import { FLOWER_OF, cellInLand, cellOf, rockOf, xOf, yOf } from './board'
+import { FLOWER_OF, cellOf, rockOf, xOf, yOf } from './board'
 import { hop, rebuild } from './belts'
 import { BLOCKED_HINT, BOTTLENECK_WAIT, DEFEND_KEPT, GHOST_DELAY, HAND_AFTER, HEAP_HINT, HELP_FULL, HINT_EVERY, HINT_HOLD, OOPS_HAND, OOPS_HINT, PART_INFO, STAGE_AT, STROKE_MAX, TOWER_REACH2 } from './catalog'
-import { brokeBetween, firstStep, linkKey, nextSteps, reachOf, sameStep, stepHint, type Ranked } from './hint'
+import { boardKey, brokeBetween, firstStep, linkKey, nextSteps, reachOf, sameStep, stepHint, type Ranked } from './hint'
 import { hintGhost } from './layout'
 import { CELLS, OVER, PARTS, STEP, sameTool, thingIndex, ticks, type Building, type CardId, type Hit, type Muncher, type MuncherMode, type Placeable, type State, type Step, type Thing, type Tool } from './model'
 import { pawsOf } from './munchers'
@@ -175,15 +175,13 @@ function build(s: State): Step[] {
   throw new Error(`the hint never ran out of layout steps:\n${log.map((st) => JSON.stringify(st)).join('\n')}`)
 }
 
-const ORDER: readonly CardId[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel']
-/** A card found on top of what the board has: the rocket's legs as its need leaves them, the choice made, the land opened. */
+const ORDER: readonly CardId[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel']
+/** A card found on top of what the board has: the rocket's legs as its need leaves them, the choice made (Nose! and More! open the blueprint's second and third windows). */
 function grant(s: State, id: CardId): void {
   s.found.push(id)
   if (id === 'digger') s.rocket.got[0] = 3
   if (id === 'gold') s.rocket.got[0] = 20
   if (id === 'gears') s.choice = 'bubbles'
-  if (id === 'land2') s.land = 2
-  if (id === 'land3') s.land = 3
   rebuild(s)
 }
 /** A game the hint built card by card up to and including card `last` (null: only the start), and every step it took. */
@@ -274,13 +272,13 @@ describe('the hint builds its own factory', () => {
     expect(kinds(s)).toEqual(['rocket'])
   })
 
-  it('stands the workshop over the bubble line at Gears! on the start oven\'s bars, and keeps the gear oven and its digger in the tray until land 2 opens their row', () => {
+  it('stands the workshop over the bubble line at Gears! on the start oven\'s bars, and keeps the gear oven and its digger in the tray until Nose! opens their row', () => {
     const s = played('hedges')
     const ws = of(s, 'workshop')[0]!
     expect(linked(s, 1, ws.id) && linked(s, ws.id, 0)).toBe(true)
     expect(stickersLeft(s, 'oven')).toBe(1)
     expect(stickersLeft(s, 'digger')).toBe(1)
-    grant(s, 'land2')
+    grant(s, 'nose')
     build(s)
     const gearOven = s.buildings.find((b) => b.kind === 'oven' && b.y <= 2)!
     expect(linked(s, gearOven.id, ws.id)).toBe(true)
@@ -304,7 +302,7 @@ describe('the hint builds its own factory', () => {
     // The thing each card's line must bring, once the hint has built for the card that opens it.
     const waits: Partial<Record<CardId, [() => number, Thing][]>> = {
       science: [[lab, 'greenBottle']],
-      land2: [[pad, 'gear']],
+      nose: [[pad, 'gear']],
       stars: [[lab, 'orangeBottle']],
       rocket: [[pad, 'orangeBottle']],
     }
@@ -361,7 +359,7 @@ describe("the hint's own defence", () => {
     grant(s, 'hedges')
     expect(build(s).some((st) => st.kind === 'defend' && st.sticker === 'hedge')).toBe(true)
     expect(s.hedge.some((h) => h === 1)).toBe(true)
-    for (const id of ['land2', 'stars', 'snacks'] as const) {
+    for (const id of ['nose', 'stars', 'snacks'] as const) {
       grant(s, id)
       build(s)
     }
@@ -428,20 +426,6 @@ describe('the ranks, each rule alone and against the next', () => {
     expect(kinds(s)).not.toContain('oops')
   })
 
-  it('the flaps after a Land! card come after Oops and before a New! sticker', () => {
-    const s = played('hedges')
-    s.found.push('land2')
-    s.flap = 2
-    s.undo.push({ edit: NO_EDIT, inverse: NO_EDIT, at: s.tick, broke: true, tool: 'pencil' })
-    expect(kinds(s).slice(0, 2)).toEqual(['oops', 'flap'])
-    expect(nextSteps(s)[1]!.script).toEqual([{ kind: 'tap', hit: { kind: 'flap' } }])
-    s.undo = []
-    s.land = 2
-    expect(kinds(s)[0]).toBe('flap')
-    s.flap = 0
-    expect(kinds(s)[0]).toBe('place')
-  })
-
   it('a card waiting for her tap, then the launch once the rocket is ready, come before every rule; during the launch nothing; at Good night only the tuck', () => {
     const s = played('science')
     muncher(s, 'sit', cellOf(9, 9), false)
@@ -475,7 +459,6 @@ describe('the ranks, each rule alone and against the next', () => {
 
   it('rule 3 before rule 4; rule 4: one more of the slowest machine beside it while a sticker is left', () => {
     const s = emptyBoard()
-    s.land = 3
     s.tick = MINUTE
     add(s, 'pad', 1, 4)
     add(s, 'lab', 12, 1)
@@ -491,8 +474,8 @@ describe('the ranks, each rule alone and against the next', () => {
       [11, 5],
     ])
     rebuild(s)
-    // The second green maker sticker comes with the second Land!; the orange maker of Stars! is no New! sticker any more.
-    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3']
+    // The second green maker sticker comes with More!; the orange maker of Stars! is no New! sticker any more.
+    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more']
     s.choice = 'bubbles'
     s.help.placed.greenMaker = 1
     s.help.placed.lab = 1
@@ -635,12 +618,13 @@ describe('the ranks, each rule alone and against the next', () => {
     // Burrow B, which no blueprint tower reaches, on the whole board with no hedge left in the tray: its munchers walk to a green maker in the south-west.
     const s = emptyBoard()
     s.tick = MINUTE
-    s.land = 3
     add(s, 'pad', 1, 4)
     add(s, 'pump', 0, 8)
     add(s, 'greenMaker', 6, 8)
     rebuild(s)
-    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles']
+    // Nose! brings burrow B into the first plan's reach and three hedges, which she has planted far away.
+    s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'nose']
+    for (const x of [30, 31, 32]) s.hedge[cellOf(x, 20)] = 1
     s.choice = 'bubbles'
     s.help.placed.tower = 1
     s.burrows[1]!.visits = 1
@@ -948,10 +932,9 @@ describe("the hint's memo", () => {
 })
 
 describe('the link search', () => {
-  /** Land 3 with the pad and one oven far east of it: the hint links the oven to the legs. */
+  /** The whole start block open, with the pad and one oven far east of it: the hint links the oven to the legs. */
   function across(): { s: State; pad: number; oven: number } {
     const s = emptyBoard()
-    s.land = 3
     const pad = add(s, 'pad', 1, 4)
     const oven = add(s, 'oven', 12, 5)
     rebuild(s)
@@ -986,16 +969,9 @@ describe('the link search', () => {
 
   it('splits a belt longer than STROKE_MAX into strokes the planner lays one after another', () => {
     const s = emptyBoard()
-    s.land = 3
     const pad = add(s, 'pad', 1, 4)
-    const oven = add(s, 'oven', 18, 10)
-    // Walls the belt must wind round, open at the bottom, the top and the bottom in turn (the trees by burrow B close the bottom further east).
-    const walls: [number, number[]][] = [
-      [16, [0, 2, 4, 6, 8]],
-      [10, [2, 4, 6, 8, 10]],
-      [5, [0, 2, 4, 6, 8]],
-    ]
-    for (const [x, ys] of walls) for (const y of ys) add(s, 'workshop', x, y)
+    // An oven far out on the open board: the belt home is longer than a stroke.
+    const oven = add(s, 'oven', 45, 14)
     rebuild(s)
     const r = linkOf(s)
     const path = (r.step as Extract<Step, { kind: 'link' }>).path
@@ -1007,12 +983,40 @@ describe('the link search', () => {
     expect(linked(s, oven.id, pad.id)).toBe(true)
   })
 
+  it('finds a link across the south of the board, past row 17 where the search keyed its states by 12 bits', () => {
+    // A cell index of 1024 and over (row 17 and down) once decoded as another cell: no link, or a wrong one, in the south half.
+    const s = emptyBoard()
+    const pad = add(s, 'pad', 1, 4)
+    const oven = add(s, 'oven', 10, 30)
+    rebuild(s)
+    const r = linkOf(s)
+    const path = (r.step as Extract<Step, { kind: 'link' }>).path
+    expect(path.some((c) => yOf(c) >= 25)).toBe(true)
+    expect(path.length).toBeGreaterThan(30)
+    perform(s, r)
+    expect(linked(s, oven.id, pad.id)).toBe(true)
+  })
+
+  it('names two boards that differ by one building moved a row 16 down or a column along by different keys (the key packed x into 5 bits and y into 4)', () => {
+    const a = emptyBoard()
+    add(a, 'pad', 1, 4)
+    add(a, 'oven', 4, 4)
+    const b = emptyBoard()
+    add(b, 'pad', 1, 4)
+    add(b, 'oven', 3, 20)
+    const c = emptyBoard()
+    add(c, 'pad', 1, 4)
+    add(c, 'oven', 4, 20)
+    for (const s of [a, b, c]) rebuild(s)
+    expect(new Set([boardKey(a), boardKey(b), boardKey(c)]).size).toBe(3)
+    expect(boardKey(a)).toBe(boardKey(a))
+  })
+
   it('on random boards every link it offers lays exactly its link', () => {
     let tried = 0
     for (let seed = 1; seed <= 30; seed++) {
       const s = emptyBoard()
-      s.land = 3
-      add(s, 'pad', 1, 4)
+        add(s, 'pad', 1, 4)
       const oven = add(s, 'oven', 6 + (seed % 9), 1 + (seed % 8))
       rebuild(s)
       let n = seed * 7919
@@ -1069,7 +1073,7 @@ describe("the Oops rule's reach", () => {
 describe('speed', () => {
   /** The bound on a look, in milliseconds: generous under the tests runner on a quiet machine (FACTORY_LONG=1), and five times that by default, for the deploy's runner that runs every game's tests at once on a shared machine. */
   const LOOK_MS = process.env.FACTORY_LONG === '1' ? 5 : 25
-  it(`a look at a full land 3 with munchers out takes about a millisecond (under ${LOOK_MS} ms under the tests runner)`, () => {
+  it(`a look at a full factory with munchers out takes about a millisecond (under ${LOOK_MS} ms under the tests runner)`, () => {
     const s = played('fuel')
     for (let i = 0; i < 4; i++) muncher(s, 'walk', cellOf(10 + i, 9), false)
     s.burrows[1]!.heap[thingIndex('gear')] = 5
@@ -1106,9 +1110,6 @@ describe('doability fuzz through rules.act', () => {
         break
       case 'choose':
         expect(after.choice).toBe('bubbles')
-        break
-      case 'flap':
-        expect(after.land).toBe(before.flap)
         break
       case 'launch':
         expect(after.launch).not.toBeNull()
@@ -1159,7 +1160,7 @@ describe('doability fuzz through rules.act', () => {
     act(s, { kind: 'play' })
     act(s, { kind: 'session' })
     // A bare patch of blue rock she digs for fun whenever the hint only points at the rocket (the hint's own digs come as its 'dig' steps).
-    const patch = [...Array(CELLS).keys()].find((c) => rockOf(c) === 'blueRock' && cellInLand(1, c) && s.owner[c]! < 0)!
+    const patch = [...Array(CELLS).keys()].find((c) => rockOf(c) === 'blueRock' && xOf(c) <= 12 && yOf(c) >= 2 && yOf(c) <= 9 && s.owner[c]! < 0)!
     for (let sec = 0; sec < 90 * 60 && s.launches === 0; sec++) {
       const r = firstStep(s)
       if (r !== null && sec % 10 === 0) tryStep(s, r)

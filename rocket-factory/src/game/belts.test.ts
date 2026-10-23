@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { add, cell, emptyBoard, line, put, read } from './beltKit'
-import { cellOf, dirTo, stepCell } from './board'
+import { cellOf, dirTo, stepCell, xOf, yOf } from './board'
 import { BOWL_HOLD, HOLD, PART_INFO, STACK, TOWER_AMMO } from './catalog'
 import { hop, hopInOrder, rebuild, runOf } from './belts'
 import { CELLS, OVER, PARTS, PRED, SLOTS, THINGS, inSlot, outSlot, overIn, overOut, thingIndex, type Dir, type Kind, type Muncher, type State, type Thing } from './model'
@@ -605,7 +605,7 @@ function randomNet(seed: number): State {
     b.outTurn = int(4)
     if (r() < 0.1) b.napper = 9
   }
-  const free = (c: number) => c >= 0 && !taken.has(c) && s.belts.out[c]! < 0 && inside(c % 20, Math.floor(c / 20))
+  const free = (c: number) => c >= 0 && !taken.has(c) && s.belts.out[c]! < 0 && inside(xOf(c), yOf(c))
   // Snaking belts: random walks, some closing into loops, ends pointing anywhere.
   for (let k = 2 + int(4); k > 0; k--) {
     let c = cellOf(X0 + int(W), Y0 + int(H))
@@ -648,7 +648,7 @@ function randomNet(seed: number): State {
     const side = ((b.out[c]! + (r() < 0.5 ? 1 : 3)) % 4) as Dir
     if (straight && r() < 0.25) b.fork[c] = side
     else if (straight && r() < 0.2) b.over[c] = side
-    else if (r() < 0.1) add(s, r() < 0.5 ? 'tower' : 'bowl', c % 20, Math.floor(c / 20))
+    else if (r() < 0.1) add(s, r() < 0.5 ? 'tower' : 'bowl', xOf(c), yOf(c))
     b.joinTurn[c] = int(3)
     b.forkTurn[c] = int(2)
   }
@@ -724,9 +724,10 @@ function lintHop(before: State, after: State): string[] {
 }
 
 describe('random networks', () => {
-  const NETS = 2000
+  // 600 networks: each costs the whole board's 2160 cells (a fifth of the time of the first 240-cell board's 2000), so the timeout stays ten times a quiet run.
+  const NETS = 600
   const HOPS = 4
-  it(`keep every rule and agree with the slow reference and with any walk order on ${NETS} networks`, { timeout: 30_000 }, () => {
+  it(`keep every rule and agree with the slow reference and with any walk order on ${NETS} networks`, { timeout: 60_000 }, () => {
     const bad: string[] = []
     let moves = 0
     let fallbacks = 0

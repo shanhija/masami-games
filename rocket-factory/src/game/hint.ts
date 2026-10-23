@@ -1,7 +1,7 @@
 import { working } from './band'
 import { dugAt, whereFromStack, whereWanted } from './beep'
 import { cellBelt, downstream, hasMouths } from './belts'
-import { BASKET, BURROWS, FLOWER_OF, GROUND, LANDS, PAD, PAD_RING, START_OVEN, cellInLand, cellOf, dirTo, inLand, onBoard, rockOf, stepCell, xOf, yOf } from './board'
+import { BASKET, BURROWS, FLOWER_OF, GROUND, PAD, PAD_RING, PONDS, START_OVEN, cellOf, dirTo, onBoard, rockOf, stepCell, xOf, yOf } from './board'
 import {
   BAKES,
   BLOCKED_HINT,
@@ -26,11 +26,13 @@ import {
   STAGE_AT,
   STROKE_MAX,
   TOWER_REACH2,
+  progressOf,
+  type Progress,
   type Recipe,
 } from './catalog'
 import { blockers, type Blocker } from './jams'
 import { choiceWaits, labNeed, nextCard, openParts } from './machines'
-import { BOTTLES, CARDS, CELLS, DIRS, KINDS, OVER, PARTS, PRED, THINGS, inSlot, isBottle, isMaker, newBuilding, opposite, outSlot, overIn, overOut, sameTool, slotCell, ticks, type Action, type Building, type CellBelt, type Counts, type Dir, type Edit, type HintMemo, type HintPlan, type Hit, type Kind, type Maker, type Land, type Placeable, type Script, type State, type Step, type Thing, type Tool } from './model'
+import { BOTTLES, CARDS, CELLS, DIRS, KINDS, OVER, PARTS, PRED, THINGS, inSlot, isBottle, isMaker, newBuilding, opposite, outSlot, overIn, overOut, sameTool, slotCell, ticks, type Action, type Building, type CellBelt, type Counts, type Dir, type Edit, type HintMemo, type HintPlan, type Hit, type Kind, type Maker, type Placeable, type Script, type State, type Step, type Thing, type Tool } from './model'
 import { pawsOf } from './munchers'
 import { cloneState, launchReady } from './rules'
 import { applyEdit, planHedge, planPeelBuilding, planPeelDrag, planPlace, planStroke, stickersLeft, type EndSign } from './strokes'
@@ -55,7 +57,6 @@ import { basketPoint } from './where'
  *  2. Oops, for OOPS_HINT after an edit that stopped a working machine or cut the lab or the
  *     pad off from something that reached it (Undo.broke, from reachOf and brokeBetween), but
  *     never for an edit a repair of the hint's makes (asked).
- *  - The next land's flaps after a Land! card ('flap'): its stickers want the new room.
  *  3. A New! sticker (a kind she has never placed) on the blueprint's spot for it, or the
  *     repair that clears the spot (the way back to the blueprint, below), else on a good spot
  *     near what it will link to; with no good spot for any, the peel over the fewest loose belt
@@ -86,13 +87,13 @@ import { basketPoint } from './where'
  * feeds one oven, one oven one workshop or two green bottle makers, the lab drinks four
  * bottles while a bottle maker makes one), a new link takes a building with some to spare
  * and with none to spare a sticker of its kind is placed first, on a good spot found over the
- * whole land, and its belts go round the blueprint's open spots and belts while they can.
+ * whole open window, and its belts go round the blueprint's open spots and belts while they can.
  *
  * When her strokes and stickers stand in the blueprint's way and nothing else leads on, the
  * hint repairs, gentlest first (repairOf): Oops while her newest stroke is the stray; the peel
  * over just her loose belts, hedges and stumps on a spot or a planned belt; the peel of a
  * machine of hers standing there (back to the tray with what it held); a machine on a spot
- * whose belts lead out of the land brought to the spot the factory needs now; then the old
+ * whose belts lead out of the open window brought to the spot the factory needs now; then the old
  * searches over the blueprint's cells (a belt across them crosses the planned belts of the
  * machines on their spots only straight over, so those can still bridge it); then a machine of
  * hers off the blueprint brought onto it; and last the peel of her links in the way. A repair never takes the blueprint's own
@@ -177,37 +178,60 @@ function ring(x: number, y: number, k: number): { cell: number; facing: Dir }[] 
 }
 
 const BASKET_CELL = cellOf(BASKET.x, BASKET.y)
+
+/**
+ * The blueprint was drawn for a board that opened in three steps, and the factory it plans
+ * grows in the order the path was paced for: its spots and hedge lines, and the spots the
+ * search offers, wait for the window of the board that first held them, a window that opens
+ * with the card that opened that land (catalog.ts progressOf: Nose! for the second, More! for
+ * the third). The board itself is open from the start, her own building goes anywhere and the
+ * hint's belts may run over any open ground; only what the hint builds keeps to these windows,
+ * corners inclusive, all inside the start block (board.ts CORNER), until it plans over the
+ * whole board.
+ */
+const WINDOWS: Record<Progress, { x0: number; y0: number; x1: number; y1: number }> = {
+  1: { x0: 0, y0: 2, x1: 12, y1: 9 },
+  2: { x0: 0, y0: 1, x1: 15, y1: 10 },
+  3: { x0: 0, y0: 0, x1: 19, y1: 11 },
+}
+const windowHoldsAt = (p: Progress, x: number, y: number) => x >= WINDOWS[p].x0 && x <= WINDOWS[p].x1 && y >= WINDOWS[p].y0 && y <= WINDOWS[p].y1
+function windowHolds(p: Progress, c: number): boolean {
+  return windowHoldsAt(p, xOf(c), yOf(c))
+}
+/** The window the path has opened now, and what it holds. */
+const openedWindow = (s: State) => WINDOWS[progressOf(s.found)]
+const opened = (s: State, c: number) => windowHolds(progressOf(s.found), c)
+const openedAt = (s: State, x: number, y: number) => windowHoldsAt(progressOf(s.found), x, y)
+
 /**
  * The board's fixed geometry as tables for the hint's searches, made once (an imported helper
  * costs a getter call each time under the tests' module runner): each cell's neighbour by
- * side (-1 off the board); in each land, whether a belt may run over it (open land that is
- * not water, a tree, a burrow or the basket: strokes.ts stops a stroke at those); its rocks
- * and its flowers.
+ * side (-1 off the board); whether a belt may run over it (not water, a tree, a burrow or the
+ * basket: strokes.ts stops a stroke at those; the whole board is open ground); its rocks and
+ * its flowers.
  */
 const NEIGHBOUR = new Int16Array(CELLS * 4)
 for (let c = 0; c < CELLS; c++) for (const d of DIRS) NEIGHBOUR[c * 4 + d] = stepCell(c, d)
-const OPEN: Record<Land, Uint8Array> = { 1: new Uint8Array(CELLS), 2: new Uint8Array(CELLS), 3: new Uint8Array(CELLS) }
-for (const land of [1, 2, 3] as const)
-  for (let c = 0; c < CELLS; c++) {
-    const g = GROUND[c]
-    OPEN[land][c] = cellInLand(land, c) && g !== 'pond' && g !== 'tree' && g !== 'burrow' && c !== BASKET_CELL ? 1 : 0
-  }
+const OPEN = Uint8Array.from({ length: CELLS }, (_, c) => (GROUND[c] !== 'pond' && GROUND[c] !== 'tree' && GROUND[c] !== 'burrow' && c !== BASKET_CELL ? 1 : 0))
 const ROCK = Uint8Array.from({ length: CELLS }, (_, c) => (rockOf(c) !== null ? 1 : 0))
 const FLOWERS = Uint8Array.from({ length: CELLS }, (_, c) => (FLOWER_OF[c]! >= 0 ? 1 : 0))
-/** The pump can only stand on the pond, so until it does the cells round the pond stay open for its belts: buildings keep off them and belts go round them when they can. */
+/** The pump can only stand on a pond, so until it does the cells round every pond (the ones sharing an edge with its water) stay open for its belts: buildings keep off them and belts go round them when they can. */
 const POND_EDGE = (() => {
-  const pond = [...Array(CELLS).keys()].filter((c) => GROUND[c] === 'pond')
-  const x = Math.min(...pond.map(xOf))
-  const y = Math.min(...pond.map(yOf))
   const out = new Uint8Array(CELLS)
-  for (const r of ring(x, y, SIZE.pump)) out[r.cell] = 1
+  for (const p of PONDS)
+    for (let y = p.y - 1; y <= p.y + p.h; y++)
+      for (let x = p.x - 1; x <= p.x + p.w; x++) {
+        const inX = x >= p.x && x < p.x + p.w
+        const inY = y >= p.y && y < p.y + p.h
+        if (onBoard(x, y) && inX !== inY) out[cellOf(x, y)] = 1
+      }
   return out
 })()
 
-/** A cell a new belt can be laid on touching nothing else: open land with no building, belt, hedge or stump on it and no belt pointing into it (it would join the new one). */
+/** A cell a new belt can be laid on touching nothing else: open ground in the window with no building, belt, hedge or stump on it and no belt pointing into it (it would join the new one). */
 function freeCell(s: State, c: number): boolean {
   const { out, over, fork } = s.belts
-  if (OPEN[s.land][c] === 0 || s.owner[c]! >= 0 || out[c]! >= 0 || s.hedge[c] !== 0) return false
+  if (OPEN[c] === 0 || s.owner[c]! >= 0 || out[c]! >= 0 || s.hedge[c] !== 0) return false
   for (let d = 0; d < 4; d++) {
     const n = NEIGHBOUR[c * 4 + d]!
     const back = (d + 2) % 4
@@ -547,9 +571,9 @@ function unbaked(s: State): Building | null {
 /**
  * Beep digs it by hand: the bare cell nearest building r (Manhattan steps to its footprint,
  * the lower cell on a tie) of the patch that gives rock t, or of the pond for a bubble, where
- * a touch digs (open land with no building, belt or hedge on it). It is the chain's missing
+ * a touch digs (open ground in the window with no building, belt or hedge on it). It is the chain's missing
  * link while nothing else can feed r, the first rule she learns: tap the rocks and Beep digs
- * one. Null for a thing no hand digs, or with no such cell in the land.
+ * one. Null for a thing no hand digs, or with no such cell in the open window.
  */
 function digStep(s: State, r: Building, t: Thing): Plan | null {
   if (MAKER[t] !== 'digger' && MAKER[t] !== 'pump') return null
@@ -557,7 +581,7 @@ function digStep(s: State, r: Building, t: Thing): Plan | null {
   let best = -1
   let bestSteps = Infinity
   for (let c = 0; c < CELLS; c++) {
-    if (!cellInLand(s.land, c) || (t === 'bubble' ? GROUND[c] !== 'pond' : rockOf(c) !== t) || s.owner[c]! >= 0 || s.belts.out[c]! >= 0 || s.hedge[c] !== 0) continue
+    if (!opened(s, c) || (t === 'bubble' ? GROUND[c] !== 'pond' : rockOf(c) !== t) || s.owner[c]! >= 0 || s.belts.out[c]! >= 0 || s.hedge[c] !== 0) continue
     const x = xOf(c)
     const y = yOf(c)
     const steps = Math.max(0, r.x - x, x - (r.x + k - 1)) + Math.max(0, r.y - y, y - (r.y + k - 1))
@@ -680,7 +704,7 @@ const NONE: ReadonlySet<number> = new Set()
 /** No cells a belt may only cross: every free cell is ground it may turn or end on. */
 const ANYWAY: ReadonlyMap<number, number> = new Map()
 /** A search state is a cell and the side it was entered going toward (cell * 4 + dir); a heap key packs the cost above it. */
-const KEY = 4096
+const KEY = 4 * CELLS
 
 /**
  * The cheapest new belt from one of `from`'s free edge cells to `end`, as the cells a finger
@@ -695,7 +719,7 @@ const KEY = 4096
 function route(s: State, from: Building, end: End, standing: readonly Building[], taken: ReadonlySet<number>, crossing: ReadonlyMap<number, number>): { path: number[]; cost: number } | null {
   const n = CELLS
   const nb = NEIGHBOUR
-  const open = OPEN[s.land]
+  const open = OPEN
   const { out, in: ins, fork, over } = s.belts
   const owner = s.owner
   const hedge = s.hedge
@@ -1071,11 +1095,11 @@ function anchorsOf(look: Look, need: Need): Anchors {
 /** How a spot's distance to a building it links to scores: one belt cell between is best, touching is worse than a cell more. */
 const gapScore = (g: number) => (g === 0 ? 3 : g - 1)
 
-/** Towers and bowls are for the munchers: their spots score by how near a burrow in the land they stand. */
+/** Towers and bowls are for the munchers: their spots score by how near a burrow in the open window they stand. */
 function burrowGap(s: State, c: number): number {
   let best = Infinity
   BURROWS.forEach((site) => {
-    if (inLand(s.land, site.x, site.y)) best = Math.min(best, gap({ x: xOf(c), y: yOf(c), k: 1 }, { x: site.x, y: site.y, k: 2 }))
+    if (openedAt(s, site.x, site.y)) best = Math.min(best, gap({ x: xOf(c), y: yOf(c), k: 1 }, { x: site.x, y: site.y, k: 2 }))
   })
   return best === Infinity ? 0 : best
 }
@@ -1124,7 +1148,7 @@ function spotScore(look: Look, need: Need, x: number, y: number, anchors: Anchor
 }
 
 /**
- * The footprint at (x, y) suits the sticker: open land with no building, hedge, belt (unless
+ * The footprint at (x, y) suits the sticker: open ground in the window with no building, hedge, belt (unless
  * `cover`: then the belt cells it would cover) or cell another sticker must leave, no water but
  * for the pump, no rock but its own for a digger (two or more of them), and off the pond's edge
  * until the pump stands. With the flowers under it.
@@ -1147,7 +1171,7 @@ function footprintFits(look: Look, need: Need, x: number, y: number, cover: bool
   return { flowers: ground.flowers, covers }
 }
 
-/** The footprint at (x, y) suits the sticker by its ground alone, whatever stands on it: open land, no water but for the pump, no tree, burrow, pad, cell round the pad or basket, no rock but its own for a digger (two or more of them), and off the pond's edge until the pump stands (`pumped`). With the flowers under it. */
+/** The footprint at (x, y) suits the sticker by its ground alone, whatever stands on it: in the open window, no water but for the pump, no tree, burrow, pad, cell round the pad or basket, no rock but its own for a digger (two or more of them), and off the pond's edge until the pump stands (`pumped`). With the flowers under it. */
 function groundFits(look: Look, need: Need, x: number, y: number, pumped: boolean): { flowers: number } | null {
   const s = look.s
   const kind = need.sticker
@@ -1158,7 +1182,7 @@ function groundFits(look: Look, need: Need, x: number, y: number, pumped: boolea
     for (let dx = 0; dx < k; dx++) {
       const c = cellOf(x + dx, y + dy)
       const g = GROUND[c]
-      if (!cellInLand(s.land, c) || g === 'tree' || g === 'burrow' || g === 'pad' || PAD_RING.has(c) || c === BASKET_CELL) return null
+      if (!opened(s, c) || g === 'tree' || g === 'burrow' || g === 'pad' || PAD_RING.has(c) || c === BASKET_CELL) return null
       if ((g === 'pond') !== (kind === 'pump')) return null
       const rock = rockOf(c)
       if (kind === 'digger' && rock === need.thing) rocks++
@@ -1171,11 +1195,11 @@ function groundFits(look: Look, need: Need, x: number, y: number, pumped: boolea
 /** The pump stands: the cells round the pond are free for stickers. */
 const pumped = (s: State) => s.buildings.some((b) => b.kind === 'pump')
 
-/** Every good spot for the sticker in the land, the best first. */
+/** Every good spot for the sticker in the open window, the best first. */
 function spotsFor(look: Look, need: Need, anchors: Anchors, cover: boolean): { x: number; y: number; score: number; base: number; covers: number[] }[] {
   const s = look.s
   const k = SIZE[need.sticker]
-  const w = LANDS[s.land]
+  const w = openedWindow(s)
   const out: { x: number; y: number; score: number; base: number; covers: number[] }[] = []
   for (let y = w.y0; y + k - 1 <= w.y1; y++)
     for (let x = w.x0; x + k - 1 <= w.x1; x++) {
@@ -1310,7 +1334,7 @@ const footprint = (p: Spot): number[] => Array.from({ length: SIZE[p.kind] * SIZ
  * of them as the cells a finger traces, in the order the hint draws them, and the hedge lines
  * that turn a burrow. The bottle line stands at burrow A's door, so its munchers come for it at
  * once: the green maker west of the gold oven, the lab under the start oven fed round the tree.
- * The pond is far west and the burrows east, so the bubble line is the longest of land 1: from
+ * The pond is far west and the burrows east, so the bubble line is the longest of the first window: from
  * the pump past the pad and along row 4, bridged over the blue rock belt, to the tower beside
  * A's door, the second tower one cell before it. A's munchers come out between that tower and
  * A's hedge, so they nibble out under its suds; A's bowl stands on the gold oven's short belt
@@ -1319,11 +1343,11 @@ const footprint = (p: Spot): number[] => Array.from({ length: SIZE[p.kind] * SIZ
  * free column beside the pad (bridged over the bubble line and the start oven's pad belt) to
  * the orange maker by the pump, which bridges its bottles over the bubble line into the pad.
  * The gear line runs along row 1 from the blue patch by A's mound to the oven in the corner
- * once land 2 opens it. No bubble line or gold belt reaches burrow B, so a fence of six hedges
- * closes its west and top. The third green maker waits for land 3 by B and C, fed gold along
- * row 6 from the gold oven and blue from the far blue patch; its bottles run west along B's
- * top, the one way past B to the lab, so that belt takes the top three hedges of the fence
- * back. A search over spots and belts found the first land and the rest was drawn by hand on
+ * once Nose! opens its row. No bubble line or gold belt reaches burrow B, so a fence of six
+ * hedges closes the pocket at its door (the door cell and its south and east, the trees by it
+ * closing the rest). The third green maker waits for More! by B and C, fed gold along row 6
+ * from the gold oven and blue from the far blue patch; its bottles run west along B's top, the
+ * one way past B to the lab. A search over spots and belts found the first window and the rest was drawn by hand on
  * the same path search and planners (strokes.ts), every belt laid in the cards' order; the
  * scripted children launch on it.
  */
@@ -1372,7 +1396,7 @@ const BLUEPRINT: { spots: readonly [string, Kind, number, number][]; belts: read
   ],
   hedges: [
     [0, [[10, 4]]],
-    [1, [[15, 7], [14, 7], [13, 7], [13, 8], [13, 9], [13, 10]]],
+    [1, [[13, 10], [14, 10], [14, 11], [15, 11], [16, 11], [16, 10]]],
   ],
 }
 const SPOTS: readonly Spot[] = BLUEPRINT.spots.map(([, kind, x, y]) => ({ kind, x, y }))
@@ -1396,7 +1420,7 @@ const GOLD_LINE: Planned = (() => {
 /**
  * The blueprint's belts that bring a tower's or a bowl's spot what it takes, in the order they
  * are laid: the belt that ends on its cell or runs over it, after the belts into the tower spot
- * that one carries on from (the bubble line grows tower by tower, land by land). Each spot's
+ * that one carries on from (the bubble line grows tower by tower, window by window). Each spot's
  * belt carries what it takes (bubbles to a tower, gold bars to a bowl), and a bowl's spot is on
  * a burrow's flowers, or the blueprint throws at load.
  */
@@ -1444,12 +1468,12 @@ const LONG_BELT = 18
 const SHORT_LINK = 10
 
 /**
- * The spot for the sticker: the blueprint's spot for it while one is open in the land and
+ * The spot for the sticker: the blueprint's spot for it while one is open in the window and
  * planPlace agrees, one with a planned belt to the building it is for first; none while every
- * spot the blueprint gives its kind in the land is taken by its own kind and another waits in
- * a later land (waitsForSpot); else of the best good spots planPlace agrees with, ROOM_TRIES at
+ * spot the blueprint gives its kind in the window is taken by its own kind and another waits in
+ * a later window (waitsForSpot); else of the best good spots planPlace agrees with, ROOM_TRIES at
  * a time, the one whose own score and belts cost least; null when none of ROOM_BATCHES batches
- * has room for every belt it needs (the sticker waits in the tray, say for the next land).
+ * has room for every belt it needs (the sticker waits in the tray, say for the next window).
  */
 function spotFor(look: Look, need: Need, anchors: Anchors): { x: number; y: number } | null {
   const spot = blueprintSpots(look, need).find((i) => openFor(look, need, i))
@@ -1457,7 +1481,7 @@ function spotFor(look: Look, need: Need, anchors: Anchors): { x: number; y: numb
   return waitsForSpot(look, need.sticker) ? null : searchSpot(look, need, anchors)
 }
 
-/** The blueprint's spots for the sticker in the land with nothing of its kind on them, whose ground suits it (a digger's its rock), one with a planned belt to the building it is for first. */
+/** The blueprint's spots for the sticker in the open window with nothing of its kind on them, whose ground suits it (a digger's its rock), one with a planned belt to the building it is for first. */
 function blueprintSpots(look: Look, need: Need): number[] {
   const to = need.to === null ? -1 : look.spotOf(need.to)
   const linked = (i: number) => to >= 0 && PLANNED.some((p) => (p.from === i && p.to === to) || (p.from === to && p.to === i))
@@ -1475,8 +1499,8 @@ function openFor(look: Look, need: Need, i: number): boolean {
  * A sticker's step, the gentlest that leads on (plans/rocket-factory.md, The one next step):
  * the blueprint's spot for it when it is free; when her loose belts, hedges or a machine of
  * hers stand on it, the repair that clears it (repairOf), which `rule` (the rule asking) is
- * tried against; none while every spot of its kind in the land is taken and another waits in
- * a later land; else any good spot the searches find. harshStickerStep comes after the rest.
+ * tried against; none while every spot of its kind in the window is taken and another waits in
+ * a later window; else any good spot the searches find. harshStickerStep comes after the rest.
  */
 function stickerStep(look: Look, need: Need, rule: Rule): Plan | null {
   const s = look.s
@@ -1523,11 +1547,11 @@ function searchSpot(look: Look, need: Need, anchors: Anchors): { x: number; y: n
   return null
 }
 
-/** Every spot the blueprint gives this kind in the land has a sticker of its kind on it, and another of its spots is still open in a later land: the stickers left wait for that land. */
+/** Every spot the blueprint gives this kind in the open window has a sticker of its kind on it, and another of its spots is still open in a later window: the stickers left wait for that window. */
 function waitsForSpot(look: Look, kind: Placeable): boolean {
   const s = look.s
-  const inLand = (i: number) => footprint(SPOTS[i]!).every((c) => cellInLand(s.land, c))
-  return look.spots().some((i) => SPOTS[i]!.kind === kind && !inLand(i)) && SPOTS.every((p, i) => p.kind !== kind || !inLand(i) || look.on(i) !== null)
+  const inWindow = (i: number) => footprint(SPOTS[i]!).every((c) => opened(s, c))
+  return look.spots().some((i) => SPOTS[i]!.kind === kind && !inWindow(i)) && SPOTS.every((p, i) => p.kind !== kind || !inWindow(i) || look.on(i) !== null)
 }
 
 
@@ -1655,18 +1679,18 @@ function alongPlan(c: number, b: CellBelt | null): boolean {
 /** Every cell a piece of the blueprint needs: its spots' footprints and the cells round them (a belt there may point into one), and its belts' cells after their first spots. */
 const BLUEPRINT_CELLS: ReadonlySet<number> = new Set([...SPOTS.flatMap((p) => [...footprint(p), ...ring(p.x, p.y, SIZE[p.kind]).map((r) => r.cell)]), ...PLANNED_AT.keys()])
 
-/** Every planned belt of spot j leads to a spot outside the land: a machine on it can do nothing there yet. */
-const ahead = (j: number, land: Land) => PLANNED.every((p) => (p.from !== j && p.to !== j) || !footprint(SPOTS[p.from === j ? p.to : p.from]!).every((c) => cellInLand(land, c)))
+/** Every planned belt of spot j leads to a spot outside the open window: a machine on it can do nothing there yet. */
+const ahead = (j: number, land: Progress) => PLANNED.every((p) => (p.from !== j && p.to !== j) || !footprint(SPOTS[p.from === j ? p.to : p.from]!).every((c) => windowHolds(land, c)))
 
 /**
- * The edit, made in land `land`, is one a repair of the hint's makes (repairOf): it took
+ * The edit, made at step `land` of the path, is one a repair of the hint's makes (repairOf): it took
  * something away but nothing of the blueprint's own (no building off its spot, unless the spot
- * is ahead of the land and the factory needs the machine elsewhere; no belt lane laid along a
+ * is ahead of the window and the factory needs the machine elsewhere; no belt lane laid along a
  * planned belt; no hedge of a planned line), and every belt and hedge it took stood where a
  * piece of the blueprint needs the cell. She can make such an edit herself; then too the hint
  * leads on from it rather than back.
  */
-function asked(edit: Edit, land: Land): boolean {
+function asked(edit: Edit, land: Progress): boolean {
   const took = edit.removed.length > 0 || edit.hedges.some((h) => h.after === 0) || edit.belts.some((b) => b.after === null || (b.before !== null && b.before.over >= 0 && b.after.over < 0))
   const blueprint = edit.removed.some((r) => SPOTS.some((p, j) => p.kind === r.kind && p.x === r.x && p.y === r.y && !ahead(j, land))) || edit.hedges.some((h) => h.after === 0 && HEDGE_CELLS.has(h.cell)) || edit.belts.some((b) => alongPlan(b.cell, b.before) && !alongPlan(b.cell, b.after))
   return took && !blueprint && edit.belts.every((b) => BLUEPRINT_CELLS.has(b.cell)) && edit.hedges.every((h) => h.after !== 0 || BLUEPRINT_CELLS.has(h.cell))
@@ -1707,20 +1731,20 @@ type Goal = { kind: 'spot'; spot: number; belt: Planned | null; bring: Building 
 
 /**
  * The piece of the blueprint that would feed building r with t: for r off the blueprint, the
- * first spot of its kind in the land with nothing of its kind on it, to bring r there; else the
- * first planned belt into r for t in the land that does not feed it yet, with its source's spot
+ * first spot of its kind in the open window with nothing of its kind on it, to bring r there; else the
+ * first planned belt into r for t in the window that does not feed it yet, with its source's spot
  * while nothing of its kind stands there. Null when the blueprint has none.
  */
 function goalOf(look: Look, r: Building, t: Thing): Goal | null {
   const s = look.s
-  const inLand = (cells: readonly number[]) => cells.every((c) => cellInLand(s.land, c))
+  const inWindow = (cells: readonly number[]) => cells.every((c) => opened(s, c))
   const j = look.spotOf(r)
   if (j < 0) {
-    const i = SPOTS.findIndex((p, k) => p.kind === r.kind && look.on(k) === null && inLand(footprint(p)))
+    const i = SPOTS.findIndex((p, k) => p.kind === r.kind && look.on(k) === null && inWindow(footprint(p)))
     return i < 0 ? null : { kind: 'spot', spot: i, belt: null, bring: r }
   }
   for (const p of PLANNED) {
-    if (p.to !== j || p.thing !== t || !inLand([...footprint(SPOTS[p.from]!), ...p.path])) continue
+    if (p.to !== j || p.thing !== t || !inWindow([...footprint(SPOTS[p.from]!), ...p.path])) continue
     const f = look.on(p.from)
     if (f === null) return { kind: 'spot', spot: p.from, belt: p, bring: null }
     if (!look.flow().to.get(f.id)!.includes(r.id)) return { kind: 'belt', belt: p }
@@ -1864,8 +1888,8 @@ function dragOver(cells: readonly number[]): number[] {
 /** The peel taking building b off the board, everything inside it going where it is wanted: the peel, then two taps on it (the first lifts it). Its cell is the step's. */
 const peelOf = (b: Building, sticker: Placeable): Plan => ({ step: { kind: 'free', sticker, cells: [cellOf(b.x, b.y)] }, tool: PEEL, body: [{ kind: 'tap', hit: { kind: 'building', id: b.id } }, { kind: 'tap', hit: { kind: 'building', id: b.id } }] })
 
-/** Building b stands on a spot of the blueprint that is ahead of the land, so a spot of its kind the factory needs now may have it. */
-const premature = (look: Look, b: Building) => look.spotOf(b) >= 0 && ahead(look.spotOf(b), look.s.land)
+/** Building b stands on a spot of the blueprint that is ahead of the window, so a spot of its kind the factory needs now may have it. */
+const premature = (look: Look, b: Building) => look.spotOf(b) >= 0 && ahead(look.spotOf(b), progressOf(look.s.found))
 
 /**
  * Her newest edit, still in Oops's reach, did nothing but lay new belt cells, these loose ones
@@ -1884,7 +1908,7 @@ function stray(look: Look, edit: Edit, cells: readonly number[]): boolean {
  * way; the peel over just the loose belts, hedges and stumps in its way; the peel of a machine
  * standing in its way (it goes back to the tray with what it held); with the way clear and none
  * of its kind in the tray, the peel of one standing on a spot whose belts all lead out of the
- * land, so the hint's spot can have it. 'move': the peel of one of its kind standing off the
+ * window, so the hint's spot can have it. 'move': the peel of one of its kind standing off the
  * blueprint (the building the goal is to bring there first). 'harsh': the peel over every belt
  * in its way, links of hers too. Each is tried first on a copy of the board against `rule`, the
  * rule asking (leadsOn), so no repair undoes the last.
@@ -2024,11 +2048,7 @@ function muncherSteps(look: Look): Ranked[] {
 function oopsSteps(look: Look): Ranked[] {
   const s = look.s
   const u = s.undo[s.undo.length - 1]
-  return u !== undefined && u.broke && s.tick - u.at < OOPS_HINT && !asked(u.edit, s.land) ? [{ step: { kind: 'oops' }, script: [{ kind: 'oops' }] }] : []
-}
-
-function flapSteps(look: Look): Ranked[] {
-  return look.s.flap !== 0 ? [{ step: { kind: 'flap' }, script: tapOn(look.s, { kind: 'flap' }) }] : []
+  return u !== undefined && u.broke && s.tick - u.at < OOPS_HINT && !asked(u.edit, progressOf(s.found)) ? [{ step: { kind: 'oops' }, script: [{ kind: 'oops' }] }] : []
 }
 
 /** What a New! sticker is for: a digger the rock fewer diggers dig (the first on a tie), the lab bottles, a tower bubbles, a bowl gold bars, every other maker what it makes. */
@@ -2365,7 +2385,7 @@ function hedgeStep(look: Look, burrow: number, trail: readonly number[]): Plan |
  */
 function refillStep(look: Look): Ranked | null {
   const s = look.s
-  if (s.visit !== null || !s.burrows.some((b, i) => inLand(s.land, BURROWS[i]!.x, BURROWS[i]!.y) && b.hunger >= STAGE_AT[2] && b.sleepUntil < s.tick)) return null
+  if (s.visit !== null || !s.burrows.some((b, i) => openedAt(s, BURROWS[i]!.x, BURROWS[i]!.y) && b.hunger >= STAGE_AT[2] && b.sleepUntil < s.tick)) return null
   const pump = s.buildings.find((b) => b.kind === 'pump')
   if (pump === undefined) return null
   for (const t of s.buildings) {
@@ -2393,7 +2413,7 @@ const laid = (s: State, p: Planned) => p.path.every((c, k) => k === 0 || s.belts
  * then the sticker held over its cell ('defend'; a 'place' when its belts lie already). Worked
  * out on a copy of the board, which comes back with the plan for the checks that read the
  * board after it. Null when a belt cannot be laid now (its first spot has no building yet, it
- * runs into closed land, or the planner would lay something else) or the sticker would not
+ * runs outside the open window, or the planner would lay something else) or the sticker would not
  * stand there.
  */
 function defencePlan(look: Look, i: number): { plan: Plan; after: State } | null {
@@ -2406,7 +2426,7 @@ function defencePlan(look: Look, i: number): { plan: Plan; after: State } | null
   const cells: number[] = []
   for (const p of FEED.get(i)!) {
     if (laid(after, p)) continue
-    if ((!onBelt(SPOTS[p.from]!.kind) && look.on(p.from) === null) || p.path.some((c) => !cellInLand(s.land, c))) return null
+    if ((!onBelt(SPOTS[p.from]!.kind) && look.on(p.from) === null) || p.path.some((c) => !opened(s, c))) return null
     const these = plannedStrokes(after, p.path, ['none', 'hump'])
     if (these === null) return null
     for (const cs of these) applyEdit(after, planStroke(after, cs, cs).edit!)
@@ -2421,39 +2441,42 @@ function defencePlan(look: Look, i: number): { plan: Plan; after: State } | null
   return { plan: { step: { kind: 'defend', sticker, cells, x: spot.x, y: spot.y }, tool: PENCIL, body: [...strokesBody(strokes), { kind: 'tool', tool: stickerTool(sticker) }, ...holdAt(sticker, spot.x, spot.y)] }, after }
 }
 
-/** The blueprint's first open spot in the land for a tower or a bowl that can be built now and that `ok` accepts (with the board after it), while a sticker of its kind is left. */
+/** The blueprint's first open spot in the window for a tower or a bowl that can be built now and that `ok` accepts (with the board after it), while a sticker of its kind is left. */
 function plannedDefence(look: Look, sticker: 'tower' | 'bowl', ok: (i: number, after: State) => boolean): Plan | null {
   const s = look.s
   if (stickersLeft(s, sticker) <= 0) return null
   for (const i of look.spots()) {
     const p = SPOTS[i]!
-    if (p.kind !== sticker || !cellInLand(s.land, cellOf(p.x, p.y))) continue
+    if (p.kind !== sticker || !opened(s, cellOf(p.x, p.y))) continue
     const found = defencePlan(look, i)
     if (found !== null && ok(i, found.after)) return found.plan
   }
   return null
 }
 
-/** The blueprint's first hedge line in the land with a hedge still to plant that `ok` accepts, while hedge stickers last: the hedge tool drawn along it. */
+/** A hedge line is open once the burrow it turns is in the open window (the line may run past it: B's fence closes its door's pocket on the open board). */
+const lineOpen = (s: State, line: (typeof HEDGE_LINES)[number]) => openedAt(s, BURROWS[line.burrow]!.x, BURROWS[line.burrow]!.y)
+
+/** The blueprint's first hedge line with a hedge still to plant that `ok` accepts, for a burrow in the open window, while hedge stickers last: the hedge tool drawn along it. */
 function plannedHedge(look: Look, ok: (line: (typeof HEDGE_LINES)[number]) => boolean): Plan | null {
   const s = look.s
   if (stickersLeft(s, 'hedge') <= 0) return null
   for (const line of HEDGE_LINES) {
-    if (line.cells.some((c) => !cellInLand(s.land, c)) || !ok(line)) continue
+    if (!lineOpen(s, line) || !ok(line)) continue
     const plan = planHedge(s, line.cells)
     if (plan.edit !== null) return { step: { kind: 'defend', sticker: 'hedge', cells: plan.cells, x: xOf(line.cells[0]!), y: yOf(line.cells[0]!) }, tool: HEDGE, body: [{ kind: 'drag', cells: [...line.cells] }, { kind: 'release', commit: true }] }
   }
   return null
 }
 
-/** The blueprint still has defence to build in the land: an open tower or bowl spot with a sticker of its kind left, or a hedge line with a cell still to plant while hedge stickers last. */
+/** The blueprint still has defence to build in the window: an open tower or bowl spot with a sticker of its kind left, or a hedge line with a cell still to plant while hedge stickers last. */
 function defenceLeft(look: Look): boolean {
   const s = look.s
   const open = (i: number) => {
     const p = SPOTS[i]!
-    return onBelt(p.kind) && cellInLand(s.land, cellOf(p.x, p.y)) && stickersLeft(s, p.kind) > 0
+    return onBelt(p.kind) && opened(s, cellOf(p.x, p.y)) && stickersLeft(s, p.kind) > 0
   }
-  return look.spots().some(open) || HEDGE_LINES.some((l) => l.cells.every((c) => cellInLand(s.land, c)) && planHedge(s, l.cells).edit !== null)
+  return look.spots().some(open) || HEDGE_LINES.some((l) => lineOpen(s, l) && planHedge(s, l.cells).edit !== null)
 }
 
 /** After planting these hedges on a copy of the board, burrow i's munchers reach nothing without nibbling: the fence holds them at its door, where a tickle or a tower gets them. */
@@ -2485,7 +2508,7 @@ function defenceFor(look: Look, i: number, trail: readonly number[], guards: rea
 }
 
 /**
- * 7. An empty tower to refill, then a defence for the first burrow in the land whose way passes
+ * 7. An empty tower to refill, then a defence for the first burrow in the open window whose way passes
  * no tower that can shoot, once its munchers have come out (the need before the tool: the
  * blueprint's defence for it) and again whenever they got away with DEFEND_KEPT things.
  */
@@ -2499,7 +2522,7 @@ function defendSteps(look: Look): Ranked[] {
   for (let i = 0; i < s.burrows.length; i++) {
     const site = BURROWS[i]!
     const kept = total(s.burrows[i]!.heap) >= DEFEND_KEPT
-    if (!inLand(s.land, site.x, site.y) || (!kept && (s.burrows[i]!.visits === 0 || !left))) continue
+    if (!openedAt(s, site.x, site.y) || (!kept && (s.burrows[i]!.visits === 0 || !left))) continue
     const trail = pawsOf(s, i)
     const guards = s.buildings.filter((b) => armed(look, b)).map(towerCell)
     if (trail.length === 0 || guards.some((t) => passes(trail, t))) continue
@@ -2535,7 +2558,7 @@ function rocketStep(look: Look): Ranked {
   return { step: { kind: 'rocket' }, script: tapOn(look.s, { kind: 'building', id: pad.id }) }
 }
 
-const RULES: readonly ((look: Look) => Ranked[])[] = [cardSteps, launchSteps, muncherSteps, oopsSteps, flapSteps, placeSteps, bottleneckSteps, blockedSteps, linkSteps, defendSteps, heapSteps]
+const RULES: readonly ((look: Look) => Ranked[])[] = [cardSteps, launchSteps, muncherSteps, oopsSteps, placeSteps, bottleneckSteps, blockedSteps, linkSteps, defendSteps, heapSteps]
 
 /** The ranked steps one rule at a time, so a caller that needs only the first stops the searches there. */
 function* ranked(s: State, writes: boolean): Generator<Ranked> {
@@ -2572,21 +2595,20 @@ export function firstStep(s: State): Ranked | null {
 }
 
 /**
- * The key of everything the layout rules read from the board: the land, the cards found and
+ * The key of everything the layout rules read from the board: the cards found and
  * the choice, the launches, the stickers she has placed and her links counted, which bottles
  * the lab and which parts the rocket take now, whether the start oven has baked its first bar
  * (unbaked), and every belt cell, hedge and building. Two
  * 32-bit hashes of them: a sticker or a link kept under the same key is the one the rules
  * would find again (the defence reads more, which it keeps beside its plan: remembered).
  */
-function boardKey(s: State): string {
+export function boardKey(s: State): string {
   let a = 0x811c9dc5 | 0
   let b = 0x1234567
   const mix = (v: number) => {
     a = Math.imul(a ^ v, 0x01000193)
     b = Math.imul(b + v, 0x5bd1e995) ^ (b >>> 15)
   }
-  mix(s.land)
   mix(s.launches)
   mix(s.choice === null ? 0 : s.choice === 'bubbles' ? 1 : 2)
   for (const id of s.found) mix(CARDS.indexOf(id) + 1)
@@ -2607,7 +2629,12 @@ function boardKey(s: State): string {
     if (out[c]! >= 0) mix(ins[c]! * 25 + (fork[c]! + 1) * 5 + over[c]! + 1)
     mix(s.hedge[c]! + 300)
   }
-  for (const bd of s.buildings) mix(((bd.id * 16 + KINDS.indexOf(bd.kind)) * 32 + bd.x) * 16 + bd.y)
+  for (const bd of s.buildings) {
+    mix(bd.id)
+    mix(KINDS.indexOf(bd.kind))
+    mix(bd.x)
+    mix(bd.y)
+  }
   return `${a >>> 0}:${b >>> 0}`
 }
 
@@ -2659,7 +2686,6 @@ function stepKey(step: Step): string {
     case 'oops':
     case 'basket':
     case 'choose':
-    case 'flap':
     case 'launch':
     case 'card':
     case 'rocket':
@@ -2763,7 +2789,6 @@ export function aimOf(s: State, a: Action): 'does' | 'misses' | null {
     case 'heap':
     case 'basket':
     case 'choose':
-    case 'flap':
     case 'launch':
     case 'card':
     case 'tuck':

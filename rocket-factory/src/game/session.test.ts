@@ -109,7 +109,7 @@ function play(seed: number, profile: Profile, munchers: MunchersMode, last: Mile
     for (const e of s.events) {
       if (e.kind === 'card') g.at[e.id] = s.tick
       if (e.kind === 'landed') g.at.landed = s.tick
-      if (e.kind === 'card' || e.kind === 'partFull' || e.kind === 'flap' || (e.kind === 'launch' && g.at.fuel !== undefined)) {
+      if (e.kind === 'card' || e.kind === 'partFull' || (e.kind === 'launch' && g.at.fuel !== undefined)) {
         longest('quiet', news)
         news = s.tick
       }
@@ -242,7 +242,7 @@ describe.runIf(LONG)('the statistics over ten seeds', () => {
     within('table', 'factory', '0:00', '3:00')
     within('table', 'gears', '0:00', '6:00')
     within('table', 'bubbles', '8:30', '11:00')
-    within('table', 'land2', '18:00', '22:00')
+    within('table', 'nose', '18:00', '22:00')
     within('table', 'landed', '50:00', '60:00')
     within('eager', 'landed', '45:00', '55:00')
     within('slow', 'landed', '55:00', '70:00')

@@ -7,12 +7,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { viewAt } from './camera'
+import { startView } from './camera'
 import { IDLE_MOST, IDLE_PAUSE, SESSION_GAP } from './catalog'
 import { demoState } from './fixtures'
 import { Game, readSwitches } from './game'
 import { NO_INSETS, toScreen, type View } from './layout'
-import { CARDS, STEP, type Action } from './model'
+import { CARDS, type Action } from './model'
 import { OLD_KEY, SAVE_KEY, freshKeep, keepOf, parseKeep, parseOld, serializeKeep } from './progress'
 import { Sounds } from './sounds'
 
@@ -46,7 +46,7 @@ const W = 1180
 const H = 820
 /** The view the stage draws for the game's state (a sideways window), handed to the game. */
 function show(g: Game, w = W, h = H): View {
-  const v = viewAt(g.state, (g.state.tick - 1) * STEP, w, h, 2, false, NO_INSETS)
+  const v = startView(w, h, 2, false, NO_INSETS)
   g.setView(v)
   return v
 }
@@ -70,7 +70,7 @@ function saved(): Game {
 describe('the URL switches', () => {
   it('reads none, and each one', () => {
     expect(readSwitches('')).toEqual({ demo: null, nosave: false, seed: null, autoplay: false, debug: false, fast: 1, all: false, munchers: null })
-    expect(readSwitches('?demo=land3&nosave&seed=-42&autoplay&debug&fast=4&all&munchers=polite&sheet=things')).toEqual({ demo: 'land3', nosave: true, seed: -42, autoplay: true, debug: true, fast: 4, all: true, munchers: 'polite' })
+    expect(readSwitches('?demo=busy&nosave&seed=-42&autoplay&debug&fast=4&all&munchers=polite&sheet=things')).toEqual({ demo: 'busy', nosave: true, seed: -42, autoplay: true, debug: true, fast: 4, all: true, munchers: 'polite' })
   })
 
   it('throws on a bad value or a bad pair, saying what would do', () => {
@@ -84,13 +84,13 @@ describe('the URL switches', () => {
     expect(g.state.playing).toBe(true)
   })
 
-  it('starts fresh with ?nosave whatever is saved, opens a demo, every card and land 3 with ?all, and the munchers asked for', { timeout: 30_000 }, () => {
+  it('starts fresh with ?nosave whatever is saved, opens a demo, every card with ?all, and the munchers asked for', { timeout: 30_000 }, () => {
     storage.items.set(SAVE_KEY, serializeKeep(keepOf(demoState('factory', 1))))
     expect(new Game('?nosave', 1).state.found).toEqual([])
-    expect(new Game('?demo=land2', 1).state.land).toBe(2)
+    expect(new Game('?demo=card-nose', 1).state.found.at(-1)).toBe('nose')
     const all = new Game('?nosave&all', 1).state
     expect([...all.found].sort()).toEqual([...CARDS].sort())
-    expect([all.land, all.choice]).toEqual([3, 'bubbles'])
+    expect(all.choice).toBe('bubbles')
     expect(new Game('?nosave&munchers=polite', 1).state.switches.munchers).toBe('polite')
   })
 
@@ -527,17 +527,22 @@ describe('pointers', () => {
     expect(got).toEqual([{ kind: 'touch', down: true }, { kind: 'tap', hit: { kind: 'building', id: oven.id } }, { kind: 'touch', down: false }])
   })
 
-  it('drops a drag and tells the rules when the board turns upright or back', () => {
+  it('drops a drag when the window goes upright or back, and tells the rules nothing of the turn', () => {
     const g = new Game('?demo=factory', 1)
-    show(g)
-    const got = record(g)
+    const v = show(g)
+    const got = record(g, true)
     show(g)
     expect(got).toEqual([])
+    // A stroke on its way, the window goes upright: it is dropped with nothing placed, and the finger's touch is over.
+    g.pointer('down', 1, ...toScreen(v, 2.5, 10.5), 'left')
+    g.pointer('move', 1, ...toScreen(v, 4.5, 10.5), 'left')
+    got.length = 0
     show(g, 820, 1180)
-    expect(got).toEqual([{ kind: 'turned' }])
+    expect(got).toEqual([{ kind: 'release', commit: false }, { kind: 'touch', down: false }])
+    got.length = 0
     show(g, 820, 1180)
     show(g)
-    expect(got).toEqual([{ kind: 'turned' }, { kind: 'turned' }])
+    expect(got).toEqual([])
   })
 
   it("picks a tray sticker dragged out over the board and holds its ghost under the finger", () => {

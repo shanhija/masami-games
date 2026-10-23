@@ -1,15 +1,16 @@
 import { bandOf, EIGHTH, PART_OF, padDrums, sinceNote, working, type Band } from '../game/band'
 import { dugAt } from '../game/beep'
-import { BURROWS, FLOWER_OF, LANDS, PAD, cellInLand, cellOf, dirTo, rockOf, stepCell, xOf, yOf } from '../game/board'
-import { viewMoves } from '../game/camera'
-import { GROW, PART_INFO, PAWS_FOR, RECIPES, REGROW, SIZE, STACK, STROKE_MAX, card } from '../game/catalog'
-import { hintGhost, hintPath, muncherDrawn, targets, turnCS, fingerLift, type Area, type View } from '../game/layout'
+import { BURROWS, FLOWER_OF, PAD, cellOf, dirTo, rockOf, stepCell, xOf, yOf } from '../game/board'
+import { PART_INFO, PAWS_FOR, RECIPES, REGROW, SIZE, STACK, STROKE_MAX, card } from '../game/catalog'
+import { cellsIn, hintGhost, hintPath, targets, fingerLift, type Area, type View } from '../game/layout'
 import { labNeed, openParts } from '../game/machines'
 import {
   CELLS,
+  COLS,
   HOP,
   OVER,
   PARTS,
+  ROWS,
   SLOTS,
   STEP,
   THINGS,
@@ -36,7 +37,7 @@ import { pawsOf } from '../game/munchers'
 import { launchReady } from '../game/rules'
 import { planHedge, planPeelDrag, planPlace, planStroke } from '../game/strokes'
 import { LAY_GAP } from '../game/sounds'
-import { basketPoint, beepPoint, flightPoint, heapPoint, hopProgress, moonyPoint, napSpot, slotPoint, thingPoint, type Box } from '../game/where'
+import { basketPoint, beepPoint, flightPoint, heapPoint, hopProgress, moonyPoint, muncherPoint, napSpot, slotPoint, thingPoint, type Box } from '../game/where'
 import { beepPicture, drawBeep } from './beep'
 import {
   CURL,
@@ -65,16 +66,15 @@ import { BUDGET, Cache } from './cache'
 import { drawMoony, drawMuncher, muncherPicture } from './critters'
 import { Effects, drawHintRing, hintLift } from './effects'
 import { handTrail } from './hand'
-import { drawBasket, drawBurrow, drawCellPrint, drawFlapCorner, drawFlaps, drawHeap, drawPaws, drawPrint, flapCorner, flapWiggle } from './land'
+import { drawBasket, drawBurrow, drawCellPrint, drawHeap, drawPaws, drawPrint } from './land'
 import { C, DEBUG, LAND, NIGHT, SHADOW, TAU, addCircle, addRoundRect, clamp01, fill, pen, roundStroke, scaled, smooth } from './look'
 import { beepAway, drawLaunch, drawRocket, launchSlide, type RocketPic } from './rocket'
 import { ON_BELT, drawLiftedThing, stamps } from './things'
 
 /**
  * The picture, one frame at a time (plans/rocket-factory.md, The look and Drawing): the table;
- * the land's print, baked once per land, size and turn, its grid of cell outlines
- * cross-fading in under a stroke or a ghost; the next land's flaps; the print's cells live
- * again for a tap or a dig; the layout (belts, hedges, the mouths' tabs) baked after every
+ * the land's print, baked over the cells in view, its grid of cell outlines cross-fading in
+ * under a stroke or a ghost; the print's cells live again for a tap or a dig; the layout (belts, hedges, the mouths' tabs) baked after every
  * edit; the cells popping in and curling away; the belts' moving marks; the things riding
  * them, stamped from one bitmap per kind and size; bridges with their things lifted, paddles
  * and zips; the burrows, heaps and the basket; the buildings stamped from their still bodies
@@ -84,9 +84,9 @@ import { ON_BELT, drawLiftedThing, stamps } from './things'
  *
  * The art is the draw files'; this file only places it, at where.ts's points through
  * layout.ts's one map, so what is drawn is where a tap lands. Plan-view layers draw in the
- * board's own frame, turned with the upright board; every picture draws upright at its point;
- * and the sticker shadow's offset (look.ts pen) is turned with them, so shadows fall
- * down-right on screen in both. No DOM calls here: the stage hands in the canvases.
+ * board's own frame and every picture draws at its point; the sticker shadow's offset (look.ts
+ * pen) falls down-right on screen. Only what is in view is baked (the whole 60 x 36 board is
+ * past what a phone's canvas holds). No DOM calls here: the stage hands in the canvases.
  */
 
 // ---------------------------------------------------------------------------------------
@@ -110,9 +110,10 @@ const LIVE_PX = 40
 const SHADOW_STEP = SHADOW / 32
 /** Moony home on the pad's ring is this much bigger than its picture, so the new friend reads from the sofa against the pale concrete (layout.ts BODY.moony still covers it). */
 const MOONY_HOME = 1.4
-/** The hint's ring under what bounces, cells round: a thing, a muncher, a heap, the basket, a building per cell of its side, and the flaps' dog-ear (its middle FLAP_RING cells in from the land's corner, both ways). */
-const RING = { thing: 0.34, muncher: 0.42, heap: 0.46, basket: 0.46, building: 0.48, flap: 0.5 } as const
-const FLAP_RING = 0.28
+/** The hint's ring under what bounces, cells round: a thing, a muncher, a heap, the basket, a building per cell of its side. */
+const RING = { thing: 0.34, muncher: 0.42, heap: 0.46, basket: 0.46, building: 0.48 } as const
+/** The board's edge band and the shadows reach this far past the board's own edge: the table shows past it. */
+const EDGE = 0.4
 /** The end sign floats over the finger at least SIGN_PX CSS px across, or SIGN_CELLS of a cell; the stem under it is STEM px wide. */
 const SIGN_PX = 44
 const SIGN_CELLS = 0.9
@@ -143,7 +144,7 @@ function mapped(m: Matrix, b: Box): { x0: number; y0: number; x1: number; y1: nu
   const pts = [apply(m, b.x, b.y), apply(m, b.x + b.w, b.y), apply(m, b.x, b.y + b.h), apply(m, b.x + b.w, b.y + b.h)]
   return { x0: Math.min(...pts.map((p) => p[0])), y0: Math.min(...pts.map((p) => p[1])), x1: Math.max(...pts.map((p) => p[0])), y1: Math.max(...pts.map((p) => p[1])) }
 }
-/** A bake's name for the view it is painted at: the transform's turn and scale, and where its origin falls inside a device pixel (a whole pixel apart draws exactly). */
+/** A bake's name for the view it is painted at: the transform's scale, and where its origin falls inside a device pixel (a whole pixel apart draws exactly). */
 const viewKey = (m: Matrix) => `${m.slice(0, 4).map((v) => v.toFixed(4)).join(',')},${(((m[4] % 1) + 1) % 1).toFixed(3)},${(((m[5] % 1) + 1) % 1).toFixed(3)}`
 /** v itself when it is a whole number but for float dust. */
 const snap = (v: number) => (Math.abs(v - Math.round(v)) < 1e-6 ? Math.round(v) : v)
@@ -166,11 +167,6 @@ interface Frame {
   V0: Matrix
   /** Device px a cell. */
   k: number
-  /** The board's angle on screen in radians (upright, east up: -PI/2), and the sticker shadow's offset in the board's frame, down-right on screen. */
-  turn: number
-  shadow: [number, number]
-  /** The view holds still: bakes are named by it and painted at it; while it moves (the land easing out, the table turning) the latest held bake is drawn through it. */
-  settled: boolean
   band: Band
   /** Each kind's place in its band part's note now (0 the note's start, 1 an eighth or more after it), worked out once a frame for the first machine of the kind. */
   beats: Map<Kind, number>
@@ -276,7 +272,7 @@ export class Renderer {
   /** Print cells tapped or dug (a tree shaking, flowers swaying, rocks hopping), when; Moony's and each burrow's last poke. */
   private pokes = new Map<number, number>()
   private moonyPoke = -Infinity
-  private burrowPokes = [-Infinity, -Infinity, -Infinity]
+  private burrowPokes: number[] = BURROWS.map(() => -Infinity)
   /** The last stroke's cells in the order she drew them, so they pop in one by one LAY_GAP apart as the rising ticks sound. */
   private layOrder = new Map<number, number>()
   /** Cells rolled up: last frame's belt picture of each (and the ones it showed peeled up, whose curl goes on from there), and when each curl begins. */
@@ -343,9 +339,8 @@ export class Renderer {
     pen.dpr = view.dpr
     this.remember(s, t, events)
 
-    const [c, sn] = turnCS(view.turn)
     const k = view.dpr * view.cell
-    const V0: Matrix = [k * c, -k * sn, k * sn, k * c, view.dpr * view.ox, view.dpr * view.oy]
+    const V0: Matrix = [k, 0, 0, k, view.dpr * view.ox, view.dpr * view.oy]
     const slide = s.launch === null ? 0 : launchSlide(age(s.launch.at, t)) * view.h * view.dpr
     const f: Frame = {
       s,
@@ -355,9 +350,6 @@ export class Renderer {
       V: [V0[0], V0[1], V0[2], V0[3], V0[4], V0[5] + slide],
       V0,
       k,
-      turn: (-view.turn * Math.PI) / 2,
-      shadow: [SHADOW * (c - sn), SHADOW * (sn + c)],
-      settled: !viewMoves(s, t),
       band: bandOf(s),
       beats: new Map(),
       bodies: new Map(),
@@ -370,7 +362,8 @@ export class Renderer {
     for (let cell = 0; cell < CELLS; cell++) if (s.belts.out[cell]! >= 0) f.pics.set(cell, beltPic(s.belts, s.owner, cell))
     this.drawing = f
     // A sticker she holds up where it fits sends the notes it would send there.
-    this.effects.spawn(events, s, t, f.plan?.kind === 'ghost' && f.plan.ok ? { sticker: f.plan.sticker, x: f.plan.x, y: f.plan.y } : null)
+    const shown = cellsIn(view, view.hud.free)
+    this.effects.spawn(events, s, t, f.plan?.kind === 'ghost' && f.plan.ok ? { sticker: f.plan.sticker, x: f.plan.x, y: f.plan.y } : null, { x: shown.x0, y: shown.y0, w: shown.x1 - shown.x0, h: shown.y1 - shown.y0 })
     stamps.draw = this.still
     this.liveCells(f)
     this.countMerges(s)
@@ -390,17 +383,11 @@ export class Renderer {
     this.board(f)
     this.mechanisms(f)
     this.burrows(f)
-    if (s.landFrom !== s.land && since(s.landAt, t) < GROW * STEP) {
-      // The old land's flaps fold open over the new land, and over the burrow on it: the paper lies on top until it stands up.
-      this.board(f)
-      drawFlaps(ctx, s.landFrom, age(s.landAt, t) / (GROW * STEP), 0)
-    }
     const origins = this.buildings(f)
     this.characters(f, origins)
     this.flights(f)
-    // The particles in the board's frame, each standing upright in it (effects.ts reads the turn off the transform).
+    // The particles in the board's frame.
     this.board(f)
-    this.upright()
     this.effects.draw(ctx, t, f.dt)
     this.hint(f)
     this.drag(f, finger)
@@ -413,7 +400,6 @@ export class Renderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.globalAlpha = 1
     // Whoever draws next (a portrait in the HUD) finds the pen's shadow down-right, and draws every thing from its paths.
-    this.upright()
     stamps.draw = null
     this.drawing = null
   }
@@ -434,27 +420,19 @@ export class Renderer {
   // -------------------------------------------------------------------------------------
   // Frames and pens
 
-  /** The board's frame on the context, the sticker shadow turned with it. */
+  /** The board's frame on the context. */
   private board(f: Frame): void {
     this.ctx.setTransform(...f.V)
-    pen.shadowX = f.shadow[0]
-    pen.shadowY = f.shadow[1]
   }
 
-  /** The sticker shadow as an upright picture casts it. */
-  private upright(): void {
-    pen.shadowX = SHADOW
-    pen.shadowY = SHADOW
-  }
-
-  /** An upright picture's frame with its origin at board point (x, y), lifted `up` cells on screen. */
+  /** A picture's frame with its origin at board point (x, y), lifted `up` cells on screen. */
   private at(f: Frame, x: number, y: number, up: number): [number, number] {
     const [X, Y] = apply(f.V, x, y)
     this.ctx.setTransform(f.k, 0, 0, f.k, X, Y - up * f.k)
     return [X, Y - up * f.k]
   }
 
-  /** A footprint's upright picture frame (an n-cell square with its top-left cell at (x, y)): its origin the picture's top-left, the footprint's middle where the board has it, lifted `up` cells. Returns the origin in device px. */
+  /** A footprint's picture frame (an n-cell square with its top-left cell at (x, y)): its origin the picture's top-left, the footprint's middle where the board has it, lifted `up` cells. Returns the origin in device px. */
   private footprint(f: Frame, x: number, y: number, n: number, up: number): [number, number] {
     const [X, Y] = apply(f.V, x + n / 2, y + n / 2)
     const ox = X - (n / 2) * f.k
@@ -467,25 +445,17 @@ export class Renderer {
   // Bakes and stamps
 
   /**
-   * The bake of `content` over the board region `region`, in `group`: settled, the one painted
-   * at this view or a new one (letting go of the group's others, which are stale); while the
-   * view moves, the latest held one of the same content, or a new one at the view as it is.
-   * `paint` gets the bake's context in the board's frame and the board box the bake covers.
+   * The bake of `content` over the board region `region` (what is in view, never the whole
+   * board), in `group`: the one painted at this view and region or a new one (letting go of
+   * the group's others, which are stale). `paint` gets the bake's context in the board's frame
+   * and the board box the bake covers.
    */
   private bake(f: Frame, group: string, content: string, region: Box, paint: (c: CanvasRenderingContext2D, area: Box) => void): Bake {
     // The cache's keys are one namespace: each names its group.
-    const prefix = `${group}|${content}#`
-    const key = prefix + viewKey(f.V0)
+    const key = `${group}|${content}@${region.x.toFixed(3)},${region.y.toFixed(3)},${region.w.toFixed(3)},${region.h.toFixed(3)}#${viewKey(f.V0)}`
     const held = this.cache.find(key)
     if (held !== null) return { canvas: held, frame: this.frames.get(key)! }
-    if (f.settled) this.dropGroup(group, (k) => k === key)
-    else {
-      const same = this.cache.keys(group).filter((k) => k.startsWith(prefix))
-      if (same.length > 0) {
-        const latest = same[same.length - 1]!
-        return { canvas: this.cache.find(latest)!, frame: this.frames.get(latest)! }
-      }
-    }
+    this.dropGroup(group, (k) => k === key)
     const r = mapped(f.V0, region)
     const x0 = Math.floor(r.x0)
     const y0 = Math.floor(r.y0)
@@ -523,35 +493,27 @@ export class Renderer {
   }
 
   /**
-   * A stamp of `name`, the picture `paint` draws over `box` (cells in its own upright frame),
-   * at the frame's cell size: the one held, or a new one; settled, the stamps of other sizes
-   * go; while the view moves, any held one of the name draws scaled.
+   * A stamp of `name`, the picture `paint` draws over `box` (cells in its own frame), at the
+   * frame's cell size: the one held, or a new one; the stamps of other sizes go.
    */
   private stamp(f: Frame, group: string, name: string, box: Box, paint: (c: CanvasRenderingContext2D) => void): Stamp {
-    const prefix = `${group}|${name}#`
     const size = f.k.toFixed(3)
-    let key = prefix + size
+    const key = `${group}|${name}#${size}`
     let canvas = this.cache.find(key)
-    if (canvas === null && !f.settled) {
-      const same = this.cache.keys(group).filter((x) => x.startsWith(prefix))
-      if (same.length > 0) {
-        key = same[same.length - 1]!
-        canvas = this.cache.find(key)!
-      }
-    }
     if (canvas === null) {
-      if (f.settled) this.cache.drop(group, (x) => x.endsWith(`#${size}`))
+      this.cache.drop(group, (x) => x.endsWith(`#${size}`))
       const k = f.k
       canvas = this.cache.get(key, group, box.w * k, box.h * k, (c) => {
         const was = [pen.shadowX, pen.shadowY] as const
         c.setTransform(k, 0, 0, k, -box.x * k, -box.y * k)
-        this.upright()
+        pen.shadowX = SHADOW
+        pen.shadowY = SHADOW
         paint(c)
         pen.shadowX = was[0]
         pen.shadowY = was[1]
       })
     }
-    const kk = Number(key.slice(prefix.length))
+    const kk = Number(size)
     return { canvas, box: { x: box.x, y: box.y, w: canvas.width / kk, h: canvas.height / kk } }
   }
 
@@ -566,8 +528,8 @@ export class Renderer {
   /**
    * A thing's still picture at the frame's cell size: `size` cells across, `lift` off the
    * table, painted at `alpha` (its layers composited as they would be on the board) with the
-   * pen's sticker shadow at (sx, sy) SHADOW_STEPs in its own frame (down-right upright, turned
-   * and squashed with a picture that is): one stamp a kind, size, lift, alpha and shadow.
+   * pen's sticker shadow at (sx, sy) SHADOW_STEPs in its own frame (down-right, squashed with
+   * a picture that is): one stamp a kind, size, lift, alpha and shadow.
    */
   private thingStamp(f: Frame, thing: Thing, size: number, lift: number, alpha: number, sx: number, sy: number): Stamp {
     const reach = size / 2 + 0.02
@@ -606,7 +568,6 @@ export class Renderer {
   /** A thing off the belts at device point (X, Y), from its paths: flying, bouncing as the hint, its shadow `lift` long, fizzing on its own `seed`. */
   private flying(f: Frame, thing: Thing, X: number, Y: number, size: number, lift: number, seed: number): void {
     this.ctx.setTransform(f.k, 0, 0, f.k, X, Y)
-    this.upright()
     drawLiftedThing(this.ctx, thing, size, f.t, seed, lift)
   }
 
@@ -657,7 +618,7 @@ export class Renderer {
   private forget(): void {
     this.pokes.clear()
     this.moonyPoke = -Infinity
-    this.burrowPokes = [-Infinity, -Infinity, -Infinity]
+    this.burrowPokes = BURROWS.map(() => -Infinity)
     this.layOrder.clear()
     this.lastPics.clear()
     this.lastPeeled.clear()
@@ -746,47 +707,30 @@ export class Renderer {
   // -------------------------------------------------------------------------------------
   // The land
 
+  /** The board box the canvas shows, in cells: the canvas's own box where it holds the board, and the board's edge band (EDGE past it) where it does not, so a bake never covers the table or the board out of view. */
+  private seen(f: Frame): Box {
+    const v = f.view
+    const x0 = Math.max(-v.ox / v.cell, -EDGE)
+    const y0 = Math.max(-v.oy / v.cell, -EDGE)
+    const x1 = Math.min((v.w - v.ox) / v.cell, COLS + EDGE)
+    const y1 = Math.min((v.h - v.oy) / v.cell, ROWS + EDGE)
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+  }
+
   /**
-   * The print (baked, or live while the table turns, so its trees and rocks stay upright all
-   * the way round), the grid cross-fading over it, the flaps' corner wiggling for her tap, and
-   * the print's cells live again after a tap or a dig.
+   * The print (baked over the cells in view), the grid cross-fading over it, and the print's
+   * cells live again after a tap or a dig.
    */
   private land(f: Frame): void {
-    const { s, t } = f
-    const ctx = this.ctx
-    const next = LANDS[s.land === 3 ? 3 : ((s.land + 1) as 2 | 3)]
-    const region: Box = { x: next.x0 - 0.3, y: next.y0 - 0.3, w: next.x1 + 1 - next.x0 + 0.6, h: next.y1 + 1 - next.y0 + 0.6 }
-    const turning = f.view.turn !== 0 && f.view.turn !== 1
+    const { t } = f
+    const region = this.seen(f)
     for (const grid of f.grid >= 1 ? [true] : f.grid > 0 ? [false, true] : [false]) {
       const alpha = grid && f.grid < 1 ? f.grid : 1
-      if (turning) {
-        this.board(f)
-        ctx.globalAlpha = alpha
-        const a = mapped(invert(f.V), { x: 0, y: 0, w: this.width, h: this.height })
-        drawPrint(ctx, s.land, grid, { x: a.x0, y: a.y0, w: a.x1 - a.x0, h: a.y1 - a.y0 }, f.turn)
-        ctx.globalAlpha = 1
-        continue
-      }
-      const b = this.bake(f, grid ? 'grid' : 'print', `${s.land}`, region, (c, area) => {
-        pen.shadowX = f.shadow[0]
-        pen.shadowY = f.shadow[1]
-        drawPrint(c, s.land, grid, area, f.turn)
-      })
+      const b = this.bake(f, grid ? 'grid' : 'print', '', region, (c, area) => drawPrint(c, grid, area))
       this.drawBake(f, b, alpha)
     }
     this.board(f)
-    if (s.flap !== 0 && s.land !== 3) {
-      if (s.hint?.step.kind === 'flap') {
-        // The one next step's ring under the corner that wiggles for her tap, as under every other next step.
-        const p = flapCorner(s.land)
-        this.upright()
-        this.at(f, p.x + FLAP_RING, p.y + FLAP_RING, 0)
-        drawHintRing(ctx, RING.flap, t)
-        this.board(f)
-      }
-      drawFlapCorner(ctx, s.land, flapWiggle(t))
-    }
-    for (const [c, at] of this.pokes) if (cellInLand(s.land, c)) drawCellPrint(ctx, s.land, f.grid >= 0.5, c, t - at, f.turn)
+    for (const [c, at] of this.pokes) drawCellPrint(this.ctx, f.grid >= 0.5, c, t - at)
   }
 
   // -------------------------------------------------------------------------------------
@@ -803,21 +747,23 @@ export class Renderer {
     return out
   }
 
-  /** The layout's bake (belts but the live cells, hedges, the buildings' tabs), then the live cells: popping in, curling away, peeled up, and the stumps. */
+  /** The layout's bake (the belts, hedges and buildings' tabs in view, but the live cells), then the live cells: popping in, curling away, peeled up, and the stumps. */
   private belts(f: Frame): void {
     const { s, t } = f
     const ctx = this.ctx
-    const baked = [...f.pics.values()].filter((p) => !f.live.has(p.cell))
-    const hedges = this.hedges(s, t, false)
-    const tabs = s.buildings.filter((b) => b.kind !== 'tower' && b.kind !== 'bowl').map((b) => ({ b, ...tabsOf(s, b) }))
+    const region = this.seen(f)
+    const x0 = Math.floor(region.x) - 1
+    const y0 = Math.floor(region.y) - 1
+    const x1 = Math.ceil(region.x + region.w) + 1
+    const y1 = Math.ceil(region.y + region.h) + 1
+    const shown = (c: number) => xOf(c) >= x0 && xOf(c) < x1 && yOf(c) >= y0 && yOf(c) < y1
+    const baked = [...f.pics.values()].filter((p) => !f.live.has(p.cell) && shown(p.cell))
+    const hedges = this.hedges(s, t, false).filter((h) => shown(h.cell))
+    const tabs = s.buildings.filter((b) => b.kind !== 'tower' && b.kind !== 'bowl' && shown(cellOf(b.x, b.y))).map((b) => ({ b, ...tabsOf(s, b) }))
     // The layout's name: everything it shows.
     let sig = `${baked.map((p) => `${p.cell}:${p.in}${p.out}${p.fork}${p.over}${p.joins.join('')}${p.pattern}${+p.start}${+p.end}`).join(',')}|${hedges.map((h) => `${h.cell}:${h.links}:${h.bites}`).join(',')}|`
     for (const { b, mouths, spouts } of tabs) sig += `${b.kind}@${b.x},${b.y}:${mouths.map((m) => m.side * 9 + m.at).join('.')}/${spouts.map((m) => m.side * 9 + m.at).join('.')};`
-    const land = LANDS[s.land]
-    const region: Box = { x: land.x0 - 0.4, y: land.y0 - 0.4, w: land.x1 + 1 - land.x0 + 0.8, h: land.y1 + 1 - land.y0 + 0.8 }
     const b = this.bake(f, 'layout', hash(sig), region, (c) => {
-      pen.shadowX = f.shadow[0]
-      pen.shadowY = f.shadow[1]
       drawBelts(c, baked)
       drawHedges(c, hedges)
       for (const tab of tabs) {
@@ -884,7 +830,6 @@ export class Renderer {
       const [X, Y] = apply(f.V, p.x, p.y)
       if (f.bounce?.kind === 'slot' && f.bounce.slot === x) {
         ctx.setTransform(f.k, 0, 0, f.k, X, Y)
-        this.upright()
         drawHintRing(ctx, RING.thing, t)
         this.flying(f, THINGS[k]!, X, Y - hintLift(t) * f.k, size, Math.max(lift, hintLift(t)), this.seeds[x]!)
       } else if (live) this.flying(f, THINGS[k]!, X, Y, size, lift, this.seeds[x]!)
@@ -920,8 +865,7 @@ export class Renderer {
   private burrows(f: Frame): void {
     const { s, t } = f
     const ctx = this.ctx
-    BURROWS.forEach((site, i) => {
-      if (site.land > s.land) return
+    BURROWS.forEach((_, i) => {
       const b = s.burrows[i]!
       const paws = age(b.pawsAt, t)
       if (paws < PAWS_FOR * STEP) {
@@ -934,15 +878,12 @@ export class Renderer {
         drawPaws(ctx, memo.cells, paws)
       }
     })
-    this.upright()
     BURROWS.forEach((site, i) => {
-      if (site.land > s.land) return
       const b = s.burrows[i]!
       this.footprint(f, site.x, site.y, 2, 0)
       drawBurrow(ctx, { burrow: i, hunger: b.hunger, warnAge: since(b.warnAt, t), out: s.munchers.some((m) => m.burrow === i), friend: b.friend, pokeAge: t - this.burrowPokes[i]!, helloAge: since(b.helloAt, t) }, t)
     })
-    BURROWS.forEach((site, i) => {
-      if (site.land > s.land) return
+    BURROWS.forEach((_, i) => {
       const p = heapPoint(i)
       const bounce = f.bounce?.kind === 'heap' && f.bounce.burrow === i
       if (bounce) {
@@ -1006,7 +947,6 @@ export class Renderer {
     const { s, t } = f
     const ctx = this.ctx
     const origins = new Map<number, [number, number]>()
-    this.upright()
     const order = s.buildings.map((b) => ({ b, foot: apply(f.V, b.x + SIZE[b.kind] / 2, b.y + SIZE[b.kind] / 2)[1] + (SIZE[b.kind] / 2) * f.k })).sort((a, c) => a.foot - c.foot)
     for (const { b } of order) {
       const pic = this.buildingPic(f, b)
@@ -1029,7 +969,6 @@ export class Renderer {
   private characters(f: Frame, origins: Map<number, [number, number]>): void {
     const { s, t } = f
     const ctx = this.ctx
-    this.upright()
     const feet = s.munchers.map((m) => ({ m, at: this.muncherAt(f, m, origins) })).sort((a, b) => a.at[1] - b.at[1])
     for (const { m, at } of feet) {
       const up = f.bounce?.kind === 'muncher' && f.bounce.id === m.id ? hintLift(t) : 0
@@ -1048,10 +987,10 @@ export class Renderer {
     drawBeep(ctx, beepPicture(s.beep, t), t)
   }
 
-  /** Where a muncher's feet are drawn (device px): layout.ts muncherDrawn (out of the door its burrow's picture shows), or curled up on the roof of the building it naps on. */
+  /** Where a muncher's feet are drawn (device px): where.ts muncherPoint, or curled up on the roof of the building it naps on. */
   private muncherAt(f: Frame, m: Muncher, origins: Map<number, [number, number]>): [number, number] {
     if (m.mode !== 'nap') {
-      const p = muncherDrawn(m, f.t, f.view.turn)
+      const p = muncherPoint(m, f.t)
       return apply(f.V, p.x, p.y)
     }
     const b = f.s.buildings.find((x) => x.napper === m.id)
@@ -1111,7 +1050,6 @@ export class Renderer {
     }
     if (f.bounce?.kind === 'picture') {
       const b = f.bounce
-      this.upright()
       const [X, Y] = this.at(f, xOf(b.cell) + 0.5, yOf(b.cell) + 0.5, 0)
       drawHintRing(ctx, RING.thing, t)
       this.flying(f, b.thing, X, Y - hintLift(t) * f.k, ON_BELT * BRIDGE_SIZE, hintLift(t), b.cell)
@@ -1124,7 +1062,6 @@ export class Renderer {
       ctx.translate(ghost.x, ghost.y)
       drawFootprint(ctx, ghost.sticker, true)
       ctx.restore()
-      this.upright()
       const [X, Y] = apply(f.V, ghost.x + n / 2, ghost.y + n / 2)
       ctx.setTransform(f.k, 0, 0, f.k, X, Y)
       drawHintRing(ctx, RING.building * n, t)
@@ -1173,7 +1110,6 @@ export class Renderer {
       const [ex, ey] = apply(f.V, xOf(plan.end) + 0.5, yOf(plan.end) + 0.5)
       const at = finger === null ? { x: ex / view.dpr, y: ey / view.dpr - lift - size / 2 } : finger.touch ? { x: finger.x, y: finger.y - lift - size / 2 } : { x: finger.x + POINTER_OFF * size, y: finger.y - POINTER_OFF * size }
       if (finger?.touch === true) this.stem(f, finger, finger.y - lift)
-      this.upright()
       ctx.setTransform(f.k, 0, 0, f.k, at.x * view.dpr, at.y * view.dpr)
       drawEndSign(ctx, plan.sign, size / view.cell)
       return
@@ -1185,7 +1121,6 @@ export class Renderer {
     ctx.translate(plan.x, plan.y)
     drawFootprint(ctx, plan.sticker, plan.ok)
     ctx.restore()
-    this.upright()
     this.footprint(f, plan.x, plan.y, n, 0)
     drawBuilding(ctx, this.ghostPic(f, plan.sticker, plan.ok), t)
   }
@@ -1250,8 +1185,8 @@ export class Renderer {
   /**
    * The launch over the board as it slides down: the sky over the top it leaves, the rocket
    * from the pad to the moon, the countdown's numbers, Moony on the moon. The numbers stand
-   * beside the pad on the side away from the munchers watching (upright they sit on its
-   * right), else toward the screen's middle.
+   * beside the pad on the side away from the munchers watching, else toward the screen's
+   * middle.
    */
   private launch(f: Frame): void {
     const { s, t, view } = f
@@ -1259,12 +1194,11 @@ export class Renderer {
     const watchers = s.munchers.filter((m) => m.mode === 'watch')
     const wx = watchers.reduce((sum, m) => sum + apply(f.V0, xOf(m.cell) + 0.5, yOf(m.cell) + 0.5)[0], 0) / Math.max(1, watchers.length)
     const side = watchers.length > 0 && wx > px + f.k ? -1 : (watchers.length > 0 && wx < px - f.k) || px < (view.w * view.dpr) / 2 ? 1 : -1
-    this.upright()
     this.ctx.setTransform(f.k, 0, 0, f.k, 0, 0)
     drawLaunch(this.ctx, { age: age(s.launch!.at, t), view: { x: 0, y: 0, w: view.w / view.cell, h: view.h / view.cell }, pad: { x: px / f.k - 1.5, y: py / f.k - 1.5 }, side, flags: s.launches, pop: s.popAt < s.launch!.at ? Infinity : age(s.popAt, t) }, t)
   }
 
-  /** ?debug: every hit target where layout.ts finds it, every belt slot (filled while it holds a thing), each open burrow's hunger, and a line of numbers: the frame rate, the cell, the bakes and the particles. The one text drawn on the canvas. */
+  /** ?debug: every hit target where layout.ts finds it, every belt slot (filled while it holds a thing), each burrow's hunger, and a line of numbers: the frame rate, the cell, the bakes and the particles. The one text drawn on the canvas. */
   private overlay(f: Frame): void {
     const { s, t, view } = f
     const ctx = this.ctx
@@ -1292,7 +1226,6 @@ export class Renderer {
     ctx.font = '600 12px ui-monospace, monospace'
     ctx.textBaseline = 'top'
     BURROWS.forEach((site, i) => {
-      if (site.land > s.land) return
       const [X, Y] = apply(f.V, site.x + 1, site.y)
       const text = `${Math.round(s.burrows[i]!.hunger)}`
       ctx.fillStyle = DEBUG.panel
@@ -1374,7 +1307,6 @@ function bounceOf(s: State): Bounce | null {
     case 'place':
     case 'free':
     case 'choose':
-    case 'flap':
     case 'launch':
     case 'card':
     case 'rocket':

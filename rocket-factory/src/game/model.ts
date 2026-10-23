@@ -10,8 +10,8 @@
  * Units: 1 is one cell of the board. x runs right from 0 to COLS - 1, y runs DOWN from 0 to
  * ROWS - 1, and a cell's index is y * COLS + x. A point on the board is in cells: (x, y) is a
  * cell's top-left corner and (x + 0.5, y + 0.5) its middle. Directions are 0 east, 1 south,
- * 2 west, 3 north. The board never turns in the sim: the upright quarter turn is the view's
- * (layout.ts).
+ * 2 west, 3 north. The board never turns, and the sim never knows where the view is (the
+ * camera is layout.ts and camera.ts).
  *
  * Time: the state steps HZ times a second. Every ...At field is a tick, -1 for never. The tick
  * starts at 0 with each page load and is never saved: the save holds seconds left. Every
@@ -39,11 +39,10 @@ export const ticks = (seconds: number) => Math.round(seconds * HZ)
 /** Seconds from the tick stamp `at` to the sim time `t` (seconds); Infinity for a stamp of -1. */
 export const since = (at: number, t: number) => (at < 0 ? Infinity : t - at * STEP)
 
-/** The whole board, in cells. A land is a window of it (board.ts LANDS). */
-export const COLS = 20
-export const ROWS = 12
+/** The whole board, in cells: all of it open from the start (board.ts MAP). */
+export const COLS = 60
+export const ROWS = 36
 export const CELLS = COLS * ROWS
-export type Land = 1 | 2 | 3
 
 /** Every belt hops half a cell together every HOP ticks: three hops a second, the eighth notes of the 90 bpm band. Machines trade with belts only on a hop tick. */
 export const HOP = 20
@@ -199,7 +198,7 @@ export const PRED = 3
 // The path: what the lab and the rocket find, in order
 
 /** The milestones in order (catalog.ts PATH has what each needs and brings). bubbles and hedges are the one choice: either can come first. Append only: the save names them. */
-export const CARDS = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel'] as const
+export const CARDS = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel'] as const
 export type CardId = (typeof CARDS)[number]
 
 /** The rocket's four parts, each filled with one thing (catalog.ts PARTS). */
@@ -209,7 +208,7 @@ export type PartId = (typeof PARTS)[number]
 // ---------------------------------------------------------------------------------------
 // Munchers and burrows
 
-/** The three burrows: A in land 1, B in land 2, C in land 3 (board.ts BURROWS). */
+/** The six burrows, A to F (board.ts BURROWS; catalog.ts BURROW_WAKES says which card wakes each). */
 export interface Burrow {
   /** 0 to HUNGER_FULL (catalog.ts). Frozen while its munchers are out or it sleeps. */
   hunger: number
@@ -222,7 +221,7 @@ export interface Burrow {
   /** Its first picnic made it a friend: a heart flag. */
   friend: boolean
   visits: number
-  /** Its land opened at this tick (its munchers wave hello), or -1. */
+  /** Its card was found at this tick (its munchers wave hello), or -1. */
   helloAt: number
   /** A tap showed its paw prints at this tick (5 s), or -1. */
   pawsAt: number
@@ -395,7 +394,6 @@ export type Step =
   | { kind: 'heap'; burrow: number }
   | { kind: 'basket' }
   | { kind: 'choose' }
-  | { kind: 'flap' }
   | { kind: 'launch' }
   | { kind: 'card' }
   | { kind: 'tuck'; machine: Kind }
@@ -456,12 +454,6 @@ export interface State {
   tick: number
   /** The seed the next fresh game (Start again, Bring back) is made from; no rule draws from it. */
   rng: number
-  land: Land
-  /** The land before the last growth and when the flaps folded open: the view eases between them over GROW. -1 never. */
-  landFrom: Land
-  landAt: number
-  /** A Land! card has opened the next land's flaps for her tap (they wiggle), or 0. */
-  flap: Land | 0
   belts: Belts
   /** 0 none, 1 a hedge, 2 a stump; and when each stump was nibbled (it regrows REGROW after, once nobody stands on it). CELLS long. */
   hedge: Uint8Array
@@ -524,8 +516,7 @@ export interface State {
   /** Touches: the last one down, whether a finger is down now. A visit needs a touch in the last TOUCHED_WITHIN. */
   lastTouchAt: number
   touching: boolean
-  /** When the board last turned (upright or back), the pause menu last closed, and this session began (a return after SESSION_GAP away begins a new one). */
-  turnedAt: number
+  /** When the pause menu last closed, and this session began (a return after SESSION_GAP away begins a new one). */
   pauseClosedAt: number
   sessionAt: number
   /** The start card's Play was pressed. */
@@ -554,7 +545,7 @@ export type Action =
   | { kind: 'play' }
   /** A touch that lifted without becoming a stroke, a dig or a ghost drag: a tap on what it went down on. */
   | { kind: 'tap'; hit: Hit }
-  /** A finger went down on the land, or the last one lifted: the kind rules count touches. */
+  /** A finger went down on the board, or the last one lifted: the kind rules count touches. */
   | { kind: 'touch'; down: boolean }
   /** A finger digging a bare patch or the pond: down at once, and up. */
   | { kind: 'dig'; cell: number; down: boolean }
@@ -573,13 +564,9 @@ export type Action =
   | { kind: 'oops' }
   /** The lab card's choice: which of the two cards the lab works on first. */
   | { kind: 'choose'; card: 'bubbles' | 'hedges' }
-  /** The folded flaps of the next land, tapped open. */
-  | { kind: 'flap' }
   | { kind: 'launch' }
   /** Her tap on the card that is up closes it (the rules also close it CARD_FOR after it came, unless it waits for this tap: State.cardWaits). */
   | { kind: 'card' }
-  /** The board turned (the iPad went upright or back): a drag drops and visits wait. */
-  | { kind: 'turned' }
   /** A new session after SESSION_GAP away: the wake-up and the calm minutes. */
   | { kind: 'session' }
   /** The pause menu closed: visits wait AFTER_PAUSE. */
@@ -600,7 +587,7 @@ export type Action =
 /** What a point on the board lands on (layout.ts hitTest, in the plan's hit order: munchers first). */
 export type Hit =
   | { kind: 'none' }
-  /** Off the land: the table round it, a gutter, closed land. It never takes the board. */
+  /** Off the board: the table round it, or a gutter. It never takes the board. */
   | { kind: 'table' }
   | { kind: 'ground'; cell: number }
   /** A bare rock cell (no digger on it): a touch digs. */
@@ -621,8 +608,6 @@ export type Hit =
   | { kind: 'basket' }
   | { kind: 'beep' }
   | { kind: 'moony' }
-  /** The next land's folded flaps east, north and south of the land, whenever there is a next land: after a Land! card a tap opens them, before it a tap lifts their corner. */
-  | { kind: 'flap' }
   /** The hint's sticker ghost on the board: a tap places it there. */
   | { kind: 'spot' }
 
@@ -658,7 +643,6 @@ export type SimEvent =
   | { kind: 'partFull'; part: PartId }
   | { kind: 'card'; id: CardId }
   | { kind: 'cardClosed'; id: CardId }
-  | { kind: 'flap'; land: Land }
   /** Beep carried something (a tap on a thing, a stack, a heap, the basket) or lifted a blocker. */
   | { kind: 'carry'; thing: Thing; x: number; y: number }
   | { kind: 'warn'; burrow: number }
@@ -685,8 +669,8 @@ export type SimEvent =
   | { kind: 'count'; n: number }
   | { kind: 'liftoff' }
   | { kind: 'landed' }
-  /** A tap's answer where nothing else happens: a tree shakes, flowers sway, ground puffs, an empty belt hops, a burrow peeks, a folded flap lifts its corner before a Land! card. */
-  | { kind: 'poke'; what: 'tree' | 'flowers' | 'ground' | 'belt' | 'burrow' | 'beep' | 'moony' | 'grey' | 'flap'; x: number; y: number }
+  /** A tap's answer where nothing else happens: a tree shakes, flowers sway, ground puffs, an empty belt hops, a burrow peeks. */
+  | { kind: 'poke'; what: 'tree' | 'flowers' | 'ground' | 'belt' | 'burrow' | 'beep' | 'moony' | 'grey'; x: number; y: number }
   | { kind: 'recipe'; id: number }
   | { kind: 'tickleBusy'; id: number }
   | { kind: 'goodnight' }

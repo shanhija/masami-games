@@ -29,8 +29,7 @@ function lay(s: State, path: readonly (readonly [number, number])[], sign: strin
 }
 
 /**
- * The factory, on land 3 with every card up to Snacks! found (the lab works on the second
- * Land!): two blue diggers (one on burrow A's flowers) feeding the oven at the start, which
+ * The factory, with every card up to More! found (all three burrows awake, the lab works on Rocket!): two blue diggers (one on burrow A's flowers) feeding the oven at the start, which
  * feeds a green bottle maker; a gold digger whose oven feeds the green maker and a bowl on
  * A's flowers; the pump's bubbles into the orange bottle maker and along a line past two
  * towers by the green maker; the orange and the green bottles ride one belt into the lab. The
@@ -39,9 +38,7 @@ function lay(s: State, path: readonly (readonly [number, number])[], sign: strin
  */
 function factory(seed: number): State {
   const s = newGame(seed)
-  s.land = 3
-  s.landFrom = 3
-  s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks']
+  s.found = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more']
   s.choice = 'bubbles'
   s.patterns = 8
   s.rocket.got = [PART_INFO.legs.n, PART_INFO.body.n, PART_INFO.nose.n, 0]
@@ -98,8 +95,9 @@ function script(s: State, t: number): Action[] {
     const i = s.burrows.findIndex((b, k) => k < 2 && b.heap.some((n) => n > 0))
     if (i >= 0) out.push({ kind: 'tap', hit: { kind: 'heap', burrow: i } })
   }
-  if (at(60)) out.push({ kind: 'touch', down: true }, { kind: 'dig', cell: c(3, 1), down: true })
-  if (at(66)) out.push({ kind: 'dig', cell: c(3, 1), down: false }, { kind: 'touch', down: false })
+  // Beep digs by hand early, while the ovens still have room for a rock.
+  if (at(3)) out.push({ kind: 'touch', down: true }, { kind: 'dig', cell: c(3, 1), down: true })
+  if (at(9)) out.push({ kind: 'dig', cell: c(3, 1), down: false }, { kind: 'touch', down: false })
   if (at(200)) out.push({ kind: 'tool', tool: { kind: 'peel' } }, { kind: 'drag', cells: [c(9, 4)] }, { kind: 'release', commit: true })
   if (at(205)) out.push({ kind: 'oops' })
   if (at(300)) out.push({ kind: 'tap', hit: { kind: 'heap', burrow: 2 } }, { kind: 'launch' })
@@ -112,7 +110,7 @@ function script(s: State, t: number): Action[] {
 /** Plays the factory from tick `from` to `to` with the script, reading every action's and step's events into `ledger` and checking it on every hop tick (when given). */
 function play(s: State, to: number, ledger: Ledger | null): void {
   while (s.tick < to) {
-    if (s.tick === ticks(300)) s.found.push('land3', 'rocket', 'fuel')
+    if (s.tick === ticks(300)) s.found.push('rocket', 'fuel')
     for (const a of script(s, s.tick)) act(s, a)
     step(s)
     if (ledger !== null) {

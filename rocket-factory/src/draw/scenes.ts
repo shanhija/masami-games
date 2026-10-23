@@ -1,7 +1,7 @@
 import { rebuild } from '../game/belts'
 import { cell as layCell, put } from '../game/beltKit'
 import { PAD, cellOf } from '../game/board'
-import { viewAt } from '../game/camera'
+import { startView } from '../game/camera'
 import { NO_INSETS } from '../game/layout'
 import { HZ, STEP, inSlot, newBuilding, outSlot, overIn, ticks, type Building, type CardId, type Dir, type Hit, type Kind, type Muncher, type MuncherMode, type State, type Thing } from '../game/model'
 import { blankState } from '../game/rules'
@@ -40,11 +40,11 @@ function muncher(s: State, burrow: number, mode: MuncherMode, x: number, y: numb
 
 /** The path's cards up to and including `last`. */
 const foundTo = (last: CardId): CardId[] => {
-  const all: CardId[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'land2', 'stars', 'snacks', 'land3', 'rocket', 'fuel']
+  const all: CardId[] = ['digger', 'gold', 'science', 'gears', 'bubbles', 'hedges', 'nose', 'stars', 'snacks', 'more', 'rocket', 'fuel']
   return all.slice(0, all.indexOf(last) + 1)
 }
 
-/** Land 1 early on: the first digger feeding the oven, its bars riding to the rocket's legs, a few made. */
+/** The first factory early on: the first digger feeding the oven, its bars riding to the rocket's legs, a few made. */
 export function firstFactory(seed: number): State {
   const s = blankState(seed)
   s.tick = AT
@@ -71,7 +71,7 @@ export function firstFactory(seed: number): State {
 }
 
 /**
- * Land 3 at its busiest: diggers, ovens, the workshop, both bottle makers, the lab, the pump's
+ * The factory at its busiest: diggers, ovens, the workshop, both bottle makers, the lab, the pump's
  * long bubble line with two towers on it, a bowl on burrow C's flowers, a hedge line and a
  * stump; burrow A's visit out (one muncher on the gear line, one napping on the orange bottle
  * maker, one walking), B's sleepy face in its door, C's cap slipping and its friend's flag; a
@@ -83,9 +83,7 @@ export function busyFactory(seed: number): State {
   const s = blankState(seed)
   s.tick = AT
   s.playing = true
-  s.land = 3
-  s.landFrom = 3
-  s.found = foundTo('land3')
+  s.found = foundTo('more')
   s.patterns = 8
   const [, o1] = s.buildings as [Building, Building]
   const d1 = place(s, 'digger', 7, 2)
@@ -220,7 +218,7 @@ export function busyFactory(seed: number): State {
 /**
  * The busy factory with a fourth muncher out (one more of A's, sitting on the bar belt) and
  * the hint's hand coming to tap the one on the gear line: what the frame's speed is measured
- * on (plans/rocket-factory.md, Engineering: a full land 3 with four munchers out, under 12 ms
+ * on (plans/rocket-factory.md, Engineering: a busy factory with four munchers out, under 12 ms
  * at p95 at 4x CPU slowdown in headless Chromium).
  */
 export function fourOut(seed: number): State {
@@ -251,7 +249,7 @@ export function goodNight(seed: number): State {
   return s
 }
 
-/** The launch `seconds` after her tap: every part full, a muncher of each burrow watching from the row south of the pad, where munchers.ts seats them on land 3. */
+/** The launch `seconds` after her tap: every part full, a muncher of each burrow watching from the row south of the pad, where munchers.ts seats them. */
 export function launching(seed: number, seconds: number): State {
   const s = busyFactory(seed)
   s.found = foundTo('fuel')
@@ -267,17 +265,6 @@ export function launching(seed: number, seconds: number): State {
   return s
 }
 
-/** Land 1 opening onto land 2: the flaps folding up `seconds` into the ease, burrow B waving hello. */
-export function landOpening(seed: number, seconds: number): State {
-  const s = firstFactory(seed)
-  s.found = foundTo('land2')
-  s.landFrom = 1
-  s.land = 2
-  s.landAt = AT - Math.round(seconds * HZ)
-  s.burrows[1]!.helloAt = s.landAt
-  return s
-}
-
 /** The first factory with a stroke half drawn from the oven round toward the pad (her finger over its end), or with an oven sticker held up over free ground. */
 export function drawing(seed: number, what: 'stroke' | 'ghost'): State {
   const s = firstFactory(seed)
@@ -290,13 +277,6 @@ export function drawing(seed: number, what: 'stroke' | 'ghost'): State {
   return s
 }
 
-/** The busy factory as the iPad turns upright, `seconds` into the table's quarter turn. */
-export function turning(seed: number, seconds: number): State {
-  const s = busyFactory(seed)
-  s.turnedAt = AT - Math.round(seconds * HZ)
-  return s
-}
-
 /** The screens the scenes are drawn at, CSS px: the iPad Air sideways, the iPad, and the Air upright. */
 export const SCREENS = [
   [1180, 820],
@@ -304,20 +284,18 @@ export const SCREENS = [
   [820, 1180],
 ] as const
 
-/** Each scene: its state, the screens it shows on, the finger over it (CSS px) and what a mouse hovers, whether it loops a few seconds of the picture's own motion (bobs, breaths, the band's beat) or holds its moment (an ease, the turn, the launch, a drag), whether ?debug's overlay is on, and whether the hint's hand is drawn over it as the HUD carries it. */
+/** Each scene: its state, the screens it shows on, the finger over it (CSS px) and what a mouse hovers, whether it loops a few seconds of the picture's own motion (bobs, breaths, the band's beat) or holds its moment (the launch, a drag), whether ?debug's overlay is on, and whether the hint's hand is drawn over it as the HUD carries it. */
 const SCENES: { label: string; state: () => State; screens: readonly (readonly [number, number])[]; finger: { x: number; y: number; touch: boolean } | null; hover: Hit | null; moves: boolean; debug: boolean; hand: boolean }[] = [
-  { label: 'land 1, the first factory', state: () => firstFactory(1), screens: [SCREENS[0]], finger: null, hover: null, moves: true, debug: false, hand: false },
-  { label: 'land 3, busy', state: () => busyFactory(2), screens: SCREENS, finger: null, hover: null, moves: true, debug: false, hand: false },
-  { label: "land 3, four munchers out and the hint's hand", state: () => fourOut(12), screens: SCREENS, finger: null, hover: null, moves: true, debug: false, hand: true },
-  { label: 'land 3, Good night', state: () => goodNight(3), screens: [SCREENS[1]], finger: null, hover: null, moves: true, debug: false, hand: false },
+  { label: 'the first factory', state: () => firstFactory(1), screens: [SCREENS[0]], finger: null, hover: null, moves: true, debug: false, hand: false },
+  { label: 'busy', state: () => busyFactory(2), screens: SCREENS, finger: null, hover: null, moves: true, debug: false, hand: false },
+  { label: "four munchers out and the hint's hand", state: () => fourOut(12), screens: SCREENS, finger: null, hover: null, moves: true, debug: false, hand: true },
+  { label: 'Good night', state: () => goodNight(3), screens: [SCREENS[1]], finger: null, hover: null, moves: true, debug: false, hand: false },
   { label: 'the launch, counting down', state: () => launching(4, 6), screens: [SCREENS[1]], finger: null, hover: null, moves: false, debug: false, hand: false },
   { label: 'the launch, up in the sky', state: () => launching(5, 14), screens: [SCREENS[1]], finger: null, hover: null, moves: false, debug: false, hand: false },
-  { label: 'land 2 opening', state: () => landOpening(6, 0.8), screens: [SCREENS[1]], finger: null, hover: null, moves: false, debug: false, hand: false },
-  { label: 'the table turning upright', state: () => turning(9, 0.2), screens: [SCREENS[2]], finger: null, hover: null, moves: false, debug: false, hand: false },
   { label: 'a stroke being drawn', state: () => drawing(7, 'stroke'), screens: [SCREENS[1]], finger: { x: 430, y: 520, touch: true }, hover: null, moves: false, debug: false, hand: false },
   { label: 'an oven held up', state: () => drawing(8, 'ghost'), screens: [SCREENS[1]], finger: { x: 760, y: 420, touch: true }, hover: null, moves: false, debug: false, hand: false },
   { label: 'a mouse over the workshop', state: () => busyFactory(10), screens: [SCREENS[0]], finger: null, hover: { kind: 'building', id: 5 }, moves: true, debug: false, hand: false },
-  { label: 'land 3, busy, ?debug', state: () => busyFactory(11), screens: [SCREENS[1]], finger: null, hover: null, moves: true, debug: true, hand: false },
+  { label: 'busy, ?debug', state: () => busyFactory(11), screens: [SCREENS[1]], finger: null, hover: null, moves: true, debug: true, hand: false },
 ]
 
 /** ?sheet=scenes (with &px=1): every scene at each of its screens, as whole frames. */
@@ -343,7 +321,7 @@ export function scenes(makeCanvas: () => HTMLCanvasElement): SheetEntry[] {
           r.resize(ctx.canvas.width, ctx.canvas.height, dpr)
           // Half a step behind the state's tick, as the stage draws, and on a loop of a few seconds for a scene that moves.
           const at = (AT - 0.5) * STEP + (scene.moves ? t % 4 : 0)
-          const view = viewAt(s, at, w, h, dpr, true, NO_INSETS)
+          const view = startView(w, h, dpr, true, NO_INSETS)
           ctx.save()
           r.draw(s, at, view, [], 1 / 60, scene.finger, scene.hover)
           ctx.restore()

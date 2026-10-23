@@ -1,10 +1,10 @@
-import { LANDS, xOf, yOf } from '../game/board'
+import { xOf, yOf } from '../game/board'
 import { inputHeld } from '../game/camera'
 import { HAND_FOR, SIZE } from '../game/catalog'
 import { choiceCard } from '../game/hud'
-import { BODY, GRIP, gripLift, muncherDrawn, pictureSpot, screenBox, toScreen, type View } from '../game/layout'
+import { BODY, GRIP, gripLift, pictureSpot, screenBox, toScreen, type View } from '../game/layout'
 import { STEP, since, type Placeable, type State, type Sticker } from '../game/model'
-import { basketPoint, heapPoint, napSpot, stackBox, thingPoint, type Box } from '../game/where'
+import { basketPoint, heapPoint, muncherPoint, napSpot, stackBox, thingPoint, type Box } from '../game/where'
 import { drawBuilding, restingPic } from './buildings'
 import { BEEP, C, TAU, addCapsule, addCircle, addRoundRect, fill, heldAge, mix, scaled, smallEntry, smooth, stickerRim, type SheetEntry } from './look'
 import { LAUNCH_BUTTON } from './rocket'
@@ -120,12 +120,6 @@ function movesOf(s: State, t: number): Move[] | null {
     case 'choose':
       // On a phone's lab card or in the path view, while no choice card is up: a pointing finger at each, the tap hers.
       return CHOICES.map((card): Move => ({ kind: 'point', aim: button({ kind: 'choice', card }) }))
-    case 'flap': {
-      if (s.land === 3) return null
-      // The east flap's corner, the one that wiggles (land.ts drawFlapCorner).
-      const l = LANDS[s.land]
-      return tap({ kind: 'point', x: l.x1 + 1.2, y: l.y0 + 0.2, up: 0, r: 0.25 })
-    }
     case 'launch': {
       const pad = s.buildings.find((b) => b.kind === 'pad')!
       return tap({ kind: 'picture', x: pad.x, y: pad.y, n: SIZE.pad, px: LAUNCH_BUTTON.x, py: LAUNCH_BUTTON.y, r: LAUNCH_BUTTON.r })
@@ -214,7 +208,7 @@ interface HandNow {
  */
 export function handNow(s: State, t: number): HandNow | null {
   const hint = s.hint
-  if (!s.playing || hint === null || s.handN === 0 || s.handAt < hint.at || (s.card !== null && hint.step.kind !== 'card') || inputHeld(s, t)) return null
+  if (!s.playing || hint === null || s.handN === 0 || s.handAt < hint.at || (s.card !== null && hint.step.kind !== 'card') || inputHeld(s)) return null
   const age = Math.max(0, since(s.handAt, t))
   const moves = movesOf(s, t)
   if (moves === null) return null
@@ -303,7 +297,7 @@ function spotOf(s: State, view: View, t: number, aim: Aim, buttonAt: (b: HandBut
         const [x, y] = pictureSpot(view, bed.x, bed.y, SIZE[bed.kind], napSpot(bed).x, napSpot(bed).y - BODY.muncher.up)
         return { x, y, hx: r, hy: r }
       }
-      const p = muncherDrawn(m, t, view.turn)
+      const p = muncherPoint(m, t)
       const [x, y] = toScreen(view, p.x, p.y)
       return { x, y: y - (BODY.muncher.up + p.lift) * k, hx: r, hy: r }
     }

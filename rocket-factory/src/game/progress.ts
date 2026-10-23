@@ -24,7 +24,6 @@ import {
   type CardId,
   type Counts,
   type Dir,
-  type Land,
   type PartId,
   type Placeable,
   type State,
@@ -48,13 +47,14 @@ import { gives, wants, wantsUnder } from './trade'
  *
  * Reading forgives, field by field: a bad cell is ground, a bad count 0, an unknown name
  * dropped, a building that does not fit stays in the tray, and what it or a dropped belt cell
- * held waits in Beep's basket. Only text that is not a version 1 object starts fresh. Ids,
+ * held waits in Beep's basket. Only text that is not a version 2 object starts fresh. Ids,
  * letters and names are only ever added.
  */
 
-export const SAVE_KEY = 'rocket-factory'
+/** Version 2 is the big map (60 x 36 cells, no lands or flaps) and lives under its own keys: a version 1 save (the 20 x 12 board, under 'rocket-factory' and 'rocket-factory-old') is never read, written or deleted. */
+export const SAVE_KEY = 'rocket-factory-2'
 /** Start again puts the factory aside here, the last OLD_MOST of them newest first, and Bring back fetches one: a curious child who learns the hold's ring and holds it again never throws away her real factory. */
-export const OLD_KEY = 'rocket-factory-old'
+export const OLD_KEY = 'rocket-factory-2-old'
 export const OLD_MOST = 3
 
 /** Whether Start again puts factory k aside in front of the newest one already there: not when k found fewer cards and flew no more rockets, so holding the ring again on a young board never pushes her real factory out. */
@@ -96,12 +96,9 @@ export interface KeptBurrow {
 }
 
 export interface Keep {
-  v: 1
+  v: 2
   /** How far into its second the factory was, seconds from 0 to just under 1: a loaded game starts there, so every hop, every batch's end and every once-a-second rule keeps its beat. */
   second: number
-  land: Land
-  /** A Land! card opened the next land's flaps and her tap is still to come: that land, else 0. */
-  flap: Land | 0
   /** ROWS strings of COLS cells each, a space apart: '.' for no belt, else the cell's code (see CELL). */
   belts: string[]
   /** Hedges as [x, y], and stumps as [x, y, seconds until it regrows]. */
@@ -263,10 +260,8 @@ export function keepOf(s: State): Keep {
     if (s.hedge[c] === 2) stumps.push([xOf(c), yOf(c), s.stumpAt[c]! < 0 ? 0 : Math.max(0, s.stumpAt[c]! + REGROW - now) / HZ])
   }
   return {
-    v: 1,
+    v: 2,
     second: (now % HZ) / HZ,
-    land: s.land,
-    flap: s.flap,
     belts,
     hedges,
     stumps,
@@ -362,7 +357,7 @@ function readBuilding(x: unknown): KeptBuilding | null {
 
 /**
  * Reads a saved keep. Null, text that is not JSON, and JSON that is not an object with
- * `v: 1` start fresh; anything else is kept field by field (the file's header). What only
+ * `v: 2` start fresh; anything else is kept field by field (the file's header). What only
  * the board can judge (a building that no longer fits, a belt where none can be) waits for
  * stateFromKeep.
  */
@@ -370,7 +365,7 @@ export function parseKeep(text: string | null): Keep {
   return (text === null ? null : readKeep(json(text))) ?? freshKeep()
 }
 
-/** Whether `text` is a save at all, a version 1 keep: a copy brought back from a file must be one. */
+/** Whether `text` is a save at all, a version 2 keep: a copy brought back from a file must be one. */
 export const isKeep = (text: string) => readKeep(json(text)) !== null
 
 /** The factories Start again put aside (OLD_KEY), newest first and at most OLD_MOST: a list of keeps, or the one keep an older save held there. Anything that is not a keep is left out. */
@@ -394,11 +389,10 @@ function json(text: string): unknown {
   }
 }
 
-/** A keep read field by field from JSON (the file's header), or null when it is not an object with `v: 1`. */
+/** A keep read field by field from JSON (the file's header), or null when it is not an object with `v: 2`. */
 function readKeep(data: unknown): Keep | null {
-  if (!isObject(data) || data.v !== 1) return null
+  if (!isObject(data) || data.v !== 2) return null
   const fresh = freshKeep()
-  const land = oneOf<Land>([1, 2, 3], data.land, 1)
   const found: CardId[] = []
   for (const id of array(data.found)) if ((CARDS as readonly unknown[]).includes(id) && !found.includes(id as CardId)) found.push(id as CardId)
   const rows = array(data.belts)
@@ -445,12 +439,9 @@ function readKeep(data: unknown): Keep | null {
   if (isObject(help.links)) for (const [k, n] of Object.entries(help.links)) if (isCount(n)) links[k] = n
   const placed = isObject(help.placed) ? help.placed : {}
   const sw = isObject(data.switches) ? data.switches : {}
-  const flap = oneOf<Land | 0>([0, 2, 3], data.flap, 0)
   return {
-    v: 1,
+    v: 2,
     second: seconds(data.second, 1 - 1 / HZ) ?? 0,
-    land,
-    flap: flap === land + 1 ? flap : 0,
     belts,
     hedges,
     stumps,
@@ -498,7 +489,7 @@ function holds(s: State, b: Building, thing: Thing): boolean {
 /**
  * A game from a keep, at a tick of its own (LOAD_AT and the keep's second): blankState, then
  * the keep applied and judged against the board by the stroke table's own rules (strokes.ts):
- * a belt cell where no stroke goes (blocked: closed land, water, a tree, a burrow, the basket)
+ * a belt cell where no stroke goes (blocked: water, a tree, a burrow, the basket)
  * or under a machine or the pad is ground, both cells of a head-on pair too (headOn), and a
  * fork left with no branch or leading into a join is a plain belt (settleForks); a building
  * goes back on the board only where its sticker could be placed now (planPlace), within the
@@ -511,8 +502,6 @@ export function stateFromKeep(k: Keep, seed: number): State {
   const now = (s.tick = LOAD_AT + Math.round(k.second * HZ))
   const at = (ago: number) => now - Math.round(ago * HZ)
   s.sessionAt = now
-  s.land = s.landFrom = k.land
-  s.flap = k.flap
   s.found = [...k.found]
   s.choice = k.choice
   s.launches = k.launches

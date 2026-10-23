@@ -1,4 +1,4 @@
-import { BURROWS, cellOf, inLand } from './board'
+import { BURROWS, cellOf } from './board'
 import { PureChild } from './child'
 import { NIGHT_CARD } from './hud'
 import { CARDS, ticks, type SimEvent, type State } from './model'
@@ -9,8 +9,8 @@ import { act, cloneState, launchReady, newGame } from './rules'
  * see, reached the way a child gets there. A careful eager child (child.ts PureChild) plays a
  * seed's game on the pure sim from its start card, and most demos are that game at a moment as
  * it passed it: the first factory, each card as it flips up, a muncher sitting, napping and at
- * a picnic, land 2 folding open, the full land 3, the rocket ready, the countdown, the morning
- * after the launch.
+ * a picnic, the busy factory a minute after Rocket!, the rocket ready, the countdown, the
+ * morning after the launch.
  * The others branch off it with what a child or a parent does there through rules.act, then
  * the child plays on to the moment: hedges round burrow B (its munchers nibble out), the Polite
  * switch, a bubble line with the two towers of Bubbles! by the green bottle belt (the towers
@@ -29,10 +29,10 @@ export const DEMOS = [
   'card-gears',
   'card-bubbles',
   'card-hedges',
-  'card-land2',
+  'card-nose',
   'card-stars',
   'card-snacks',
-  'card-land3',
+  'card-more',
   'card-rocket',
   'card-fuel',
   'sitting',
@@ -41,8 +41,7 @@ export const DEMOS = [
   'picnic',
   'polite',
   'towers',
-  'land2',
-  'land3',
+  'busy',
   'dusk',
   'night',
   'ready',
@@ -68,9 +67,8 @@ const MAIN: Partial<Record<Moment, When>> = {
   sitting: { when: doing('sit'), then: 0 },
   napping: { when: doing('nap'), then: 0 },
   picnic: { when: doing('picnic'), then: 0 },
-  land2: { when: (_, events) => events.some((e) => e.kind === 'flap' && e.land === 2), then: 0 },
-  // A minute after Rocket!: every line of land 3 running, the engine opening.
-  land3: { when: (_, events) => events.some((e) => e.kind === 'card' && e.id === 'rocket'), then: 60 },
+  // A minute after Rocket!: every line running, the engine opening.
+  busy: { when: (_, events) => events.some((e) => e.kind === 'card' && e.id === 'rocket'), then: 60 },
   // Every part full and Fuel! found: the launch button bounces on the pad.
   ready: { when: (s) => launchReady(s), then: 0 },
   launch: { when: event('launch'), then: 4.5 },
@@ -81,7 +79,7 @@ for (const id of CARDS) MAIN[`card-${id}`] = { when: (_, events) => events.some(
 /** Plays on with the careful child until a moment: `when`, then `then` seconds more. */
 type PlayOn = (moment: When) => void
 
-/** Burrow B walled in all round: a hedge line along each side of its mound in the open land (closed land walls the rest), each drawn with the hedge as her finger draws it. Its munchers can only nibble their way out. */
+/** Burrow B walled in all round: a hedge line along each side of its mound, each drawn with the hedge as her finger draws it. Its munchers can only nibble their way out. */
 function wallB(s: State): void {
   const b = BURROWS[1]!
   const sides = [
@@ -89,7 +87,7 @@ function wallB(s: State): void {
     [[b.x + 2, b.y], [b.x + 2, b.y + 1]],
     [[b.x + 1, b.y + 2], [b.x, b.y + 2]],
     [[b.x - 1, b.y + 1], [b.x - 1, b.y]],
-  ].filter((side) => side.every(([x, y]) => inLand(s.land, x!, y!)))
+  ]
   for (const side of sides) {
     const cells = side.map(([x, y]) => cellOf(x!, y!))
     if (s.tool.kind !== 'hedge') act(s, { kind: 'tool', tool: { kind: 'hedge' } })
@@ -99,9 +97,9 @@ function wallB(s: State): void {
   }
 }
 
-/** The bubble line from the pump (0, 8) north and round to the green bottle belt's side, bridging the pad's bar belt, and the two towers of Bubbles! on its last cells: in reach of every cell munchers sit on along that belt. */
-const BUBBLE_LINE: readonly (readonly [number, number])[] = [[1, 8], [1, 7], [2, 7], [3, 7], [4, 7], [4, 6], [4, 5], [4, 4], [5, 4], [6, 4]]
-const TOWERS: readonly (readonly [number, number])[] = [[5, 4], [6, 4]]
+/** The bubble line from the pump (0, 8) north and along row 4, bridging the blue rock belt, to the tower beside burrow A's door, and the two towers of Bubbles! on its last cells (the hint's own, the blueprint's tower1 and tower2): in reach of A's munchers at its door and on the way to the factory. */
+const BUBBLE_LINE: readonly (readonly [number, number])[] = [[1, 8], [1, 7], [2, 7], [3, 7], [4, 7], [4, 6], [4, 5], [4, 4], [5, 4], [6, 4], [7, 4], [8, 4], [9, 4]]
+const TOWERS: readonly (readonly [number, number])[] = [[8, 4], [9, 4]]
 function bubbleLine(s: State): void {
   if (!s.buildings.some((b) => b.kind === 'pump' && b.x === 0 && b.y === 8)) throw new Error('demo: the pump is not at its spot by the pond')
   if (s.tool.kind !== 'pencil') act(s, { kind: 'tool', tool: { kind: 'pencil' } })
@@ -120,7 +118,7 @@ function bubbleLine(s: State): void {
 /** The demos that branch off a moment of the careful child's game: what is done there, through rules.act, and playing on (PlayOn) to their own moment. */
 const BRANCHES: Partial<Record<Moment, { from: Moment; go: (s: State, play: PlayOn) => void }>> = {
   nibbling: {
-    from: 'land2',
+    from: 'card-nose',
     go: (s, play) => {
       wallB(s)
       play({ when: doing('nibble'), then: 0 })
