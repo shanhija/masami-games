@@ -1,4 +1,4 @@
-import { ROWS, TILE, type BlockDef, type Cell, type Gap, type Gift, type Room, type RoomDef, type Spawn, type TileCode } from './model'
+import { ROWS, TILE, type BlockDef, type Cell, type Gap, type Gift, type Ground, type Room, type RoomDef, type Spawn, type TileCode } from './model'
 
 /**
  * Turns a room's map into the parsed Room the sim and the picture share. A map is ROWS
@@ -105,13 +105,13 @@ export function parseRoom(def: RoomDef): Room {
 }
 
 /** The static tile at (col, row): left and right of the room is ground (a wall), above and below is air. */
-export function tileAt(room: Room, col: number, row: number): number {
+export function tileAt(room: Ground, col: number, row: number): number {
   if (col < 0 || col >= room.cols) return TILE.ground
   if (row < 0 || row >= ROWS) return TILE.air
   return room.tiles[row * room.cols + col]!
 }
 
 /** The index into room.gaps of the gap holding column `col`, or -1. */
-export function gapAt(room: Room, col: number): number {
+export function gapAt(room: Ground, col: number): number {
   return room.gaps.findIndex((g) => col >= g.col0 && col < g.col1)
 }

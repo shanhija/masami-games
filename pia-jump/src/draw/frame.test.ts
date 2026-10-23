@@ -11,8 +11,9 @@ import { ROOMS } from '../game/levels'
 import { ROWS, type EventKind, type Phase, type Room, type SimEvent } from '../game/model'
 import { parseRoom } from '../game/room'
 import { createSim } from '../game/sim'
+import { Camera } from './camera'
 import { Effects } from './effects'
-import { Camera, Renderer, type Scene } from './frame'
+import { Renderer, type Scene } from './frame'
 import { pen, type View } from './look'
 
 /** A 2D context that draws nothing, throws on a number that is not finite, and counts what was called and how deep the saves go. */

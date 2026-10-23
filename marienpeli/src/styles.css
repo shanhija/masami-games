@@ -1,0 +1,527 @@
+/* Super Me's HUD: few words and big ones, white with an ink outline like the canvas art, cream cards with an ink border, pink for the one thing to press. The closet's own styles are in closet.css. */
+
+:root {
+  --ink: #3b2245;
+  --paper: #fff6fb;
+  --pink: #ff6fae;
+  --pink-deep: #c2477f;
+  --pressed: #ffb3d6;
+  --shadow: rgba(59, 34, 69, 0.35);
+  --gold: #ffd447;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* No selecting, no long-press callout, no grey flash on a tap, no pinch or pull: the page is the game. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+/* Everything over the picture. Nothing here takes a pointer except the buttons and the thumbs' zones. */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  font-weight: 600;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 6px var(--ink);
+  text-shadow: 0 4px 0 var(--shadow);
+}
+
+.hud button {
+  pointer-events: auto;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  border: 0;
+  margin: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hud .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.oops {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 24px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 18px ui-monospace, monospace;
+  white-space: pre-wrap;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.picture {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Round corner buttons: the pause in a level, the switches on the map. */
+.corner {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  gap: 10px;
+}
+
+.hud button.round {
+  width: 56px;
+  height: 56px;
+  padding: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 var(--shadow);
+}
+
+.hud button.round.more {
+  width: auto;
+  padding: 0 16px;
+  border-radius: 28px;
+  font-size: 20px;
+}
+
+.hud button.round:active,
+.hud button.slot:active,
+.hud button.level:active .face,
+.hud button.dress:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--shadow);
+}
+
+/* The map: the title, five level cards, the big Dress up button. */
+.map {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+  pointer-events: none;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(40px, 9vh, 84px);
+  letter-spacing: 1px;
+}
+
+.cards {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.hud button.level {
+  background: none;
+  padding: 0;
+}
+
+.level .face {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: clamp(120px, 16vw, 180px);
+  padding: 14px 8px;
+  border: 4px solid var(--ink);
+  border-radius: 22px;
+  box-shadow: 0 6px 0 var(--shadow);
+}
+
+.level .name {
+  font-size: clamp(20px, 3.2vh, 28px);
+  color: var(--ink);
+}
+
+.level.next .face {
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+.level.locked .face > :not(.lock) {
+  opacity: 0.35;
+}
+
+.level .lock {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  transform: translate(-50%, -40%);
+}
+
+.presents {
+  display: flex;
+  gap: 6px;
+}
+
+.presents .present {
+  width: 34px;
+  height: 34px;
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
+.presents .present.got {
+  opacity: 1;
+  filter: none;
+}
+
+.presents.top {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: max(14px, env(safe-area-inset-left));
+}
+
+.presents.top .present {
+  width: 52px;
+  height: 52px;
+}
+
+.presents.top .present.got {
+  animation: pop 0.5s ease-out;
+}
+
+.presents.big .present {
+  width: 64px;
+  height: 64px;
+  opacity: 1;
+  filter: none;
+}
+
+.hud button.dress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 28px 8px 8px;
+  border: 4px solid var(--ink);
+  border-radius: 999px;
+  background: var(--pink);
+  color: #fff;
+  font-size: clamp(24px, 4vh, 34px);
+  box-shadow: 0 6px 0 var(--shadow);
+}
+
+.dress .me {
+  width: clamp(64px, 12vh, 110px);
+  height: clamp(64px, 12vh, 110px);
+  border-radius: 50%;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+}
+
+.hud button.fresh {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ink);
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.hud button.fresh.holding {
+  background: linear-gradient(90deg, var(--pressed) 0 100%, transparent 0) no-repeat, rgba(255, 255, 255, 0.85);
+  animation: fill 3s linear forwards;
+}
+
+/* In a level: the tray of blocks along the bottom. */
+.tray {
+  position: absolute;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+}
+
+.hud button.slot {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  padding: 8px;
+  border-radius: 20px;
+  background: #fff;
+  border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 var(--shadow);
+}
+
+.hud button.slot.chosen {
+  background: var(--pressed);
+  outline: 5px solid var(--pink);
+  transform: translateY(-6px);
+}
+
+.slot .count {
+  position: absolute;
+  right: -10px;
+  top: -10px;
+  min-width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background: var(--gold);
+  border: 3px solid var(--ink);
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 25px;
+  animation: pop 0.35s ease-out;
+}
+
+/* Cards over the level: the start card, a present's card, the pause menu. */
+.card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 34px;
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  border-radius: 28px;
+  box-shadow: 0 8px 0 var(--shadow);
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  animation: cardIn 0.3s ease-out;
+}
+
+.card h1,
+.card p {
+  margin: 0;
+  font-size: clamp(24px, 5vh, 40px);
+}
+
+.card.gift .pic {
+  width: clamp(140px, 30vh, 240px);
+  height: clamp(140px, 30vh, 240px);
+}
+
+.dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 34, 69, 0.45);
+  pointer-events: auto;
+}
+
+.card.menu {
+  pointer-events: auto;
+}
+
+.card.menu button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 3px solid var(--ink);
+  border-radius: 20px;
+  box-shadow: 0 4px 0 var(--shadow);
+  font-size: 22px;
+}
+
+.card.menu button .icon {
+  width: 28px;
+  height: 28px;
+}
+
+.hud button.primary {
+  width: 100%;
+  padding: 14px 24px;
+  background: var(--pink);
+  color: #fff;
+  font-size: 30px;
+}
+
+.hud button.secondary {
+  padding: 10px 16px;
+  background: #fff;
+}
+
+.menu .pair,
+.menu .row {
+  display: flex;
+  gap: 10px;
+}
+
+.hud button.small {
+  width: 52px;
+  height: 52px;
+  padding: 10px;
+  background: #fff;
+}
+
+.hud button.small.off {
+  opacity: 0.5;
+}
+
+/* The thumbs: see-through outlines, the zones invisible. */
+.controls .zone {
+  position: absolute;
+  bottom: 0;
+  top: 90px;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.controls .zone.steer {
+  left: 40px;
+  width: calc(40% - 40px);
+}
+
+.controls .zone.leap {
+  right: 0;
+  width: 50%;
+}
+
+.controls .pad {
+  position: absolute;
+  left: max(24px, env(safe-area-inset-left));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 8px;
+}
+
+.controls .half,
+.controls .jump {
+  width: 76px;
+  height: 76px;
+  padding: 16px;
+  border: 4px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  color: rgba(255, 255, 255, 0.9);
+  box-sizing: border-box;
+}
+
+.controls .jump {
+  position: absolute;
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  width: 96px;
+  height: 96px;
+  padding: 22px;
+}
+
+.controls .on {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.controls .learn {
+  animation: learn 1.2s ease-in-out infinite;
+}
+
+.hud .controls button.build {
+  position: absolute;
+  right: max(34px, env(safe-area-inset-right));
+  bottom: calc(max(24px, env(safe-area-inset-bottom)) + 112px);
+  width: 76px;
+  height: 76px;
+  padding: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  border: 4px solid var(--ink);
+  pointer-events: auto;
+}
+
+.hud .controls button.build.empty {
+  opacity: 0.4;
+}
+
+@media (max-height: 500px) {
+  .hud button.slot {
+    width: 56px;
+    height: 56px;
+  }
+
+  .controls .jump {
+    width: 80px;
+    height: 80px;
+  }
+
+  .hud .controls button.build {
+    width: 62px;
+    height: 62px;
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 92px);
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.4);
+  }
+  70% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes breathe {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes learn {
+  50% {
+    transform: scale(1.12);
+    background: rgba(255, 255, 255, 0.45);
+  }
+}
+
+@keyframes cardIn {
+  from {
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0;
+  }
+}
+
+@keyframes fill {
+  from {
+    background-size: 0% 100%, auto;
+  }
+  to {
+    background-size: 100% 100%, auto;
+  }
+}

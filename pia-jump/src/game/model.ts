@@ -119,6 +119,9 @@ export interface Room {
   gaps: readonly Gap[]
 }
 
+/** The part of a room the world art reads (world.ts): what another game's levels hand it to draw these same places. */
+export type Ground = Pick<Room, 'id' | 'cols' | 'tiles' | 'letters' | 'floor' | 'gaps'>
+
 // ---------------------------------------------------------------------------------------
 // The sim: everything that changes. Flat objects only.
 

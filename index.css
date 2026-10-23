@@ -98,6 +98,10 @@ h1 {
   background: #9fe3cf;
 }
 
+.game.super-me {
+  background: #ffd9a8;
+}
+
 .game:hover {
   transform: translateY(-6px);
   box-shadow: 0 16px 0 rgba(42, 47, 69, 0.35);

@@ -1,4 +1,4 @@
-import { ROWS, TILE, type Gap, type Room, type RoomId } from '../game/model'
+import { ROWS, TILE, type Gap, type Ground, type RoomId } from '../game/model'
 import { tileAt } from '../game/room'
 import { COLOR, INK, LINE, LINE_DETAIL, LINE_EDGE, SHADE_BLOCK, inkPart, lw, pen, roundRectPath, sparklePath, type View } from './look'
 
@@ -278,10 +278,10 @@ interface GroundTile {
 }
 
 /** Columns and shelves, found once per room (the stage bakes a room in many chunks). */
-const piecesCache = new WeakMap<Room, { columns: Column[]; shelves: Shelf[] }>()
+const piecesCache = new WeakMap<Ground, { columns: Column[]; shelves: Shelf[] }>()
 
 /** The room's columns and shelves as whole pieces, so a piece is drawn whole by every chunk that shows a part of it. */
-function pieces(room: Room) {
+function pieces(room: Ground) {
   const known = piecesCache.get(room)
   if (known) return known
   const columns: Column[] = []
@@ -317,7 +317,7 @@ function pieces(room: Room) {
 }
 
 /** Ground for the ground's outline: left and right of the room is wall, and below it the bottom row goes on. ABC blocks and columns stand on the ground with their own outlines, so the grass runs on under them. */
-const groundAt = (room: Room, col: number, row: number) => tileAt(room, col, Math.min(row, ROWS - 1)) === TILE.ground
+const groundAt = (room: Ground, col: number, row: number) => tileAt(room, col, Math.min(row, ROWS - 1)) === TILE.ground
 
 /** The rounded corners of a ground tile: an outer corner is where two exposed sides meet. */
 function corners(g: GroundTile) {
@@ -389,7 +389,7 @@ function bandPath(ctx: CanvasRenderingContext2D, x: number, y: number, dy: numbe
  * the origin. It is baked into chunk canvases, so it draws only what never changes, and
  * nothing it draws for a cell reaches more than half a tile past that cell.
  */
-export function drawTerrain(ctx: CanvasRenderingContext2D, room: Room, col0: number, col1: number): void {
+export function drawTerrain(ctx: CanvasRenderingContext2D, room: Ground, col0: number, col1: number): void {
   const look = ROOM_LOOK[room.id]
   const from = Math.max(0, col0)
   const to = Math.min(room.cols, col1)
@@ -436,7 +436,7 @@ export function drawTerrain(ctx: CanvasRenderingContext2D, room: Room, col0: num
 }
 
 /** The ground as one shape: shade, the lit face lifted over it, the room's marks, the band along every exposed top, then the ink on exposed sides. */
-function drawGround(ctx: CanvasRenderingContext2D, room: Room, look: RoomLook, ground: readonly GroundTile[]) {
+function drawGround(ctx: CanvasRenderingContext2D, room: Ground, look: RoomLook, ground: readonly GroundTile[]) {
   const outline = () => {
     ctx.beginPath()
     for (const g of ground) groundPath(ctx, g)
@@ -489,7 +489,7 @@ function drawGround(ctx: CanvasRenderingContext2D, room: Room, look: RoomLook, g
 }
 
 /** What each room's ground shows on its face, over the fill and under the band, clipped to the ground. */
-const MARKS: Record<RoomId, (ctx: CanvasRenderingContext2D, look: RoomLook, ground: readonly GroundTile[], room: Room) => void> = {
+const MARKS: Record<RoomId, (ctx: CanvasRenderingContext2D, look: RoomLook, ground: readonly GroundTile[], room: Ground) => void> = {
   // Pebbles in the soil.
   garden: (ctx, look, ground) => {
     ctx.beginPath()
@@ -590,7 +590,7 @@ const MARKS: Record<RoomId, (ctx: CanvasRenderingContext2D, look: RoomLook, grou
 }
 
 /** ABC blocks: toy blocks in four colours, each with a white inset square and its letter, crisp in device pixels. */
-function drawAbc(ctx: CanvasRenderingContext2D, room: Room, abc: readonly { col: number; row: number }[]) {
+function drawAbc(ctx: CanvasRenderingContext2D, room: Ground, abc: readonly { col: number; row: number }[]) {
   for (const a of abc) {
     const [lit, shade] = ABC_FACES[(a.col + a.row) % ABC_FACES.length]
     inkPart(ctx, (k) => roundRectPath(k, a.col, a.row, 1, 1, ABC_R), lit, shade, SHADE_BLOCK, LINE, null)
@@ -958,7 +958,7 @@ const PIT_DROP = 0.6
 const wave = (x: number, t: number) => WAVE_AMP * Math.sin(((x - WAVE_SPEED * t) / WAVE_LENGTH) * Math.PI * 2)
 
 /** Where a gap's surface lies: PIT_DROP under the floor top beside it, the higher-numbered (lower) of its two sides; a side past the room's edge is wall. The fall's splash (effects.ts) lands on it too. */
-export function pitSurface(room: Room, g: Gap) {
+export function pitSurface(room: Ground, g: Gap) {
   const side = (col: number) => (col >= 0 && col < room.cols ? room.floor[col] : -1)
   const top = Math.max(side(g.col0 - 1), side(g.col1))
   if (top < 0) throw new Error(`room ${room.id}: the gap at columns ${g.col0} to ${g.col1} has no floor beside it`)
@@ -1100,7 +1100,7 @@ const PIT_ART: Record<RoomId, (ctx: CanvasRenderingContext2D, look: RoomLook, g:
 }
 
 /** What lies at the bottom of every gap in the columns [col0, col1): a lily pond, sink suds, bath water, a ball pit, night air with fireflies. World units. */
-export function drawPits(ctx: CanvasRenderingContext2D, room: Room, col0: number, col1: number, t: number): void {
+export function drawPits(ctx: CanvasRenderingContext2D, room: Ground, col0: number, col1: number, t: number): void {
   const look = ROOM_LOOK[room.id]
   ctx.save()
   for (const g of room.gaps) {
@@ -1122,7 +1122,7 @@ const MID = 0.5
 let skyCache: { key: string; fill: CanvasGradient } | null = null
 
 /** The sky or wall fill: a plain colour, or a gradient made once per room and size. */
-function skyFill(ctx: CanvasRenderingContext2D, room: Room, v: View): string | CanvasGradient {
+function skyFill(ctx: CanvasRenderingContext2D, room: Ground, v: View): string | CanvasGradient {
   const [top, bottom] = ROOM_LOOK[room.id].sky
   if (top === bottom) return top
   const key = `${room.id} ${v.top} ${v.tile}`
@@ -1666,7 +1666,7 @@ function horse(ctx: CanvasRenderingContext2D, x: number, y: number, rock: number
 }
 
 /** The backdrop for the view: sky or wall, then the far and mid layers with parallax. The context is in device pixels with no transform. */
-export function drawBackdrop(ctx: CanvasRenderingContext2D, room: Room, v: View, t: number): void {
+export function drawBackdrop(ctx: CanvasRenderingContext2D, room: Ground, v: View, t: number): void {
   ctx.save()
   ctx.fillStyle = skyFill(ctx, room, v)
   ctx.fillRect(0, 0, v.width, v.height)

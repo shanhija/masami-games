@@ -1,0 +1,333 @@
+/* The closet: the person on a big stage at the left with Surprise and Play under it; at the right four group tabs, the open group's part tabs, the open part's option tiles and its colours. White cards with an ink border, pink for what is worn and for Play, gold for what is new. Sizes follow the screen's height, so an iPad and a phone held sideways both fit. */
+
+/* A doll's canvas fills whatever box the doll is given. */
+.doll {
+  position: relative;
+  display: block;
+}
+
+.doll > canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.closet {
+  --gap: clamp(6px, 1.6vh, 16px);
+  --line: clamp(2.5px, 0.45vh, 4px);
+  --round: clamp(14px, 3vh, 28px);
+  --group: clamp(44px, 12vh, 104px);
+  --part: clamp(42px, 10.5vh, 88px);
+  --tile: clamp(58px, 15.5vh, 128px);
+  --swatch: clamp(30px, 6.5vh, 54px);
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 39fr) minmax(0, 61fr);
+  gap: var(--gap);
+  padding: max(var(--gap), env(safe-area-inset-top)) max(var(--gap), env(safe-area-inset-right)) max(var(--gap), env(safe-area-inset-bottom)) max(var(--gap), env(safe-area-inset-left));
+  pointer-events: auto;
+  background:
+    radial-gradient(circle, rgba(255, 111, 174, 0.14) 0 5px, transparent 6px) 0 0 / 44px 44px,
+    var(--paper);
+}
+
+.closet svg {
+  display: block;
+  paint-order: normal;
+  overflow: visible;
+}
+
+.closet button {
+  position: relative;
+  padding: 0;
+  border: var(--line) solid var(--ink);
+  background: #fff;
+  box-shadow: 0 5px 0 var(--shadow);
+  transition: transform 0.08s;
+}
+
+.closet button:active {
+  transform: translateY(3px);
+}
+
+/* The stage. */
+.closet-stage {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: var(--line) solid var(--ink);
+  border-radius: calc(var(--round) * 1.4);
+  background: #fff;
+  box-shadow: 0 6px 0 var(--shadow);
+  overflow: hidden;
+}
+
+.closet-star {
+  flex: 1;
+  min-height: 0;
+}
+
+.closet-go {
+  display: flex;
+  gap: var(--gap);
+  padding: 0 var(--gap) calc(var(--gap) + 5px);
+}
+
+.closet .closet-go button {
+  min-width: 0;
+  height: clamp(48px, 11vh, 92px);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
+  white-space: nowrap;
+}
+
+.closet .closet-surprise {
+  flex: 1.5;
+  font-size: clamp(14px, 3.4vh, 30px);
+}
+
+.closet-surprise svg {
+  height: 64%;
+  width: auto;
+  flex: none;
+}
+
+.closet .closet-play {
+  flex: 1;
+  background: var(--pink);
+  color: #fff;
+  font-size: clamp(22px, 5.2vh, 44px);
+  -webkit-text-stroke: clamp(4px, 0.7vh, 6px) var(--ink);
+  paint-order: stroke fill;
+  box-shadow:
+    0 5px 0 var(--pink-deep),
+    0 8px 0 var(--shadow);
+}
+
+/* The closet's side: tabs, options, colours. */
+.closet-side {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+.closet-groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.closet .closet-group {
+  height: var(--group);
+  border-radius: var(--round);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: clamp(14px, 3vh, 26px);
+  line-height: 1;
+}
+
+.closet-group svg {
+  height: 56%;
+  width: auto;
+}
+
+.closet .open {
+  background: var(--pressed);
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 var(--shadow);
+}
+
+.closet-parts {
+  display: flex;
+  gap: var(--gap);
+  padding-top: 4px;
+}
+
+.closet .closet-part {
+  flex: none;
+  width: var(--part);
+  height: var(--part);
+  border-radius: 50%;
+}
+
+.closet-part-doll {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.closet-options {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  touch-action: pan-y;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--gap);
+  padding: 8px 8px 12px;
+}
+
+.closet .closet-tile {
+  flex: none;
+  width: var(--tile);
+  height: var(--tile);
+  border-radius: calc(var(--round) * 0.9);
+}
+
+.closet-tile-doll {
+  position: absolute;
+  inset: 4px;
+  border-radius: calc(var(--round) * 0.6);
+  overflow: hidden;
+}
+
+/* What the person wears: a pink ring. */
+.closet .closet-tile.worn,
+.closet .closet-swatch.worn {
+  box-shadow:
+    0 0 0 calc(var(--line) * 1.8) var(--pink),
+    0 5px 0 var(--shadow);
+}
+
+.closet .closet-tile.worn {
+  background: #ffe8f3;
+}
+
+/* A present still hidden in a level: wrapped up, and a wobble when tapped. */
+.closet .closet-tile.locked {
+  background: #f1e8ff;
+}
+
+.closet-tile.locked svg {
+  position: absolute;
+  inset: 14%;
+  width: 72%;
+  height: 72%;
+}
+
+.closet .closet-tile.wobble {
+  animation: closet-wobble 0.6s ease-in-out;
+}
+
+/* A present just found: two gold sparkles twinkle on its tile. */
+.closet-tile.fresh::before,
+.closet-tile.fresh::after {
+  content: '';
+  position: absolute;
+  width: 30%;
+  height: 30%;
+  background: var(--gold);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  animation: closet-twinkle 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.closet-tile.fresh::before {
+  top: -12%;
+  right: -10%;
+}
+
+.closet-tile.fresh::after {
+  bottom: -8%;
+  left: -8%;
+  width: 22%;
+  height: 22%;
+  animation-delay: -0.7s;
+}
+
+/* A tab holding something new: a gold dot. */
+.closet .news::after {
+  content: '';
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: clamp(12px, 2.4vh, 20px);
+  height: clamp(12px, 2.4vh, 20px);
+  border-radius: 50%;
+  background: var(--gold);
+  border: var(--line) solid var(--ink);
+  animation: closet-pulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.closet-colours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--gap) * 0.8);
+  padding: 4px 8px 8px;
+}
+
+.closet .closet-swatch {
+  flex: none;
+  width: var(--swatch);
+  height: var(--swatch);
+  border-radius: 50%;
+}
+
+/* A phone held sideways: the group tabs put their word beside the picture. */
+@media (max-height: 520px) {
+  .closet .closet-group {
+    flex-direction: row;
+    gap: 4px;
+    font-size: 15px;
+  }
+
+  .closet-group svg {
+    height: 72%;
+  }
+}
+
+@keyframes closet-wobble {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(-12deg);
+  }
+  40% {
+    transform: rotate(10deg);
+  }
+  60% {
+    transform: rotate(-7deg);
+  }
+  80% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes closet-twinkle {
+  0%,
+  100% {
+    transform: scale(0.55) rotate(0deg);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.15) rotate(45deg);
+    opacity: 1;
+  }
+}
+
+@keyframes closet-pulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+}
