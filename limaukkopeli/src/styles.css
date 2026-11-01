@@ -1,0 +1,1431 @@
+/*
+ * Slime Guy's page, its play HUD and its touch buttons: few words and big ones, white with an
+ * ink outline, cream cards with an ink border, glossy candy buttons that press down. The
+ * colours, the glyphs' paint, the pill and the round button are every HUD's; every other
+ * rule sits under .play-hud or .play-pad (the map and the wardrobe dress the rest of
+ * themselves in map.css), and the colours are the island's own where it matters (--accent).
+ */
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #cdeeff;
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* No selecting, no long-press callout, no grey flash on a tap, no pinch or pull: the page is the game. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+/* The stage owns every touch: no scroll, no pinch-zoom, no pull-to-refresh. */
+.stage {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}
+
+/* The colours of every screen, and the ink line round the map's and the wardrobe's buttons. */
+:root {
+  --ink: #2b2140;
+  --paper: #fffaf2;
+  --shadow: rgba(43, 33, 64, 0.32);
+  --gold: #ffcf3f;
+  --gold-deep: #d6961a;
+  --sparkle: #ffb81f;
+  --go: #6edc6a;
+  --go-deep: #35a348;
+  --sky: #6fc8ff;
+  --sky-deep: #3889cf;
+  --pink: #ff6f9e;
+  --unfound: #ece4ef;
+  --line: clamp(3px, 0.5vmin, 4px);
+}
+
+.play-hud,
+.play-pad,
+.oops {
+  --ink: #2b2140;
+  --paper: #fffaf2;
+  --shadow: rgba(43, 33, 64, 0.32);
+  --gold: #ffcf3f;
+  --gold-deep: #d6961a;
+  --go: #6edc6a;
+  --go-deep: #35a348;
+  --sky: #6fc8ff;
+  --sky-deep: #3889cf;
+  --pink: #ff6f9e;
+}
+
+/* ------------------------------------------------------------------ what every HUD shares */
+
+/* The HUDs' own little pictures (Hud.tsx's glyphs), the same on any screen: white shapes and lines with an ink edge. */
+.glyph .solid {
+  fill: #fff;
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.glyph .under {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.glyph .over {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.glyph .pink {
+  fill: var(--pink);
+}
+
+.glyph .gold,
+.glyph .star {
+  fill: var(--gold);
+}
+
+.glyph .sky {
+  fill: var(--sky);
+}
+
+.glyph .green {
+  fill: var(--go);
+}
+
+.glyph .paper {
+  fill: #fff3c4;
+}
+
+.glyph .ink {
+  fill: var(--ink);
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.glyph .fold {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+
+.glyph .trail {
+  fill: none;
+  stroke: var(--pink);
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 6;
+}
+
+/*
+ * The pill and the round button. A lone class would lose to each HUD's own rule for all its
+ * buttons (.play-hud button, .map-hud button), so these sit under the HUDs: they win over
+ * those, and a HUD's own rule for one button still wins over them, to give it its size.
+ */
+
+/* The big glossy pill of Go!, Again! and Map in --face, standing on an edge of --deep --drop tall, its words white with an ink edge. A press sinks it onto its edge. */
+:is(.play-hud, .map-hud, .ward) .pill {
+  --drop: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28em;
+  padding: 0.16em 0.85em 0.22em;
+  border: 6px solid var(--ink);
+  border-radius: 999px;
+  font-size: clamp(32px, 7.4vmin, 76px);
+  line-height: 1.05;
+  white-space: nowrap;
+  color: #fff;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 7px var(--ink);
+  text-shadow: none;
+  background: var(--face);
+  box-shadow:
+    0 var(--drop) 0 var(--deep),
+    inset 0 -0.16em 0 rgba(0, 0, 0, 0.1),
+    inset 0 0.12em 0 rgba(255, 255, 255, 0.5);
+}
+
+:is(.play-hud, .map-hud, .ward) .pill:active {
+  translate: 0 calc(var(--drop) - 3px);
+  transform: none;
+  box-shadow:
+    0 3px 0 var(--deep),
+    inset 0 -0.16em 0 rgba(0, 0, 0, 0.1),
+    inset 0 0.12em 0 rgba(255, 255, 255, 0.5);
+}
+
+:is(.play-hud, .map-hud, .ward) .pill .glyph {
+  width: 0.95em;
+  height: 0.95em;
+}
+
+/* The round button with a picture in the middle (pause, sound, More games): white and a little see-through, in an ink ring. */
+:is(.play-hud, .map-hud, .ward) .round {
+  width: 58px;
+  height: 58px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  padding: 0;
+  border: 4px solid var(--ink);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 5px 0 var(--shadow);
+}
+
+:is(.play-hud, .map-hud, .ward) .round:active {
+  translate: 0 4px;
+  transform: none;
+  box-shadow: 0 1px 0 var(--shadow);
+}
+
+:is(.play-hud, .map-hud, .ward) .round svg {
+  width: 60%;
+  height: 60%;
+}
+
+/* ------------------------------------------------------------------ the play HUD */
+
+/* Everything over a run. Nothing here takes a finger except the buttons and the pause menu. */
+.play-hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  font-weight: 700;
+  line-height: 1;
+  /* Every glyph wears a dark border, so the few words read over sky, water and track alike. */
+  paint-order: stroke fill;
+  -webkit-text-stroke: 6px var(--ink);
+  text-shadow: 0 4px 0 var(--shadow);
+}
+
+.play-hud button {
+  pointer-events: auto;
+  font: inherit;
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.play-hud svg {
+  display: block;
+  overflow: visible;
+}
+
+/* The HUD's own little pictures: white shapes and lines with an ink edge. */
+.play-hud .glyph .solid {
+  fill: #fff;
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.play-hud .glyph .under {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.play-hud .glyph .over {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.play-hud .glyph .pink {
+  fill: var(--pink);
+}
+
+.play-hud .glyph .gold,
+.play-hud .glyph .star {
+  fill: var(--gold);
+}
+
+.play-hud .glyph .sky {
+  fill: var(--sky);
+}
+
+.play-hud .glyph .green {
+  fill: var(--go);
+}
+
+.play-hud .glyph .paper {
+  fill: #fff3c4;
+}
+
+.play-hud .glyph .ink {
+  fill: var(--ink);
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+
+.play-hud .glyph .fold {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+
+.play-hud .glyph .trail {
+  fill: none;
+  stroke: var(--pink);
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-dasharray: 0.1 6;
+}
+
+/* ------------------------------------------------------------------ the top: key and babies, the way to the flag, pause and sound */
+
+.play-hud .bar {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  left: calc(12px + env(safe-area-inset-left));
+  right: calc(12px + env(safe-area-inset-right));
+  display: grid;
+  /* The middle stays in the middle while the sides fit, and moves over rather than under them when they do not. */
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  grid-template-areas: 'pockets middle corner';
+  align-items: center;
+  gap: 12px;
+}
+
+.play-hud .pockets {
+  grid-area: pockets;
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 4px solid var(--ink);
+  box-shadow: 0 4px 0 var(--shadow);
+}
+
+.play-hud .babies {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* The key flies into its slot and glows. */
+.play-hud .key.got {
+  animation: got 0.7s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+  filter: drop-shadow(0 0 6px rgba(255, 207, 63, 0.95));
+}
+
+/* A baby found pops into its place. */
+.play-hud .baby.found {
+  animation: found 0.55s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+}
+
+.play-hud .baby.cheer {
+  animation: cheer 0.5s ease-in-out infinite alternate;
+}
+
+/* The little slime sits centred on its place on the line, so at the start half of it hangs out to the left: the padding keeps that clear of the pocket. */
+.play-hud .line {
+  grid-area: middle;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(40vw, 480px);
+  padding-left: 26px;
+  box-sizing: border-box;
+}
+
+.play-hud .line .track {
+  position: relative;
+  flex: 1;
+  height: 20px;
+  box-sizing: border-box;
+  border: 4px solid var(--ink);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 4px 0 var(--shadow);
+}
+
+.play-hud .line .fill {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+
+.play-hud .line .pip {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: #fff;
+}
+
+.play-hud .line .pip.lit {
+  background: var(--gold);
+}
+
+.play-hud .line .runner {
+  position: absolute;
+  inset: 0;
+}
+
+.play-hud .line .me {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-50%, -58%);
+  filter: drop-shadow(0 3px 0 var(--shadow));
+  visibility: hidden;
+}
+
+/* The little slime on the line copies the big one: standing, flat while hidden, up in the air. */
+.play-hud .runner[data-pose='stand'] .me.stand,
+.play-hud .runner[data-pose='hide'] .me.hide,
+.play-hud .runner[data-pose='jump'] .me.jump {
+  visibility: visible;
+}
+
+.play-hud .runner[data-pose='jump'] .me.jump {
+  transform: translate(-50%, -78%);
+}
+
+.play-hud .line .goal {
+  flex: none;
+  filter: drop-shadow(0 3px 0 var(--shadow));
+}
+
+/* On the done card the line gives its place to what the box gave, popping in as the big prize flies up. */
+.play-hud .banner {
+  grid-area: middle;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 20px 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 4px solid var(--ink);
+  box-shadow: 0 4px 0 var(--shadow);
+  animation: bannerIn 0.5s 1.75s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.play-hud .banner .pic {
+  position: relative;
+}
+
+.play-hud .banner .spark {
+  position: absolute;
+  right: -14%;
+  top: -16%;
+  animation: twinkle 0.7s ease-in-out infinite alternate;
+}
+
+.play-hud .banner .says {
+  font-size: clamp(24px, 5.2vmin, 50px);
+  white-space: nowrap;
+  color: var(--gold);
+  -webkit-text-stroke: 7px var(--ink);
+}
+
+/* Up the tower the line gives its place to the stars, which bounce at every pop. */
+.play-hud .stars {
+  grid-area: middle;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: clamp(36px, 7.6vmin, 64px);
+}
+
+.play-hud .stars .count {
+  display: inline-block;
+  min-width: 1.2em;
+  animation: bump 0.45s cubic-bezier(0.2, 1.8, 0.4, 1) both;
+}
+
+.play-hud .corner {
+  grid-area: corner;
+  justify-self: end;
+  display: flex;
+  gap: 10px;
+}
+
+.play-hud button.round {
+  width: 58px;
+  height: 58px;
+  padding: 10px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.84);
+  border: 4px solid var(--ink);
+  box-shadow: 0 5px 0 var(--shadow);
+}
+
+.play-hud button.round:active {
+  translate: 0 4px;
+  box-shadow: 0 1px 0 var(--shadow);
+}
+
+.play-hud button.round .glyph {
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ the shouts */
+
+.play-hud .shout {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  margin: 0;
+  translate: -50% -50%;
+  font-size: clamp(40px, 9.5vmin, 104px);
+  white-space: nowrap;
+  color: var(--gold);
+  -webkit-text-stroke: 9px var(--ink);
+  text-shadow: 0 6px 0 var(--shadow);
+  animation: shout 2.2s ease-out both;
+}
+
+/* "Open the box!" says it while the key turns, and is gone as the lid pops. */
+.play-hud.top .shout {
+  color: var(--pink);
+  animation-duration: 1.6s;
+}
+
+/* ------------------------------------------------------------------ the big buttons */
+
+.play-hud button.big,
+.play-hud button.mid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28em;
+  padding: 0.16em 0.85em 0.22em;
+  border-radius: 999px;
+  border: 6px solid var(--ink);
+  font-size: clamp(32px, 7.4vmin, 76px);
+  line-height: 1.05;
+  white-space: nowrap;
+  color: #fff;
+  -webkit-text-stroke: 7px var(--ink);
+  background: var(--face);
+  box-shadow:
+    0 9px 0 var(--deep),
+    inset 0 -0.16em 0 rgba(0, 0, 0, 0.1),
+    inset 0 0.12em 0 rgba(255, 255, 255, 0.5);
+}
+
+.play-hud button.mid {
+  border-width: 5px;
+  font-size: clamp(24px, 5vmin, 50px);
+  -webkit-text-stroke: 6px var(--ink);
+  box-shadow:
+    0 7px 0 var(--deep),
+    inset 0 -0.16em 0 rgba(0, 0, 0, 0.1),
+    inset 0 0.12em 0 rgba(255, 255, 255, 0.5);
+}
+
+.play-hud button.big:active,
+.play-hud button.mid:active {
+  translate: 0 6px;
+  box-shadow:
+    0 3px 0 var(--deep),
+    inset 0 -0.16em 0 rgba(0, 0, 0, 0.1),
+    inset 0 0.12em 0 rgba(255, 255, 255, 0.5);
+}
+
+.play-hud button.big .glyph,
+.play-hud button.mid .glyph {
+  width: 0.95em;
+  height: 0.95em;
+}
+
+.play-hud button.go {
+  --face: var(--go);
+  --deep: var(--go-deep);
+}
+
+.play-hud button.again {
+  --face: var(--gold);
+  --deep: var(--gold-deep);
+}
+
+.play-hud button.home {
+  --face: var(--sky);
+  --deep: var(--sky-deep);
+}
+
+.play-hud button.small {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.3em 0.8em 0.34em 0.55em;
+  border-radius: 999px;
+  border: 4px solid var(--ink);
+  background: #fff;
+  box-shadow: 0 5px 0 var(--shadow);
+  font-size: clamp(16px, 2.8vmin, 26px);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.play-hud button.small .glyph {
+  width: 1.35em;
+  height: 1.35em;
+}
+
+.play-hud button.small.off {
+  background: #ece4ef;
+}
+
+.play-hud button.small:active {
+  translate: 0 4px;
+  box-shadow: 0 1px 0 var(--shadow);
+}
+
+/* ------------------------------------------------------------------ the ready card: the island's name at the top, Go at the bottom */
+
+.play-hud .card {
+  background: var(--paper);
+  border: 6px solid var(--ink);
+  border-radius: 40px;
+  box-shadow: 0 10px 0 var(--shadow);
+}
+
+.play-hud .ready {
+  position: absolute;
+  inset: 0;
+}
+
+.play-hud .ready .title {
+  position: absolute;
+  left: 50%;
+  top: calc(max(84px, 10vmin) + env(safe-area-inset-top));
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.6vmin;
+  animation: cardIn 0.45s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.play-hud .ready .start {
+  position: absolute;
+  left: 50%;
+  bottom: calc(5vmin + env(safe-area-inset-bottom));
+  translate: -50% 0;
+  animation: cardIn 0.45s 0.15s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.play-hud .ready h1 {
+  margin: 0;
+  font-size: clamp(46px, 12vmin, 128px);
+  white-space: nowrap;
+  color: var(--accent);
+  -webkit-text-stroke: 10px var(--ink);
+  text-shadow: 0 7px 0 var(--shadow);
+  rotate: -3deg;
+}
+
+/* The babies to find sit on a pill like the pocket's, so even the empty outlines read over bright water. */
+.play-hud .ready .babies {
+  gap: 1.4vmin;
+  padding: 0.6vmin 2vmin;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 4px solid var(--ink);
+  box-shadow: 0 4px 0 var(--shadow);
+}
+
+/* The babies still to find sway, waiting. */
+.play-hud .ready .baby:not(.found) {
+  animation: wait 1s ease-in-out infinite alternate;
+}
+
+.play-hud .ready button.go {
+  animation: breathe 0.85s ease-in-out infinite alternate;
+}
+
+/* ------------------------------------------------------------------ the done card: the prize pops up in the middle and flies up into the banner, the tally and the buttons wait at the bottom */
+
+.play-hud .done {
+  position: absolute;
+  inset: 0;
+}
+
+.play-hud .prize {
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  translate: -50% -50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: prizeShow 2s ease-in both;
+}
+
+.play-hud .prize .halo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  animation: prizeIn 0.8s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.play-hud .prize .rays {
+  position: absolute;
+  inset: -24%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 238, 150, 0.95) 0deg 9deg, rgba(255, 238, 150, 0) 9deg 24deg);
+  -webkit-mask-image: radial-gradient(circle, #000 28%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 28%, transparent 70%);
+  animation: spin 10s linear infinite;
+}
+
+.play-hud .prize .disc {
+  position: relative;
+  width: 78%;
+  height: 78%;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 6px solid var(--ink);
+  background: radial-gradient(circle at 38% 30%, #ffffff 0%, #fff6d2 55%, #ffe58a 100%);
+  box-shadow: 0 8px 0 var(--shadow);
+}
+
+.play-hud .prize .disc > svg {
+  animation: wobble 1.4s ease-in-out infinite alternate;
+}
+
+.play-hud .prize .spark {
+  position: absolute;
+  translate: -50% -50%;
+  animation: twinkle 0.8s ease-in-out infinite alternate;
+}
+
+.play-hud .prize .says {
+  margin: 1.6vmin 0 0;
+  font-size: clamp(34px, 8vmin, 84px);
+  white-space: nowrap;
+  color: var(--gold);
+  -webkit-text-stroke: 9px var(--ink);
+  text-shadow: 0 6px 0 var(--shadow);
+  animation: sayIn 0.55s 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.play-hud .tally {
+  position: absolute;
+  left: 50%;
+  bottom: calc(3.4vmin + env(safe-area-inset-bottom));
+  translate: -50% 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.8vmin;
+  width: max-content;
+  max-width: 96vw;
+}
+
+.play-hud .tally .badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 1.6vmin;
+}
+
+.play-hud .tally .badge {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: 0.6vmin 1.8vmin;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 4px solid var(--ink);
+  box-shadow: 0 5px 0 var(--shadow);
+  font-size: clamp(26px, 5.6vmin, 52px);
+  animation: badgeIn 0.45s cubic-bezier(0.2, 1.7, 0.4, 1) both;
+}
+
+/* A pattern the jar just opened: the slime in it, on gold, twinkling. */
+.play-hud .tally .badge.new {
+  background: #fff3c4;
+}
+
+.play-hud .tally .badge .spark {
+  position: absolute;
+  right: -10%;
+  top: -22%;
+  animation: twinkle 0.7s ease-in-out infinite alternate;
+}
+
+/* The buttons come once the card has settled, so a tap meant for the box never lands on them. */
+.play-hud .tally .buttons {
+  display: flex;
+  gap: 3vmin;
+  animation: calmIn 0.4s var(--calm) cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.play-hud .confetti,
+.play-hud .fireworks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.play-hud .confetti i {
+  position: absolute;
+  top: -40px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 2px solid rgba(43, 33, 64, 0.3);
+  animation: fall linear infinite;
+}
+
+.play-hud .fireworks .burst {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.play-hud .fireworks .burst i {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--c);
+  box-shadow: 0 0 10px var(--c);
+  opacity: 0;
+  animation: burst 1.6s var(--delay) ease-out infinite;
+}
+
+/* ------------------------------------------------------------------ the pause menu */
+
+/* It dims the run and takes every tap: one beside the buttons keeps going. */
+.play-hud .dim {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(43, 33, 64, 0.5);
+  pointer-events: auto;
+  animation: fadeIn 0.2s ease-out both;
+}
+
+.play-hud .menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.4vmin;
+  max-width: 92vw;
+  padding: 2.6vmin 5vmin 3.6vmin;
+  box-sizing: border-box;
+  animation: menuIn 0.32s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+/* The slime naps, flat, while the menu is up. */
+.play-hud .menu .nap {
+  animation: nap 1.6s ease-in-out infinite alternate;
+}
+
+.play-hud .menu .row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.6vmin;
+}
+
+/* ------------------------------------------------------------------ the teaching picture (keyboard only) */
+
+.play-hud .teach {
+  position: absolute;
+  left: 50%;
+  bottom: calc(2.6vmin + env(safe-area-inset-bottom));
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 2vmin;
+  padding: 1.2vmin 2.6vmin 1.2vmin 2vmin;
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 6px solid var(--ink);
+  box-shadow:
+    0 8px 0 var(--shadow),
+    0 0 0 1.4vmin rgba(255, 207, 63, 0.6);
+  animation: teach 0.55s ease-in-out infinite alternate;
+}
+
+.play-hud .teach.jump .pic {
+  animation: hop 0.55s ease-in-out infinite alternate;
+}
+
+.play-hud .teach.hide .pic {
+  transform-origin: 50% 90%;
+  animation: squash 0.55s ease-in-out infinite alternate;
+}
+
+.play-hud .teach.left .pic {
+  --way: -1;
+  animation: nudge 0.55s ease-in-out infinite alternate;
+}
+
+.play-hud .teach.right .pic {
+  --way: 1;
+  animation: nudge 0.55s ease-in-out infinite alternate;
+}
+
+.play-hud .teach kbd {
+  font: inherit;
+  font-size: clamp(26px, 5.4vmin, 54px);
+  line-height: 1;
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  min-width: 1em;
+  text-align: center;
+  padding: 0.12em 0.42em 0.18em;
+  border-radius: 0.32em;
+  border: 5px solid var(--ink);
+  background: linear-gradient(#ffffff, #eee8f3);
+  box-shadow: 0 7px 0 var(--shadow);
+  animation: press 0.55s ease-in-out infinite alternate;
+}
+
+.play-hud .teach kbd .glyph {
+  width: 1em;
+  height: 1em;
+}
+
+/* ------------------------------------------------------------------ the thumbs' buttons */
+
+.play-pad {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  --edge: max(3.5vmin, 22px);
+  --gap: 2.4vmin;
+}
+
+/* The steering zone: bigger than the two arrows, so a thumb need not aim. */
+.play-pad .steer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: max(40vw, calc(var(--edge) + env(safe-area-inset-left) + 2 * var(--b) + var(--gap) + 48px));
+  height: max(46vh, calc(var(--edge) + env(safe-area-inset-bottom) + var(--b) + 72px));
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.play-pad .arrows {
+  position: absolute;
+  left: calc(var(--edge) + env(safe-area-inset-left));
+  bottom: calc(var(--edge) + env(safe-area-inset-bottom));
+  display: flex;
+  gap: var(--gap);
+  pointer-events: none;
+}
+
+/* Big round see-through buttons, so the track shows through them. */
+.play-pad .btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: max(4px, 0.6vmin) solid rgba(43, 33, 64, 0.8);
+  background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.2) 62%);
+  box-shadow: 0 6px 0 rgba(43, 33, 64, 0.26);
+  opacity: 0.82;
+  transition:
+    opacity 0.08s,
+    background 0.08s;
+}
+
+.play-pad .arrow {
+  width: var(--b);
+  height: var(--b);
+}
+
+.play-pad .jump,
+.play-pad .hide {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.play-pad .jump {
+  right: calc(var(--edge) + env(safe-area-inset-right));
+  bottom: calc(var(--edge) + env(safe-area-inset-bottom));
+  width: var(--j);
+  height: var(--j);
+}
+
+/* The hide sits up and to the left of the jump, where the thumb rolls to it. */
+.play-pad .hide {
+  right: calc(var(--edge) + env(safe-area-inset-right) + var(--j) + var(--gap));
+  bottom: calc(var(--edge) + env(safe-area-inset-bottom) + var(--j) * 0.42);
+  width: var(--b);
+  height: var(--b);
+}
+
+/* A finger a little off the drawn circle still counts. */
+.play-pad .jump::before,
+.play-pad .hide::before {
+  content: '';
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+}
+
+.play-pad .btn.on {
+  opacity: 1;
+  translate: 0 4px;
+  background: radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.62) 62%);
+  box-shadow: 0 2px 0 rgba(43, 33, 64, 0.26);
+}
+
+/* The button a teaching moment asks for glows gold and pulses until it is pressed. */
+.play-pad .btn.ask {
+  opacity: 1;
+  background: radial-gradient(circle at 35% 28%, #fff7cf, rgba(255, 214, 90, 0.88) 65%);
+  box-shadow:
+    0 0 0 1.2vmin rgba(255, 207, 63, 0.75),
+    0 6px 0 rgba(43, 33, 64, 0.26);
+  animation: ask 0.5s ease-in-out infinite alternate;
+}
+
+/* ------------------------------------------------------------------ a bad URL switch */
+
+.oops {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 32px;
+  font: 600 22px/1.4 ui-monospace, monospace;
+  color: var(--ink);
+  background: var(--paper);
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ------------------------------------------------------------------ small screens */
+
+/* A narrow screen: the way to the flag (or the stars, or the gift's banner) gets a row of its own under the corners. */
+@media (max-width: 780px) {
+  .play-hud .bar {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'pockets corner'
+      'middle middle';
+    row-gap: 10px;
+  }
+
+  .play-hud .line,
+  .play-hud .stars,
+  .play-hud .banner {
+    justify-self: center;
+  }
+
+  .play-hud .line {
+    width: min(88vw, 440px);
+  }
+
+  .play-hud .ready .title {
+    top: calc(132px + env(safe-area-inset-top));
+  }
+}
+
+/* A phone on its side: the corners a little smaller and tighter. */
+@media (max-height: 520px) {
+  .play-hud .bar {
+    top: calc(6px + env(safe-area-inset-top));
+  }
+
+  .play-hud button.round {
+    width: 48px;
+    height: 48px;
+    padding: 8px;
+  }
+
+  .play-hud .pockets {
+    padding: 2px 10px 2px 6px;
+  }
+
+  .play-hud .ready .title {
+    top: calc(60px + env(safe-area-inset-top));
+  }
+
+  .play-hud .ready h1 {
+    font-size: clamp(40px, 11vmin, 128px);
+  }
+
+  /* The tally and the buttons share one row, so the slime stays in sight between them and the prize. */
+  .play-hud .tally {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2vmin 3vmin;
+  }
+}
+
+/* A tall screen: the hide sits over the jump, so both fit beside the arrows. */
+@media (max-aspect-ratio: 1/1) {
+  .play-pad .hide {
+    right: calc(var(--edge) + env(safe-area-inset-right) + (var(--j) - var(--b)) / 2);
+    bottom: calc(var(--edge) + env(safe-area-inset-bottom) + var(--j) + var(--gap) * 1.5);
+  }
+}
+
+/* ------------------------------------------------------------------ motion */
+
+@keyframes got {
+  0% {
+    scale: 0.3;
+    rotate: -30deg;
+  }
+  60% {
+    scale: 1.35;
+    rotate: 12deg;
+  }
+  100% {
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes found {
+  0% {
+    scale: 0;
+    translate: 0 10px;
+  }
+  60% {
+    scale: 1.3;
+    translate: 0 -6px;
+  }
+  100% {
+    scale: 1;
+    translate: 0 0;
+  }
+}
+
+@keyframes cheer {
+  from {
+    translate: 0 0;
+    rotate: -6deg;
+  }
+  to {
+    translate: 0 -8px;
+    rotate: 6deg;
+  }
+}
+
+@keyframes wait {
+  from {
+    rotate: -8deg;
+  }
+  to {
+    rotate: 8deg;
+  }
+}
+
+@keyframes breathe {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: 1.07;
+  }
+}
+
+@keyframes bump {
+  from {
+    scale: 1.6;
+  }
+  to {
+    scale: 1;
+  }
+}
+
+@keyframes shout {
+  0% {
+    scale: 0.2;
+    rotate: -12deg;
+    opacity: 0;
+  }
+  14% {
+    scale: 1.12;
+    rotate: -2deg;
+    opacity: 1;
+  }
+  22% {
+    scale: 1;
+    rotate: -4deg;
+  }
+  78% {
+    scale: 1;
+    opacity: 1;
+  }
+  100% {
+    scale: 1.12;
+    rotate: -4deg;
+    opacity: 0;
+  }
+}
+
+@keyframes cardIn {
+  from {
+    scale: 0.5;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes sayIn {
+  from {
+    scale: 0.3;
+    rotate: -8deg;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    rotate: -3deg;
+    opacity: 1;
+  }
+}
+
+@keyframes prizeIn {
+  from {
+    scale: 0;
+    rotate: -25deg;
+  }
+  to {
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes prizeShow {
+  0%,
+  72% {
+    scale: 1;
+    translate: -50% -50%;
+    opacity: 1;
+  }
+  100% {
+    scale: 0.2;
+    translate: -50% -190%;
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes bannerIn {
+  from {
+    scale: 0.3;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes twinkle {
+  from {
+    scale: 0.6;
+    rotate: -15deg;
+    opacity: 0.7;
+  }
+  to {
+    scale: 1.15;
+    rotate: 15deg;
+    opacity: 1;
+  }
+}
+
+@keyframes wobble {
+  from {
+    rotate: -6deg;
+  }
+  to {
+    rotate: 6deg;
+  }
+}
+
+@keyframes badgeIn {
+  from {
+    scale: 0;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes calmIn {
+  from {
+    scale: 0.6;
+    opacity: 0;
+    visibility: hidden;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@keyframes fall {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate(var(--drift), 115vh) rotate(var(--spin));
+  }
+}
+
+@keyframes burst {
+  0% {
+    transform: rotate(var(--r)) translateY(0) scale(1.2);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotate(var(--r)) translateY(-14vmin) scale(0.3);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes menuIn {
+  from {
+    scale: 0.7;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes nap {
+  from {
+    scale: 1 1;
+  }
+  to {
+    scale: 1.06 0.94;
+  }
+}
+
+@keyframes teach {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: 1.08;
+  }
+}
+
+@keyframes press {
+  from {
+    translate: 0 0;
+    box-shadow: 0 7px 0 var(--shadow);
+  }
+  to {
+    translate: 0 5px;
+    box-shadow: 0 2px 0 var(--shadow);
+  }
+}
+
+@keyframes hop {
+  from {
+    translate: 0 4px;
+  }
+  to {
+    translate: 0 -12px;
+  }
+}
+
+@keyframes squash {
+  from {
+    scale: 1 1;
+  }
+  to {
+    scale: 1.16 0.8;
+  }
+}
+
+@keyframes nudge {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: calc(var(--way) * 12px) 0;
+  }
+}
+
+@keyframes ask {
+  from {
+    scale: 1;
+  }
+  to {
+    scale: 1.16;
+  }
+}

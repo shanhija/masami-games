@@ -102,6 +102,10 @@ h1 {
   background: #ffd9a8;
 }
 
+.game.slime-guy {
+  background: #fff0a0;
+}
+
 .game:hover {
   transform: translateY(-6px);
   box-shadow: 0 16px 0 rgba(42, 47, 69, 0.35);

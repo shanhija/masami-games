@@ -1,0 +1,717 @@
+/*
+ * The map's HUD and the wardrobe screen, drawn over the 3D picture in the play HUD's
+ * language (styles.css): white words with a dark ink outline, white buttons and paper cards
+ * with an ink border that press down, a green Go!, sky for the way back to the map, gold
+ * for what is new, and in the wardrobe the slime's own colour (--jelly, set from its look)
+ * for whatever it has on. Sizes follow the screen's short side (vmin), and in the wardrobe
+ * the panel's own box (container units), so a phone, an iPad and a laptop, held either way,
+ * all fit without scrolling. Animations use the separate scale, translate and rotate
+ * properties, so they never fight the press, which uses transform.
+ */
+
+.map-hud,
+.ward {
+  --ink: #2b2140;
+  --paper: #fffaf2;
+  --shadow: rgba(43, 33, 64, 0.32);
+  --gold: #ffcf3f;
+  --sparkle: #ffb81f;
+  --go: #6edc6a;
+  --go-deep: #35a348;
+  --sky: #6fc8ff;
+  --sky-deep: #3889cf;
+  --pink: #ff6f9e;
+  --unfound: #ece4ef;
+  --line: clamp(3px, 0.5vmin, 4px);
+  --m: clamp(8px, 2vmin, 18px);
+  --top: max(var(--m), env(safe-area-inset-top));
+  --right: max(var(--m), env(safe-area-inset-right));
+  --bottom: max(var(--m), env(safe-area-inset-bottom));
+  --left: max(var(--m), env(safe-area-inset-left));
+  position: fixed;
+  inset: 0;
+  /* Only the buttons and the wardrobe panel take a finger; the rest of the screen is the 3D picture's. */
+  pointer-events: none;
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.map-hud button,
+.ward button {
+  pointer-events: auto;
+  position: relative;
+  box-sizing: border-box;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: var(--line) solid var(--ink);
+  /* One cell exactly the button's size, so a picture's percentage size is a share of the button, never of the picture's own size. */
+  display: grid;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  font: inherit;
+  color: inherit;
+  background: #fff;
+  box-shadow: 0 5px 0 var(--shadow);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 0.08s ease-out,
+    box-shadow 0.08s ease-out;
+}
+
+.map-hud button:active,
+.ward button:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--shadow);
+}
+
+.map-hud svg,
+.ward svg {
+  display: block;
+  overflow: visible;
+}
+
+/* The way back to the map wears the map's sky blue, so the white arrow stands out. */
+.map-hud .map-step,
+.ward .ward-back {
+  background: var(--sky);
+  box-shadow:
+    0 5px 0 var(--sky-deep),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.1),
+    inset 0 3px 0 rgba(255, 255, 255, 0.45);
+}
+
+.map-hud .map-step:active,
+.ward .ward-back:active {
+  box-shadow:
+    0 1px 0 var(--sky-deep),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.1),
+    inset 0 3px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* Something new waits behind this button: a gold dot that breathes. */
+.map-hud .news::after,
+.ward .news::after {
+  content: '';
+  position: absolute;
+  top: calc(-4px - var(--line));
+  right: calc(-4px - var(--line));
+  width: clamp(16px, 3vmin, 24px);
+  height: clamp(16px, 3vmin, 24px);
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: var(--line) solid var(--ink);
+  background: var(--gold);
+  animation: hud-dot 1.3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ the map */
+
+.map-hud .map-title {
+  position: absolute;
+  top: var(--top);
+  left: 50%;
+  translate: -50% 0;
+  margin: 0;
+  font-size: clamp(22px, 4.6vmin, 40px);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  paint-order: stroke fill;
+  -webkit-text-stroke: clamp(5px, 0.9vmin, 7px) var(--ink);
+  text-shadow: 0 3px 0 var(--shadow);
+}
+
+/* Each letter hops in turn, like jelly. */
+.map-hud .map-title span {
+  display: inline-block;
+  animation: map-hop 3.6s ease-in-out infinite;
+}
+
+.map-hud .map-corner {
+  position: absolute;
+  top: var(--top);
+  right: var(--right);
+  display: flex;
+  gap: calc(var(--m) * 0.8);
+}
+
+.map-hud .map-round {
+  width: clamp(46px, 8.6vmin, 62px);
+  height: clamp(46px, 8.6vmin, 62px);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.map-hud .map-round svg {
+  width: 66%;
+  height: 66%;
+}
+
+/* The pictures on the sound and More games buttons, Hud.tsx's own: white shapes and lines with an ink edge, as the play HUD draws them. */
+.map-hud .glyph .solid {
+  fill: #fff;
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+.map-hud .glyph .under {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-hud .glyph .over {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-hud .glyph .pink {
+  fill: var(--pink);
+}
+
+.map-hud .glyph .gold {
+  fill: var(--gold);
+}
+
+.map-hud .glyph .sky {
+  fill: var(--sky);
+}
+
+.map-hud .glyph .green {
+  fill: var(--go);
+}
+
+/* The arrows to the island before and the next one, halfway up the screen's sides. */
+.map-hud .map-step {
+  --size: clamp(58px, 12vmin, 92px);
+  position: absolute;
+  top: calc(50% - var(--size) / 2);
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+}
+
+.map-hud .map-step.left {
+  left: var(--left);
+}
+
+.map-hud .map-step.right {
+  right: var(--right);
+}
+
+.map-hud .map-step svg {
+  width: 68%;
+  height: 68%;
+}
+
+/* The bottom row: the wardrobe at the left, Go! in the middle, the jar at the right. */
+.map-hud .map-bottom {
+  --side: clamp(64px, 14vmin, 108px);
+  position: absolute;
+  left: var(--left);
+  right: var(--right);
+  bottom: calc(var(--bottom) + 5px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  gap: var(--m);
+}
+
+.map-hud .map-ward {
+  justify-self: start;
+  width: var(--side);
+  height: var(--side);
+  border-radius: 28%;
+}
+
+.map-hud .map-ward svg {
+  width: 80%;
+  height: 80%;
+}
+
+.map-hud .map-play {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--m) * 0.7);
+}
+
+.map-hud .map-name {
+  font-size: clamp(24px, 5.6vmin, 50px);
+  white-space: nowrap;
+  paint-order: stroke fill;
+  -webkit-text-stroke: clamp(5px, 1vmin, 8px) var(--ink);
+  text-shadow: 0 4px 0 var(--shadow);
+  animation: map-name-in 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+/* Go!: the same big green pill as the ready card's, with the slime jumping on it, breathing to say "tap me". */
+.map-hud .map-go {
+  display: flex;
+  align-items: center;
+  gap: 0.14em;
+  height: clamp(64px, 13vmin, 104px);
+  padding: 0 0.66em 0.04em 0.3em;
+  border-width: clamp(4px, 0.8vmin, 6px);
+  border-radius: 999px;
+  font-size: clamp(30px, 7.2vmin, 68px);
+  background: var(--go);
+  box-shadow:
+    0 8px 0 var(--go-deep),
+    inset 0 -0.16em 0 rgba(0, 0, 0, 0.1),
+    inset 0 0.12em 0 rgba(255, 255, 255, 0.5);
+  animation: map-breathe 2.2s ease-in-out infinite;
+}
+
+.map-hud .map-go:active {
+  box-shadow:
+    0 2px 0 var(--go-deep),
+    inset 0 -0.16em 0 rgba(0, 0, 0, 0.1),
+    inset 0 0.12em 0 rgba(255, 255, 255, 0.5);
+}
+
+.map-hud .map-go svg {
+  height: 88%;
+  width: auto;
+}
+
+.map-hud .map-go span {
+  paint-order: stroke fill;
+  -webkit-text-stroke: clamp(5px, 1.1vmin, 8px) var(--ink);
+  text-shadow: 0 3px 0 rgba(43, 33, 64, 0.25);
+}
+
+/* The star jar with the patterns it has opened underneath, little swatches in a row. */
+.map-hud .map-jar {
+  justify-self: end;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 7px 7px;
+  border-radius: clamp(16px, 3.4vmin, 26px);
+}
+
+.map-hud .map-jar > svg {
+  width: calc(var(--side) * 0.74);
+  height: calc(var(--side) * 0.74);
+}
+
+/* The jar at the brim: it bounces as the new pattern pops out. */
+.map-hud .map-jar.full {
+  animation: map-full 0.35s ease-out;
+}
+
+.map-hud .map-patterns {
+  display: flex;
+  gap: 2px;
+}
+
+.map-hud .map-pattern {
+  width: clamp(14px, 3vmin, 24px);
+  height: clamp(14px, 3vmin, 24px);
+}
+
+.map-hud .map-pattern svg {
+  width: 100%;
+  height: 100%;
+}
+
+.map-hud .map-pattern.new {
+  animation: map-swatch-in 0.7s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+  filter: drop-shadow(0 0 3px var(--gold)) drop-shadow(0 0 2px var(--gold));
+}
+
+/* ------------------------------------------------------------------ the wardrobe */
+
+.ward .ward-back {
+  position: absolute;
+  top: var(--top);
+  left: var(--left);
+  width: clamp(56px, 12vmin, 92px);
+  height: clamp(56px, 12vmin, 92px);
+  border-radius: 50%;
+}
+
+.ward .ward-back svg {
+  width: 68%;
+  height: 68%;
+}
+
+/*
+ * The panel, a paper card: at the right on a wide screen and along the bottom on a tall one,
+ * leaving the rest of the screen to the slime on its turntable. It is a size container: the
+ * rows inside size themselves from its box, so they always fit it.
+ */
+.ward .ward-panel {
+  --gap: clamp(5px, 1.4vmin, 14px);
+  --tab: clamp(40px, min(12cqh, 15cqw), 84px);
+  --swatch: clamp(34px, min(11cqh, 15cqw), 76px);
+  --pat: clamp(30px, min(9cqh, 12cqw), 62px);
+  position: absolute;
+  container-type: size;
+  box-sizing: border-box;
+  padding: clamp(8px, 2.2vmin, 18px);
+  border: clamp(4px, 0.8vmin, 6px) solid var(--ink);
+  border-radius: clamp(22px, 4.4vmin, 40px);
+  background: var(--paper);
+  box-shadow: 0 10px 0 var(--shadow);
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+@media (orientation: landscape) {
+  .ward .ward-panel {
+    top: var(--top);
+    right: var(--right);
+    bottom: calc(var(--bottom) + 10px);
+    width: clamp(300px, 46vw, 620px);
+  }
+}
+
+@media (orientation: portrait) {
+  .ward .ward-panel {
+    left: var(--left);
+    right: var(--right);
+    bottom: calc(var(--bottom) + 10px);
+    height: 54%;
+  }
+}
+
+.ward .ward-rows {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* The six places, one tab each. The row is a definite track, so a tab is exactly --tab tall whatever its picture's own size. */
+.ward .ward-tabs {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--gap);
+  height: var(--tab);
+}
+
+.ward .ward-tab {
+  border-radius: clamp(12px, 2.6vmin, 22px);
+}
+
+.ward .ward-tab svg {
+  width: auto;
+  height: 78%;
+}
+
+.ward .ward-tab.on {
+  background: var(--jelly);
+  transform: translateY(3px);
+  box-shadow:
+    0 2px 0 var(--jelly-deep),
+    inset 0 -4px 0 rgba(0, 0, 0, 0.1),
+    inset 0 3px 0 rgba(255, 255, 255, 0.5);
+}
+
+/*
+ * The things: three across and two down, always, so a tab with fewer things keeps the same
+ * layout, right under the tabs. The tile area is a size container of its own: a tile is as
+ * big as both its width and its height allow.
+ */
+.ward .ward-tiles {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: grid;
+  place-items: start center;
+}
+
+.ward .ward-grid {
+  --tile: min(calc((100cqw - 2 * var(--gap)) / 3), calc((100cqh - var(--gap) - 6px) / 2), 170px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  gap: var(--gap);
+  width: calc(3 * var(--tile) + 2 * var(--gap));
+  height: calc(2 * var(--tile) + var(--gap));
+}
+
+.ward .ward-tile {
+  width: var(--tile);
+  height: var(--tile);
+  border-radius: 22%;
+  animation: ward-in 0.32s cubic-bezier(0.2, 1.5, 0.4, 1) backwards;
+}
+
+.ward .ward-tile:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.ward .ward-tile:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.ward .ward-tile:nth-child(4) {
+  animation-delay: 0.12s;
+}
+.ward .ward-tile:nth-child(5) {
+  animation-delay: 0.16s;
+}
+.ward .ward-tile:nth-child(6) {
+  animation-delay: 0.2s;
+}
+
+.ward .ward-tile svg {
+  width: 80%;
+  height: 80%;
+}
+
+/* What the slime wears: ringed in its colour, on a light jelly tile, with a pop as it goes on. */
+.ward .ward-tile.worn {
+  background: radial-gradient(110% 100% at 50% 25%, #ffffff 0%, var(--jelly-light) 75%);
+  box-shadow:
+    0 0 0 calc(var(--tile) * 0.045) var(--jelly-deep),
+    0 5px 0 calc(var(--tile) * 0.045) var(--shadow);
+  animation:
+    ward-in 0.32s cubic-bezier(0.2, 1.5, 0.4, 1) backwards,
+    ward-pop 0.4s cubic-bezier(0.2, 1.8, 0.4, 1);
+}
+
+.ward .ward-tile.worn:active {
+  box-shadow:
+    0 0 0 calc(var(--tile) * 0.045) var(--jelly-deep),
+    0 1px 0 calc(var(--tile) * 0.045) var(--shadow);
+}
+
+/* A thing not found yet: its shadow and a big question mark in a dashed frame, waiting for a box to fill it. */
+.ward .ward-tile.unfound,
+.ward .ward-pattern.locked {
+  background: var(--unfound);
+  border-style: dashed;
+  border-color: rgba(43, 33, 64, 0.5);
+  box-shadow: none;
+}
+
+.ward .ward-tile.unfound svg {
+  opacity: 0.45;
+}
+
+.ward .ward-q {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--tile) * 0.44);
+  paint-order: stroke fill;
+  -webkit-text-stroke: calc(var(--tile) * 0.05) var(--ink);
+}
+
+/* Something new from a box or the jar: two gold sparkles twinkle on it. */
+.ward .fresh::before,
+.ward .fresh::after {
+  content: '';
+  position: absolute;
+  width: 30%;
+  height: 30%;
+  background: var(--sparkle);
+  clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+  animation: ward-twinkle 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.ward .fresh::before {
+  top: -12%;
+  right: -10%;
+}
+
+.ward .fresh::after {
+  bottom: -8%;
+  left: -8%;
+  width: 22%;
+  height: 22%;
+  animation-delay: -0.7s;
+}
+
+/* The slime itself: its five colours, then plain and the patterns, on a soft band of its own. */
+.ward .ward-look {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: var(--gap) var(--gap) calc(var(--gap) + 4px);
+  border-radius: clamp(16px, 3vmin, 26px);
+  background: rgba(43, 33, 64, 0.06);
+}
+
+.ward .ward-colours,
+.ward .ward-patterns {
+  display: flex;
+  justify-content: center;
+  gap: var(--gap);
+}
+
+.ward .ward-swatch {
+  width: var(--swatch);
+  height: var(--swatch);
+  border-radius: 50%;
+}
+
+.ward .ward-pattern {
+  width: var(--pat);
+  height: var(--pat);
+  border-radius: 50%;
+  border-width: clamp(2px, 0.4vmin, 3px);
+}
+
+.ward .ward-swatch svg,
+.ward .ward-pattern svg {
+  width: 88%;
+  height: 88%;
+}
+
+.ward .ward-swatch.on,
+.ward .ward-pattern.on {
+  box-shadow:
+    0 0 0 clamp(3px, 0.7vmin, 5px) var(--ring, var(--jelly-deep)),
+    0 4px 0 clamp(3px, 0.7vmin, 5px) var(--shadow);
+  animation: ward-pop 0.4s cubic-bezier(0.2, 1.8, 0.4, 1);
+}
+
+.ward .ward-swatch.on:active,
+.ward .ward-pattern.on:active {
+  box-shadow:
+    0 0 0 clamp(3px, 0.7vmin, 5px) var(--ring, var(--jelly-deep)),
+    0 1px 0 clamp(3px, 0.7vmin, 5px) var(--shadow);
+}
+
+/* ------------------------------------------------------------------ motion */
+
+@keyframes hud-dot {
+  0%,
+  100% {
+    scale: 0.85;
+  }
+  50% {
+    scale: 1.15;
+  }
+}
+
+@keyframes map-hop {
+  0%,
+  16%,
+  100% {
+    translate: 0 0;
+  }
+  6% {
+    translate: 0 -0.2em;
+  }
+  11% {
+    translate: 0 0.03em;
+  }
+}
+
+@keyframes map-breathe {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.05;
+  }
+}
+
+@keyframes map-name-in {
+  from {
+    scale: 0.4;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes map-full {
+  0% {
+    scale: 1;
+  }
+  40% {
+    scale: 1.14;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+@keyframes map-swatch-in {
+  from {
+    scale: 0;
+    rotate: -90deg;
+  }
+  to {
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
+@keyframes ward-in {
+  from {
+    scale: 0.6;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+@keyframes ward-pop {
+  0% {
+    scale: 1;
+  }
+  35% {
+    scale: 1.12;
+  }
+  100% {
+    scale: 1;
+  }
+}
+
+@keyframes ward-twinkle {
+  0%,
+  100% {
+    scale: 0.55;
+    rotate: 0deg;
+    opacity: 0.6;
+  }
+  50% {
+    scale: 1.15;
+    rotate: 45deg;
+    opacity: 1;
+  }
+}
+
+/* Asked for less motion: nothing keeps moving by itself; taps still answer. */
+@media (prefers-reduced-motion: reduce) {
+  .map-hud .map-title span,
+  .map-hud .map-go,
+  .map-hud .news::after,
+  .ward .news::after,
+  .ward .fresh::before,
+  .ward .fresh::after {
+    animation: none;
+  }
+}
