@@ -2,19 +2,23 @@ import fs from 'node:fs'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
+// '.js' names plugin.ts (TypeScript allows it), so loading the config warns of no extensionless import.
+import { sillyBilly } from './silly-billy/src/server/plugin.js'
+
 /**
  * One page per game, each its own folder with an index.html and a src/. The root index.html
  * is the game directory; a tap there navigates to a game, so only that game's code loads.
  * A new game goes here and gets a card on the root page.
  */
-const GAMES = ['chase', 'foot-chase', 'castle-builder', 'pia-jump', 'rakennustyömaat', 'rocket-factory', 'marienpeli', 'limaukkopeli', 'ruokapeli'] as const
+const GAMES = ['chase', 'foot-chase', 'castle-builder', 'pia-jump', 'rakennustyömaat', 'rocket-factory', 'marienpeli', 'limaukkopeli', 'ruokapeli', 'silly-billy'] as const
 
 export default defineConfig(({ command, mode }) => ({
   // Relative asset paths: the build runs from disk.
   base: './',
   // No SPA fallback: each page is its own HTML file, so a wrong URL is a 404, not the directory.
   appType: 'mpa',
-  plugins: [react()],
+  // Silly Billy's ./api/ (the Claude Code CLI, Whisper, its library on disk): under `vite` serve only, idle until asked.
+  plugins: [react(), sillyBilly()],
   server: {
     // A tablet reaches the dev server over the VPN as https://dev.example.com:3002. .dev is
     // HSTS-preloaded, so browsers demand real TLS: a Let's Encrypt cert issued via Bunny DNS-01
@@ -28,6 +32,8 @@ export default defineConfig(({ command, mode }) => ({
           }
         : undefined,
     allowedHosts: ['dev.example.com'],
+    // Silly Billy saves what it makes in silly-billy/library/: saving must not reload the page.
+    watch: { ignored: ['**/silly-billy/library/**'] },
   },
   build: {
     chunkSizeWarningLimit: 2000,

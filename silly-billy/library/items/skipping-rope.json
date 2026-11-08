@@ -1,0 +1,72 @@
+{
+  "type": "item",
+  "id": "skipping-rope",
+  "name": "skipping rope",
+  "nameFi": "hyppynaru",
+  "calls": [
+    "hyppynaru",
+    "hyppynarun",
+    "hyppynarua",
+    "hyppynarulla",
+    "skipping rope"
+  ],
+  "about": "A long thin red rope with a small wooden handle at each end, about 2.4 metres long.",
+  "by": "opus",
+  "asked": "Aino, hubbe, hubbunarolla.",
+  "made": "2026-11-08T20:51:33.861Z",
+  "code": "const wood = '#b07a45', red = '#e83a3a'\nm.part('handleA', { at: [-0.3, 0.6, 0] }, () => {\n  m.capsule(0.04, 0.22, { color: wood })\n  m.sphere(0.05, { at: [0, -0.15, 0], color: '#8a5a30' })\n})\nm.part('handleB', { at: [0.3, 0.6, 0] }, () => {\n  m.capsule(0.04, 0.22, { color: wood })\n  m.sphere(0.05, { at: [0, -0.15, 0], color: '#8a5a30' })\n})\nm.part('rope', { at: [0, 0.45, 0] }, () => {\n  m.tube([[-0.3, 0, 0], [-0.4, -0.2, 0.05], [-0.3, -0.38, 0.15], [0, -0.42, 0.2], [0.3, -0.38, 0.15], [0.4, -0.2, 0.05], [0.3, 0, 0]], 0.025, { color: red })\n})\nm.anchor('hand', [-0.3, 0.6, 0])\nm.anchor('hand2', [0.3, 0.6, 0])\nreturn { carry: 'hand', ride: false, sit: false, wear: null, bouncy: 0, solid: false }",
+  "guarded": "function __model(m) {__g();\nconst wood = '#b07a45', red = '#e83a3a'\nm.part('handleA', { at: [-0.3, 0.6, 0] }, () => {__g();\n  m.capsule(0.04, 0.22, { color: wood })\n  m.sphere(0.05, { at: [0, -0.15, 0], color: '#8a5a30' })\n})\nm.part('handleB', { at: [0.3, 0.6, 0] }, () => {__g();\n  m.capsule(0.04, 0.22, { color: wood })\n  m.sphere(0.05, { at: [0, -0.15, 0], color: '#8a5a30' })\n})\nm.part('rope', { at: [0, 0.45, 0] }, () => {__g();\n  m.tube([[-0.3, 0, 0], [-0.4, -0.2, 0.05], [-0.3, -0.38, 0.15], [0, -0.42, 0.2], [0.3, -0.38, 0.15], [0.4, -0.2, 0.05], [0.3, 0, 0]], 0.025, { color: red })\n})\nm.anchor('hand', [-0.3, 0.6, 0])\nm.anchor('hand2', [0.3, 0.6, 0])\nreturn { carry: 'hand', ride: false, sit: false, wear: null, bouncy: 0, solid: false }\n}",
+  "tick": null,
+  "tickGuarded": null,
+  "rough": [
+    {
+      "shape": "sphere",
+      "size": [
+        0.08,
+        0.08,
+        0.08
+      ],
+      "at": [
+        -0.3,
+        0.9,
+        0
+      ],
+      "color": "brown"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.08,
+        0.08,
+        0.08
+      ],
+      "at": [
+        0.3,
+        0.9,
+        0
+      ],
+      "color": "brown"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.6,
+        0.02,
+        0.02
+      ],
+      "at": [
+        0,
+        0.05,
+        0
+      ],
+      "color": "red"
+    }
+  ],
+  "roughMeta": {
+    "carry": "hand",
+    "ride": false,
+    "sit": false,
+    "bouncy": 0,
+    "solid": false
+  }
+}

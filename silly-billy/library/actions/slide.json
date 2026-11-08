@@ -1,0 +1,26 @@
+{
+  "type": "action",
+  "id": "slide",
+  "name": "slide",
+  "calls": [
+    "liu'u",
+    "liukua",
+    "liukumaan",
+    "slide"
+  ],
+  "about": "The avatar walks up the steps of the thing, sits at the top, and slides down it to the bottom, then stands up and cheers.",
+  "by": "opus",
+  "asked": "Yrri, laskja ljúkumaðist.",
+  "made": "2026-11-08T15:20:08.534Z",
+  "params": [
+    {
+      "name": "thing",
+      "kind": "item",
+      "about": "the slide to go down",
+      "optional": false
+    }
+  ],
+  "code": "let s = args.thing || w.find('slide', { near: me })\nif (!s) { s = w.make('slide', { near: me }) ; yield* w.wait(0.5) }\nconst fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), h = s.size.d / 2\nconst back = { x: s.x - fx * (h + 0.3), z: s.z - fz * (h + 0.3) }\nconst end = { x: s.x + fx * (h + 0.3), z: s.z + fz * (h + 0.3) }\nyield* me.walkTo(back, { near: 0.1 })\nyield* me.turnTo(end)\nconst top = s.anchor('top'), sx = me.x, sz = me.z\nw.sound('step')\nyield* w.during(1.5, (k) => {\n  me.x = w.lerp(sx, top.x, k); me.z = w.lerp(sz, top.z, k); me.y = top.y * k\n  const a = Math.sin(k * 20) * 0.6\n  me.pose.legL.swing = a; me.pose.legR.swing = -a; me.pose.armL.swing = 1.5 - a; me.pose.armR.swing = 1.5 + a\n})\nyield* me.poseTo({ legL: { swing: 1.5, bend: 0 }, legR: { swing: 1.5, bend: 0 }, armL: { swing: 0, raise: 0.4 }, armR: { swing: 0, raise: 0.4 } }, 0.3)\nme.feel('happy'); me.say('Wheee!')\nw.sound('whoosh')\nyield* w.during(1.2, (k) => {\n  const e = k * k\n  me.x = w.lerp(top.x, end.x, e); me.z = w.lerp(top.z, end.z, e); me.y = top.y * (1 - e)\n  me.pose.armL.raise = me.pose.armR.raise = 2.5 * k; me.pose.lean = -0.3\n})\nme.y = 0\nw.puff({ x: me.x, y: 0.05, z: me.z, kind: 'dust', count: 10 })\nyield* me.rest(0.3)\nme.feel('happy'); w.sound('yay'); me.say('Yay!')\nyield* me.poseTo({ armL: { swing: 3 }, armR: { swing: 3 }, squash: 0.85 }, 0.15)\nyield* me.jump(0.5)\nw.puff({ at: me, kind: 'confetti' })\nyield* me.rest()",
+  "guarded": "function* __action(me, args, w) {__g();\nlet s = args.thing || w.find('slide', { near: me })\nif (!s) { s = w.make('slide', { near: me }) ; yield* w.wait(0.5) }\nconst fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), h = s.size.d / 2\nconst back = { x: s.x - fx * (h + 0.3), z: s.z - fz * (h + 0.3) }\nconst end = { x: s.x + fx * (h + 0.3), z: s.z + fz * (h + 0.3) }\nyield* me.walkTo(back, { near: 0.1 })\nyield* me.turnTo(end)\nconst top = s.anchor('top'), sx = me.x, sz = me.z\nw.sound('step')\nyield* w.during(1.5, (k) => {__g();\n  me.x = w.lerp(sx, top.x, k); me.z = w.lerp(sz, top.z, k); me.y = top.y * k\n  const a = Math.sin(k * 20) * 0.6\n  me.pose.legL.swing = a; me.pose.legR.swing = -a; me.pose.armL.swing = 1.5 - a; me.pose.armR.swing = 1.5 + a\n})\nyield* me.poseTo({ legL: { swing: 1.5, bend: 0 }, legR: { swing: 1.5, bend: 0 }, armL: { swing: 0, raise: 0.4 }, armR: { swing: 0, raise: 0.4 } }, 0.3)\nme.feel('happy'); me.say('Wheee!')\nw.sound('whoosh')\nyield* w.during(1.2, (k) => {__g();\n  const e = k * k\n  me.x = w.lerp(top.x, end.x, e); me.z = w.lerp(top.z, end.z, e); me.y = top.y * (1 - e)\n  me.pose.armL.raise = me.pose.armR.raise = 2.5 * k; me.pose.lean = -0.3\n})\nme.y = 0\nw.puff({ x: me.x, y: 0.05, z: me.z, kind: 'dust', count: 10 })\nyield* me.rest(0.3)\nme.feel('happy'); w.sound('yay'); me.say('Yay!')\nyield* me.poseTo({ armL: { swing: 3 }, armR: { swing: 3 }, squash: 0.85 }, 0.15)\nyield* me.jump(0.5)\nw.puff({ at: me, kind: 'confetti' })\nyield* me.rest()\n}",
+  "nameFi": "liu'u"
+}

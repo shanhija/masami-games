@@ -1,0 +1,813 @@
+/* Silly Billy's HUD: a few big friendly pictures over a bright diorama, like Castle Builder's. White cards, gold for what is chosen, ink lines and soft shadows, and every word in white with a dark stroke. */
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #d6eeff;
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The stage owns every touch: no scroll, no pinch-zoom, no pull-to-refresh. A tap is a tap on whatever is under the finger. */
+.stage,
+#root canvas {
+  touch-action: none;
+}
+
+.stage {
+  position: fixed;
+  inset: 0;
+}
+
+/* Everything drawn over the picture. Nothing here takes a pointer except the buttons and the rows that scroll. */
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  font-weight: 600;
+  /* Every glyph wears a dark border, so the few words stay readable over grass, tiles and moss alike. */
+  paint-order: stroke fill;
+  -webkit-text-stroke: 5px #2b2b30;
+  text-shadow: 0 3px 0 rgba(43, 43, 48, 0.3);
+}
+
+.hud button {
+  pointer-events: auto;
+  font: inherit;
+  font-weight: 600;
+  color: #2b2b30;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  border: 0;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hud button:focus-visible {
+  outline: 4px solid #f2c14e;
+}
+
+.hud .icon {
+  display: block;
+  overflow: visible;
+}
+
+/* Thinking: every cog turns. */
+.hud .icon .cog {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spin 1.6s linear infinite;
+}
+
+/* ------------------------------------------------------------------ the cast and the rooms, along the top */
+
+.top {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 8px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+/* One row of faces, only as wide as they are, so a tap beside it reaches the room; past the screen's width a finger swipes it sideways. */
+.cast {
+  pointer-events: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  /* Room inside the row for the shadows, the badges and the lift of the chosen face. */
+  padding: 10px 10px 12px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.cast::-webkit-scrollbar {
+  display: none;
+}
+
+/* More faces than fit: the end of the row fades, so it shows the row goes on. */
+.cast.more {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+}
+
+.hud button.portrait {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 78px;
+  padding: 6px 4px 4px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 5px 0 rgba(43, 43, 48, 0.3);
+  transition:
+    transform 0.15s,
+    background 0.15s;
+}
+
+.portrait .name {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+/* The one the next command without a name goes to. */
+.hud button.portrait.addressee {
+  background: #f2c14e;
+  box-shadow: 0 5px 0 #c99a2e;
+  transform: translateY(-4px) scale(1.06);
+}
+
+.hud button.portrait:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(43, 43, 48, 0.3);
+}
+
+/* A small round badge on the face's shoulder: a turning cog while it thinks, dots while its words are understood. */
+.portrait .badge {
+  position: absolute;
+  right: -6px;
+  top: -8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 3px 0 rgba(43, 43, 48, 0.3);
+}
+
+.portrait .badge.dots {
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 1px;
+  animation: bounce 0.8s ease-in-out infinite;
+}
+
+/* On the right: the rooms, and under them the box to type in, hung from the rooms' row so its width never squeezes the faces. */
+.side {
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.rooms {
+  display: flex;
+  gap: 8px;
+  padding: 10px 0 12px;
+}
+
+.hud button.room {
+  display: grid;
+  place-items: center;
+  width: 70px;
+  height: 70px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 5px 0 rgba(43, 43, 48, 0.3);
+  transition: transform 0.15s;
+}
+
+.hud button.room.here {
+  background: #f2c14e;
+  box-shadow: 0 5px 0 #c99a2e;
+  transform: translateY(-4px);
+}
+
+.hud button.room:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 rgba(43, 43, 48, 0.3);
+}
+
+/* ------------------------------------------------------------------ the box to type in, for the parent, under the rooms */
+
+/* A small white pill, wider while it has the keys; over the news if they meet. */
+.typebox {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 2;
+  pointer-events: auto;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 300px;
+  max-width: calc(100vw - 20px);
+  height: 52px;
+  padding: 0 4px 0 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 4px 0 rgba(43, 43, 48, 0.25);
+  transition:
+    width 0.2s,
+    box-shadow 0.2s;
+}
+
+.typebox:focus-within {
+  width: 420px;
+  box-shadow:
+    0 4px 0 rgba(43, 43, 48, 0.25),
+    0 0 0 4px #f2c14e;
+}
+
+/* Typing is the only way here: the box beckons. */
+.typebox.ask:not(:focus-within) {
+  animation: beckon 1.1s ease-in-out infinite alternate;
+}
+
+.typebox label {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  cursor: text;
+}
+
+.typebox label .icon {
+  flex: 0 0 auto;
+}
+
+.typebox input {
+  /* As wide as the box leaves it, whatever the input's own size would be. */
+  flex: 1 1 auto;
+  width: 0;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font: inherit;
+  /* 16 px at least, or iOS zooms the page in when the box takes the keys. */
+  font-size: 18px;
+  font-weight: 500;
+  color: #2b2b30;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.typebox input::placeholder {
+  color: #7d828c;
+  opacity: 1;
+}
+
+.hud .typebox button.send {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.hud .typebox button.send.empty {
+  opacity: 0.35;
+}
+
+.hud .typebox button.send:active {
+  transform: translateY(2px);
+}
+
+/* ------------------------------------------------------------------ the last command and the inventions, under the faces */
+
+/* The last command, and under it a card for each thing being invented. */
+.news {
+  position: absolute;
+  left: 16px;
+  top: 128px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  /* Clear of the box to type in on the right. */
+  max-width: min(72vw, 760px, calc(100vw - 340px));
+}
+
+.line p {
+  margin: 0;
+}
+
+.line .said {
+  font-size: clamp(16px, 1.8vw, 22px);
+  -webkit-text-stroke: 4px #2b2b30;
+  line-height: 1.3;
+}
+
+.line .understood {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  font-size: clamp(22px, 2.6vw, 34px);
+  line-height: 1.2;
+}
+
+/* How it was understood, as a little white chip for the parent. */
+.line .how {
+  font-size: clamp(13px, 1.3vw, 16px);
+  color: #2b2b30;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.line .how.oops {
+  background: #ffd0c8;
+}
+
+/* One invention: a cog, what is being done and the thing's name, the seconds so far, and a gold fill as the designer's reply comes in. */
+.job {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 170px;
+  padding: 6px 16px 6px 8px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 4px 0 rgba(43, 43, 48, 0.25);
+  color: #2b2b30;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  font-size: clamp(18px, 1.8vw, 22px);
+  animation: pop-in 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.job .fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(242, 193, 78, 0.6);
+  transition: width 0.3s;
+}
+
+.job .icon,
+.job .what,
+.job .secs {
+  position: relative;
+}
+
+.job .what .name {
+  font-weight: 700;
+}
+
+.job .secs {
+  margin-left: auto;
+  padding-left: 12px;
+  white-space: nowrap;
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------------------------ the big hold-to-talk button, bottom middle */
+
+.talk {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.hud button.mic {
+  display: grid;
+  place-items: center;
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 8px 0 rgba(43, 43, 48, 0.3);
+  touch-action: none;
+  transition:
+    transform 0.12s,
+    background 0.12s;
+}
+
+/* Listening: the button swells and glows gold. */
+.hud button.mic.on {
+  background: #fff1b8;
+  transform: scale(1.08);
+  animation: glow 0.8s ease-in-out infinite alternate;
+}
+
+/* The words heard so far, in a speech bubble pointing down at the button. */
+.bubble {
+  position: relative;
+  /* Clear of the zoom and pause buttons in the corner. */
+  max-width: min(84vw, 760px, calc(100vw - 200px));
+  padding: 10px 22px;
+  border-radius: 26px;
+  background: #fff;
+  box-shadow: 0 5px 0 rgba(43, 43, 48, 0.25);
+  color: #2b2b30;
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  text-align: center;
+  font-size: clamp(22px, 2.8vw, 36px);
+  line-height: 1.2;
+}
+
+.bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  transform: translateX(-50%);
+  border: 14px solid transparent;
+  border-bottom: 0;
+  border-top-color: #fff;
+}
+
+.bubble.missed {
+  padding: 2px 24px;
+  font-size: 48px;
+  animation: pop-in 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.bubble.hint {
+  font-size: clamp(20px, 2.4vw, 30px);
+  animation: bounce 1.2s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ the zoom and pause, bottom right */
+
+/* The + and − of the zoom, big for a small finger, over the pause button. */
+.corner {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud button.round {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 4px 0 rgba(43, 43, 48, 0.3);
+}
+
+.hud button.round:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(43, 43, 48, 0.3);
+}
+
+.hud button.round.zoom {
+  width: 72px;
+  height: 72px;
+}
+
+/* As close, or as far, as it goes. */
+.hud button.round.zoom.end {
+  opacity: 0.4;
+}
+
+/* ------------------------------------------------------------------ the pause card */
+
+.card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: max-content;
+  max-width: min(92vw, 820px);
+  max-height: 96vh;
+  overflow-y: auto;
+  text-align: center;
+}
+
+.card h1 {
+  margin: 0;
+  font-size: clamp(44px, 8vw, 110px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #f2c14e;
+  -webkit-text-stroke: 7px #2b2b30;
+}
+
+.card p {
+  margin: 0;
+}
+
+.card p.small {
+  font-size: clamp(18px, 2.2vw, 28px);
+  -webkit-text-stroke: 4px #2b2b30;
+}
+
+/* Paused: the picture dims and the dim takes every tap, so nothing behind the card changes. */
+.hud.paused {
+  pointer-events: auto;
+  background: rgba(31, 47, 107, 0.45);
+}
+
+.card.menu {
+  pointer-events: auto;
+}
+
+.card button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 60px;
+  padding: 0.3em 1em;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 6px 0 rgba(43, 43, 48, 0.3);
+  font-size: clamp(18px, 2.1vw, 28px);
+}
+
+.card button.big {
+  min-height: 72px;
+  padding: 0.3em 1.2em;
+  font-size: clamp(28px, 4.2vw, 56px);
+  background: #f2c14e;
+  box-shadow: 0 8px 0 #c99a2e;
+}
+
+.card button.on {
+  background: #f2c14e;
+  box-shadow: 0 6px 0 #c99a2e;
+}
+
+.card button.armed {
+  background: #e8503f;
+  color: #fff;
+  box-shadow: 0 6px 0 #9b2f24;
+}
+
+.card button:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(43, 43, 48, 0.3);
+}
+
+.card .row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* Finnish and English side by side, one of them gold. */
+.card .pair {
+  display: flex;
+  gap: 6px;
+}
+
+/* Two plain lines for the parent: where the voice goes and whether inventing works. */
+.card .parent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 640px;
+  font-size: clamp(14px, 1.5vw, 18px);
+  font-weight: 500;
+  line-height: 1.3;
+  -webkit-text-stroke: 3px #2b2b30;
+}
+
+/* ------------------------------------------------------------------ small screens: everything a little tighter */
+
+@media (max-width: 720px) {
+  .top {
+    left: 4px;
+    right: 4px;
+    top: 4px;
+    gap: 6px;
+  }
+
+  .hud button.portrait {
+    width: 62px;
+  }
+
+  .portrait > .icon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .portrait .name {
+    max-width: 58px;
+    font-size: 14px;
+  }
+
+  .rooms {
+    gap: 5px;
+  }
+
+  .hud button.room {
+    width: 50px;
+    height: 50px;
+    border-radius: 16px;
+  }
+
+  .room .icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .news {
+    left: 10px;
+    top: 104px;
+    max-width: calc(100vw - 290px);
+  }
+
+  .typebox {
+    width: 260px;
+    height: 46px;
+  }
+
+  .typebox:focus-within {
+    width: 340px;
+  }
+
+  .hud button.mic {
+    width: 112px;
+    height: 112px;
+  }
+
+  .mic .icon {
+    width: 70px;
+    height: 70px;
+  }
+
+  .hud button.round.zoom {
+    width: 60px;
+    height: 60px;
+  }
+
+  .hud button.round {
+    width: 56px;
+    height: 56px;
+  }
+
+  .corner {
+    gap: 10px;
+  }
+}
+
+/* Phones: the faces get the whole top row, smaller, so the cast fits; the rooms go under them on the right, and the news under those. */
+@media (max-width: 480px) {
+  .top {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+
+  .cast {
+    flex: 1 1 100%;
+    gap: 5px;
+    padding: 8px 6px 8px 2px;
+  }
+
+  .hud button.portrait {
+    width: 50px;
+    padding: 5px 2px 3px;
+    border-radius: 16px;
+  }
+
+  .portrait > .icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .portrait .name {
+    max-width: 46px;
+    font-size: 12px;
+  }
+
+  /* The rooms on the right of the second row, the box to type in filling the rest of it. */
+  .side {
+    flex: 1 1 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 8px;
+  }
+
+  .rooms {
+    padding: 0;
+  }
+
+  .typebox,
+  .typebox:focus-within {
+    position: static;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+    height: 44px;
+    padding-left: 8px;
+  }
+
+  .typebox input {
+    font-size: 16px;
+  }
+
+  .hud button.room {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+  }
+
+  .room .icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .news {
+    top: 140px;
+    max-width: 92vw;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow:
+      0 0 0 8px rgba(242, 193, 78, 0.55),
+      0 0 30px 10px rgba(255, 214, 90, 0.6);
+  }
+  to {
+    box-shadow:
+      0 0 0 14px rgba(242, 193, 78, 0.7),
+      0 0 50px 22px rgba(255, 214, 90, 0.9);
+  }
+}
+
+@keyframes beckon {
+  from {
+    box-shadow:
+      0 4px 0 rgba(43, 43, 48, 0.25),
+      0 0 0 3px rgba(242, 193, 78, 0.9);
+  }
+  to {
+    box-shadow:
+      0 4px 0 rgba(43, 43, 48, 0.25),
+      0 0 0 10px rgba(242, 193, 78, 0.35);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

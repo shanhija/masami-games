@@ -110,6 +110,10 @@ h1 {
   background: #ffbfb0;
 }
 
+.game.silly-billy {
+  background: #b9c8ff;
+}
+
 .game:hover {
   transform: translateY(-6px);
   box-shadow: 0 16px 0 rgba(42, 47, 69, 0.35);

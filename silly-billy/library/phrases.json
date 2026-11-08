@@ -1,0 +1,218 @@
+[
+  {
+    "words": "aino hubba enna rola",
+    "plan": {
+      "heard": "Aino rolls on the ground",
+      "heardFi": "Aino rullaa maassa",
+      "who": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "who": "alice",
+          "action": "roll",
+          "args": []
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "A roll? Okay! Wheee!",
+      "sayFi": "Rulla? Okei! Jeee!"
+    },
+    "made": "2026-11-08T20:48:28.631Z"
+  },
+  {
+    "words": "aino haupa valdi",
+    "plan": {
+      "heard": "Aino jumps, a funny guess",
+      "heardFi": "Aino hyppää, hauska arvaus",
+      "who": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "who": "alice",
+          "action": "jump",
+          "args": []
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Hop hop! Okay!",
+      "sayFi": "Hyppy hyppy! Okei!"
+    },
+    "made": "2026-11-08T20:49:35.009Z"
+  },
+  {
+    "words": "aino hyppää voltti",
+    "plan": {
+      "heard": "Aino does a flip",
+      "heardFi": "Aino hyppää voltin",
+      "who": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "who": "alice",
+          "action": "flip",
+          "args": []
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Flip! Here I go!",
+      "sayFi": "Voltti! Mennään!"
+    },
+    "made": "2026-11-08T20:49:58.540Z"
+  },
+  {
+    "words": "aino kakkaa hiekkalaatikkoon",
+    "plan": {
+      "heard": "Aino sits down in the sandbox",
+      "heardFi": "Aino istuu hiekkalaatikkoon",
+      "who": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "who": "alice",
+          "action": "sit",
+          "args": [
+            {
+              "name": "on",
+              "value": "sandbox"
+            }
+          ]
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Sandbox? Okay!",
+      "sayFi": "Hiekkalaatikkoon? Okei!"
+    },
+    "made": "2026-11-08T20:50:43.410Z"
+  },
+  {
+    "words": "aino hubba hubbuna rolla",
+    "plan": {
+      "heard": "Aino rolls",
+      "heardFi": "Aino rullaa",
+      "who": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "who": "alice",
+          "action": "roll",
+          "args": []
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Roll, roll, roll!",
+      "sayFi": "Rullaa, rullaa!"
+    },
+    "made": "2026-11-08T20:51:10.955Z"
+  },
+  {
+    "words": "aino hubbe hubbunarolla",
+    "plan": {
+      "heard": "Aino picks up a skipping rope and jumps",
+      "heardFi": "Aino ottaa hyppynarun ja hyppii",
+      "who": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "who": "alice",
+          "action": "pick-up",
+          "args": [
+            {
+              "name": "thing",
+              "value": "skipping-rope"
+            }
+          ]
+        },
+        {
+          "who": "alice",
+          "action": "jump",
+          "args": [
+            {
+              "name": "times",
+              "value": "5"
+            }
+          ]
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Skipping rope time!",
+      "sayFi": "Hyppynarulla! Hyppään!"
+    },
+    "made": "2026-11-08T20:51:34.402Z"
+  },
+  {
+    "words": "mikko hubba haupbunarola",
+    "plan": {
+      "heard": "Mikko says hubba haup bunarola, so he spins",
+      "heardFi": "Mikko sanoo hubba haup bunarola ja pyörii",
+      "who": [
+        "mike"
+      ],
+      "steps": [
+        {
+          "who": "mike",
+          "action": "say",
+          "args": [
+            {
+              "name": "words",
+              "value": "Hubba haup bunarola!"
+            }
+          ]
+        },
+        {
+          "who": "mike",
+          "action": "spin",
+          "args": [
+            {
+              "name": "times",
+              "value": "2"
+            }
+          ]
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "A silly spin? Okay!",
+      "sayFi": "Hölmö pyöritys? Okei!"
+    },
+    "made": "2026-11-08T20:51:49.556Z"
+  },
+  {
+    "words": "noora tee kakku",
+    "plan": {
+      "heard": "Noora makes a cake",
+      "heardFi": "Noora tekee kakun",
+      "who": [
+        "noora"
+      ],
+      "steps": [
+        {
+          "who": "noora",
+          "action": "make",
+          "args": [
+            {
+              "name": "thing",
+              "value": "cake"
+            }
+          ]
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Cake time!",
+      "sayFi": "Kakku tulossa!"
+    },
+    "made": "2026-11-08T20:52:26.148Z"
+  }
+]

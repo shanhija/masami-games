@@ -27,5 +27,8 @@ Desktop.ini
 .claude/worktrees/
 temp/
 
+# Silly Billy's log of what was said and made (the library's JSON files are kept)
+silly-billy/library/*.jsonl
+
 # Python
 __pycache__/
