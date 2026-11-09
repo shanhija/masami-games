@@ -37,7 +37,7 @@ describe('the parser with the real library', () => {
     expect(steps(hear('alice maalaa itsesi siniseksi'))).toEqual(['alice paint siniseksi'])
     expect(steps(hear('noora sano hei kaikille'))).toEqual(['noora say hei kaikille'])
     expect(steps(hear('steve pue lakki'))).toEqual(['steve wear cap'])
-    expect(steps(hear('mennään takaisin leikkipuistoon'))).toEqual([])
+    expect(steps(understand('mennään takaisin leikkipuistoon', library, { ...world, room: 'forest' }, null))).toEqual([])
   })
 
   it('stops and changes rooms', () => {
@@ -68,10 +68,16 @@ describe('the parser with the real library', () => {
       'Alice laita pallo penkin päälle', 'Alice put the ball on the bench', 'Steve put the cap on the bench',
       // a colour word is no kind to make; two things or two colours to share out; a second command after a room
       'Alice make a tomato', 'Alice make a seashell', 'Alice maalaa pallo ja puu punaiseksi', 'Alice maalaa pallo punaiseksi ja siniseksi', 'mennään metsään ja alice tanssii', 'mennään metsään ja tanssitaan',
+      // 2026-11-09: a word nobody knows beside a thing is the thing meant: an acorn is no oak to eat; a split name is one new thing
+      'Mirri, syö tammen terho', 'Eetu, rakenna puu maja', 'Noora, tee joulu kuusi', 'Aino, tee hiekka linna',
+      // the room everyone is in is something to do there (below: "käy uimassa" in the pool did nothing)
+      'mennään leikkipuistoon', 'Alice, mene leikkipuistoon',
     ]) {
       const u = hear(words, 'alice')
       expect(u.kind === 'plan' && u.confident, words).toBe(false)
     }
+    const pool = createWorld({ room: 'pool', actors: makeCast(), layouts: LAYOUTS, seed: 1 })
+    for (const words of ['Mikko, käy uimassa', 'mennään uimaan']) expect(understand(words, library, pool, null), words).toMatchObject({ confident: false })
   })
 
   it('reads what it is sure of the way a child means it', () => {
@@ -97,6 +103,10 @@ describe('the parser with the real library', () => {
     expect(steps(hear('Mike laita lasit päähän'))).toEqual(['mike wear glasses'])
     expect(steps(hear('Steve put the hat on'))).toEqual(['steve wear cap'])
     expect(steps(hear('Alice pick the ball up'))).toEqual(['alice pick-up ball'])
+    // Everyday words before a thing leave the thing the thing.
+    expect(steps(hear('Mike, ota iso pallo'))).toEqual(['mike pick-up ball'])
+    expect(steps(hear('Nora, mene ison puun luo'))).toEqual(['noora walk tree'])
+    expect(steps(hear('Steve, ota toinen pallo'))).toEqual(['steve pick-up ball'])
   })
 
   it('hears the verbs said to many, waving hands and counting once or many times', () => {

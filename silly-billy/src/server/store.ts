@@ -75,9 +75,15 @@ function uses(phrase: PhraseEntry, type: Entry['type'], id: string): boolean {
 }
 
 export class Store {
+  /**
+   * `prompt` stamps each phrase saved with the interpreter prompt that made its plan; a phrase
+   * without it, or with another, is left out and words are understood afresh (a better prompt
+   * no longer replays what an older one got wrong). Without a stamp every phrase is kept.
+   */
   constructor(
     readonly dir: string,
     private readonly warn: (message: string) => void,
+    private readonly prompt?: string,
   ) {}
 
   private file(type: Entry['type'], id: string): string {
@@ -96,11 +102,11 @@ export class Store {
     return path.join(this.dir, 'phrases.json')
   }
 
-  /** The phrases that play today, and how many phrases.json holds in all (the rest are from before the game had two languages). */
+  /** The phrases that play today, and how many phrases.json holds in all (the rest are from before the game had two languages, or from another interpreter prompt). */
   private phrases(): { kept: PhraseEntry[]; all: number } {
     const data: unknown = fs.existsSync(this.phrasesFile) ? JSON.parse(fs.readFileSync(this.phrasesFile, 'utf8')) : []
     const all = Array.isArray(data) ? (data as PhraseEntry[]) : []
-    return { kept: all.filter(playsToday), all: all.length }
+    return { kept: all.filter((p) => playsToday(p) && (this.prompt === undefined || p.prompt === this.prompt)), all: all.length }
   }
 
   /**
@@ -154,7 +160,8 @@ export class Store {
     const { phrase } = req
     if (typeof phrase.words !== 'string' || !phrase.words.trim() || typeof phrase.plan !== 'object' || phrase.plan === null) throw new Error('a phrase needs words and a plan')
     if (!playsToday(phrase)) throw new Error("a phrase's plan needs its line in Finnish too (heardFi)")
-    this.write(this.phrasesFile, [...this.phrases().kept.filter((p) => p.words !== phrase.words), phrase])
+    const stamped = this.prompt === undefined ? phrase : { ...phrase, prompt: this.prompt }
+    this.write(this.phrasesFile, [...this.phrases().kept.filter((p) => p.words !== phrase.words), stamped])
   }
 
   /** Forgets a made thing and the phrases that use it. Returns whether there was such a thing. */

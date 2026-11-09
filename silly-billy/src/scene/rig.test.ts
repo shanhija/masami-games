@@ -7,7 +7,7 @@ import { BODY_KINDS, restPose, type Actor, type BodyKind } from '../engine/types
 import { Face } from './face'
 import { dressBones, makeBones, poseBones } from './rig'
 
-type Body = Pick<Actor, 'x' | 'y' | 'z' | 'yaw' | 'pitch' | 'roll' | 'scale' | 'pose' | 'look'>
+type Body = Pick<Actor, 'x' | 'y' | 'z' | 'yaw' | 'pitch' | 'roll' | 'scale' | 'pose' | 'look' | 'pivot' | 'sway'>
 
 const HEIGHT: Record<BodyKind, number> = { kid: 1.15, grownup: 1.6, cat: 0.5, dog: 0.6 }
 
@@ -34,6 +34,9 @@ function wild(kind: BodyKind, rand: () => number): Body {
     pitch: r(-1.6, 1.6),
     roll: r(-1, 1),
     scale: r(0.5, 2),
+    // Half of them turn round a point up the body (a cartwheel's middle) and sway (sick, dizzy, cold).
+    pivot: rand() < 0.5 ? 0 : r(0, 1),
+    sway: rand() < 0.5 ? null : { tilt: r(-0.3, 0.3), twist: r(-0.1, 0.1), nod: r(-0.3, 0.4), turn: r(-0.4, 0.4) },
     pose,
     look: { body: kind, height: HEIGHT[kind] * r(0.8, 1.3), build: r(0.8, 1.3), skin: '#ffd9b3', eyes: '#2b2b30', top: '#9b5fd3', bottom: '#4a78e0', shoes: '#e8503f', skirt: rand() < 0.5, worn: {} },
   }
@@ -75,10 +78,10 @@ describe('the rig', () => {
   it('stands people and animals on the ground at rest', () => {
     for (const kind of BODY_KINDS) {
       const a = wild(kind, mulberry32(3))
-      Object.assign(a, { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, scale: 1, pose: restPose() })
+      Object.assign(a, { x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0, scale: 1, pose: restPose(), pivot: 0.5, sway: null })
       const pr = proportions(a.look)
       const bones = makeBones(pr, a.look.body)
-      dressBones(bones, a.look, pr)
+      dressBones(bones, a.look, pr, false)
       poseBones(bones, a, pr, 0)
       bones.root.updateMatrixWorld(true)
       const feet = pr.animal ? Object.values(bones.limbs) : [bones.limbs.legL, bones.limbs.legR]
@@ -93,13 +96,35 @@ describe('the rig', () => {
         a.look = { ...a.look, skirt, top: '#ff9ccf', bottom: '#ff9ccf' }
         const pr = proportions(a.look)
         const bones = makeBones(pr, a.look.body)
-        const owned = dressBones(bones, a.look, pr)
+        const owned = dressBones(bones, a.look, pr, skirt)
         const meshes: Mesh[] = []
         bones.root.traverse((o) => void ((o as Mesh).isMesh && meshes.push(o as Mesh)))
         expect(meshes.length).toBe(owned.length)
         const seen = new Set(meshes.map((m) => `${m.parent!.uuid}|${(m.material as Material).uuid}|${m.castShadow}`))
         expect(seen.size).toBe(meshes.length)
       }
+    }
+  })
+
+  it('turns a cartwheel round the middle: the middle stays put while the feet go over the head', () => {
+    for (const kind of BODY_KINDS) {
+      const a = wild(kind, mulberry32(4))
+      Object.assign(a, { x: 1, y: 0, z: 2, yaw: 0.3, pitch: 0, roll: 0, scale: 1, pose: restPose(), pivot: 0.5, sway: null })
+      const pr = proportions(a.look)
+      const bones = makeBones(pr, a.look.body)
+      const middle = (roll: number) => {
+        a.roll = roll
+        poseBones(bones, a, pr, 0)
+        bones.root.updateMatrixWorld(true)
+        return { centre: bones.root.getWorldPosition(new Vector3()), foot: bones.limbs.legL.end.getWorldPosition(new Vector3()), head: bones.head.getWorldPosition(new Vector3()) }
+      }
+      const up = middle(0)
+      const over = middle(Math.PI)
+      expect(over.centre.distanceTo(up.centre)).toBeLessThan(1e-9)
+      expect(up.centre.y).toBeCloseTo(a.look.height / 2, 9)
+      // Upside down round the middle: the feet are up where the head was, above the ground.
+      expect(over.foot.y).toBeGreaterThan(up.head.y - 0.25 * a.look.height)
+      expect(over.head.y).toBeGreaterThan(-0.05)
     }
   })
 

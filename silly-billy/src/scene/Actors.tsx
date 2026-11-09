@@ -2,16 +2,19 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import { CylinderGeometry, Group, Mesh, Vector3, type BufferGeometry, type Object3D } from 'three'
 
-import { KID_HEAD_R, apply, proportions, type Proportions } from '../engine/body'
+import { KID_HEAD_R, apply, bodyCenter, proportions, type Proportions } from '../engine/body'
 import { partTransform } from '../engine/kit'
+import { nightOf, skyOf } from '../engine/sky'
 import { SLOTS, type Actor, type Look, type PartPose, type Slot, type World } from '../engine/types'
 import { Bubbles, Declutter, type TagBoard } from './Bubbles'
+import type { Lamp } from './daylight'
 import { Face } from './face'
 import { useLive } from './live'
 import { UNSEEN, type Clock } from './look'
-import { ModelView, type Half, type Models } from './recipeMesh'
+import { AS_BUILT, ModelView, type Half, type Models } from './recipeMesh'
 import { dressBones, makeBones, poseBones, type Bones } from './rig'
 import type { SceneSource } from './Stage'
+import { glowing, shownLook } from './States'
 
 /**
  * Everybody in the room, on the rig of rig.ts: placed and posed from the world every frame,
@@ -47,7 +50,7 @@ interface ActorView {
   seen: number
 }
 
-const bodyKey = (l: Look) => [l.body, l.height, l.build, l.skin, l.eyes, l.top, l.bottom, l.shoes, l.skirt].join('|')
+const bodyKey = (l: Look, lit: boolean) => [l.body, l.height, l.build, l.skin, l.eyes, l.top, l.bottom, l.shoes, l.skirt, lit].join('|')
 const phaseOf = (id: string) => [...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 9973, 7) / 9973
 
 /** Blinks for 0.13 s every 3 to 5 seconds, each at its own beat. */
@@ -62,6 +65,8 @@ const UP = new Vector3(0, 1, 0)
 
 export class ActorLayer {
   readonly root = new Group()
+  /** The light each glowing body gives this frame, for the scene's lamps. */
+  readonly lamps: Lamp[] = []
   private readonly views = new Map<string, ActorView>()
   private tick = 0
 
@@ -69,16 +74,25 @@ export class ActorLayer {
 
   update(world: World, clock: number) {
     const tick = ++this.tick
+    const night = nightOf(skyOf(world).time)
+    this.lamps.length = 0
     for (const a of world.actors) {
       let v = this.views.get(a.id)
-      const body = bodyKey(a.look)
+      // A sick, hot or cold body is drawn in a tinted look, a glowing one lighting itself: built again when that changes.
+      const look = shownLook(a)
+      const lit = glowing(a)
+      const body = bodyKey(look, lit)
       if (v !== undefined && v.body !== body) {
         this.drop(v)
         v = undefined
       }
       if (v === undefined) {
-        v = this.build(a, body)
+        v = this.build(a, look, lit, body)
         this.views.set(a.id, v)
+      }
+      if (lit) {
+        const c = bodyCenter(a, v.pr)
+        this.lamps.push({ x: c[0], y: c[1], z: c[2], color: '#fff2b8', strength: 0.45 + 0.55 * night })
       }
       v.seen = tick
       poseBones(v.bones, a, v.pr, 0.18 * Math.sin(clock * 1.7 + v.phase * 20))
@@ -92,11 +106,11 @@ export class ActorLayer {
     }
   }
 
-  private build(a: Actor, body: string): ActorView {
-    const pr = proportions(a.look)
-    const bones = makeBones(pr, a.look.body)
-    const owned = dressBones(bones, a.look, pr)
-    const face = new Face(a.look)
+  private build(a: Actor, look: Look, lit: boolean, body: string): ActorView {
+    const pr = proportions(look)
+    const bones = makeBones(pr, look.body)
+    const owned = dressBones(bones, look, pr, lit)
+    const face = new Face(look)
     face.group.scale.setScalar(pr.headR)
     bones.head.add(face.group)
     // The tap target: a fat unseen post round the whole body.
@@ -104,7 +118,7 @@ export class ActorLayer {
     const target = new CylinderGeometry(r, r, pr.height + 0.3, 8)
     const post = new Mesh(target, UNSEEN)
     post.position.y = (pr.height + 0.3) / 2
-    bones.root.add(post)
+    bones.base.add(post)
     owned.push(target)
     const container = new Group()
     container.userData.actor = a.id
@@ -125,7 +139,7 @@ export class ActorLayer {
       return
     }
     const halves: Array<Half | null> = slot === 'body' && !v.pr.animal ? ['lower', 'upper'] : [null]
-    const models = halves.map((half) => this.models.get(worn.kind, worn.tint, half))
+    const models = halves.map((half) => this.models.get(worn.kind, worn.tint, half, null))
     let w = now
     if (w === undefined || w.pieces.length !== models.length || w.pieces.some((piece, i) => piece.view.model !== models[i])) {
       for (const piece of w?.pieces ?? []) piece.holder.removeFromParent()
@@ -140,7 +154,7 @@ export class ActorLayer {
     }
     // The parts its process and the action's code move: the engine keeps them beside the look, so a look that is saved never changes with them.
     const parts = a.wornParts?.[slot] ?? NO_POSE
-    for (const piece of w.pieces) piece.view.pose(parts)
+    for (const piece of w.pieces) piece.view.pose(parts, AS_BUILT)
     if (slot !== 'hand') return
     // Upright in the right hand, turned with the body, its 'hand' anchor at the drawn hand.
     const model = models[0]!
@@ -202,8 +216,7 @@ function actorOf(o: Object3D | null): string | null {
   return null
 }
 
-export function Actors({ source, models, clock, onTapActor }: { source: SceneSource; models: Models; clock: Clock; onTapActor: (id: string) => void }) {
-  const layer = useMemo(() => new ActorLayer(models), [models])
+export function Actors({ layer, source, clock, onTapActor }: { layer: ActorLayer; source: SceneSource; clock: Clock; onTapActor: (id: string) => void }) {
   useEffect(() => () => layer.dispose(), [layer])
   useFrame(() => layer.update(source.world, clock.t))
   const ids = useLive(() => source.world.actors.map((a) => a.id).join(' '))

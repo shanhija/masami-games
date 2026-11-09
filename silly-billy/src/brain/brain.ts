@@ -1,6 +1,6 @@
 /**
  * The brain: words in, things happening out. Words heard before play their saved plan at
- * once; the small parser takes what is clear; the interpreter (Haiku, through the dev server)
+ * once; the small parser takes what is clear; the interpreter (Opus at low effort, through the dev server)
  * works out the rest; with no server the parser's best guess plays anyway. What nobody has
  * made yet is designed (Opus) while it is needed: a new thing's quick draft stands in the
  * room at once, a new action's avatar thinks it through. Each design is tested in a fresh
@@ -27,13 +27,13 @@ import { castNamesFor, makeCast, NEW_NAMES } from '../content'
 import { inLang, type Lang, type Words } from '../engine/lang'
 import { parseColor } from '../engine/kit'
 import type { Library } from '../engine/library'
-import { planUses, slugOf, type ActionEntry, type AvatarEntry, type InventRequest, type ItemEntry, type LogLine, type LookChange, type NewAvatar, type NewItem, type Param, type PhraseEntry, type Plan, type SaveRequest } from '../engine/protocol'
+import { isNewThing, kindOfArg, planUses, slugOf, type ActionEntry, type AvatarEntry, type InventRequest, type ItemEntry, type LogLine, type LookChange, type NewAction, type NewAvatar, type NewItem, type Param, type ParamKind, type PhraseEntry, type Plan, type SaveRequest } from '../engine/protocol'
 import { insideRoom, ROOM_GEO } from '../engine/rooms'
 import { newActor, type Reaction, type Sim } from '../engine/sim'
-import { ROOMS, SLOTS, type Actor, type BodyKind, type Look, type RoomId, type Slot, type Step, type WorldEvent } from '../engine/types'
-import { interpreterContext, takenNames } from './context'
+import { ROOMS, SLOTS, type Actor, type BodyKind, type Item, type Look, type RoomId, type Slot, type Step, type WorldEvent } from '../engine/types'
+import { interpreterContext, isMoment, momentId, momentName, takenNames } from './context'
 import type { BrainApi, BrainDeps, HeardBy, HeardLine, Job, Link } from './contract'
-import { actorNamed, meansTheSame, nameIn, namedActors, phraseKey, understand } from './parse'
+import { actorNamed, meansTheSame, nameIn, namedActors, phraseKey, understand, verbFor } from './parse'
 import { validateInWorker, type ValidateRequest } from './validate'
 
 /** How many lines of what was heard the HUD keeps. */
@@ -99,6 +99,10 @@ interface Task {
   fix: { code: string; error: string } | undefined
   tryOn: { actor: string; args: Record<string, string> } | null
   t0: number
+  /** A script the interpreter wrote itself, tested before the designer is asked for one. */
+  given: ActionEntry | null
+  /** What must be there before it is taken in: the new things a script uses. */
+  after: Promise<unknown> | null
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -186,6 +190,8 @@ export class Brain implements BrainApi {
   private readonly touched = new Map<string, number>()
   /** Jobs by 'kind:id' whose thing was forgotten while they ran: out of the HUD's sight, and what they make is not taken in. */
   private readonly cancelled = new Map<string, Job>()
+  /** Each actor's last finished step, for the context: "tee se uudestaan" is that again. */
+  private readonly did = new Map<string, string>()
 
   constructor(deps: BrainDeps) {
     this.deps = deps
@@ -309,6 +315,15 @@ export class Brain implements BrainApi {
     return newest.name
   }
 
+  /** Forgets everything made, newest first, each as forgetNewest does; how many were forgotten. */
+  async forgetAll(): Promise<number> {
+    // Each round forgets one; the bound only guards against one that would not go.
+    const most = this.library.items.size + this.library.actions.size + this.library.avatars.size + 1
+    let n = 0
+    while (n < most && (await this.forgetNewest()) !== null) n++
+    return n
+  }
+
   // ------------------------------------------------------------------ following the sim
 
   /** The sim's events since the last frame; the game passes them here before it drains them. */
@@ -333,8 +348,11 @@ export class Brain implements BrainApi {
         continue
       }
       if (this.spot !== null && this.spot.actor === e.actor && this.spot.action === e.step.action) this.endSpot()
+      const name = momentName(e.step.action)
+      if (e.type === 'done') this.did.set(e.actor, Object.keys(e.step.args).length > 0 ? `${name}(${Object.values(e.step.args).join(', ')})` : name)
       if (command !== undefined) this.stepsOver(command, e.actor, 1, e.type === 'failed')
       if (e.type === 'failed') this.playFailed(e.actor, e.step, e.error)
+      if (isMoment(e.step.action)) this.forgetMoment(e.step.action)
       this.waitAloud(e.actor)
       // The doer's look, and the look of anyone the step names (Alice paints Steve), are kept when they changed.
       const painted = e.step.action === 'paint' ? (e.step.args.thing ?? e.actor) : null
@@ -350,12 +368,13 @@ export class Brain implements BrainApi {
   // ------------------------------------------------------------------ understanding
 
   private async understandAndDo(command: Command): Promise<void> {
+    // A stop comes first, before any words heard before: "Ei!" is always no, whatever a phrase once made of it.
+    const u = understand(command.words, this.library, this.sim.world, this.addressee)
+    if (u.kind === 'stop') return this.stop(u.who, command)
     const key = phraseKey(command.words)
     if (key === '') return this.puzzled(command, [], { en: 'nothing heard', fi: 'ei kuulunut mitään' }, null)
     const phrase = this.library.phrases.get(key)
     if (phrase !== undefined && this.playable(phrase.plan)) return this.execute(phrase.plan, command, 'phrase', false)
-    const u = understand(command.words, this.library, this.sim.world, this.addressee)
-    if (u.kind === 'stop') return this.stop(u.who, command)
     this.log({ kind: 'parsed', serial: command.line.serial, confident: u.confident, plan: u.plan })
     if (u.confident) return this.execute(u.plan, command, 'local', false)
     let guess = u.plan
@@ -467,8 +486,12 @@ export class Brain implements BrainApi {
     const renamed = new Map<string, string>()
     if (plan.create !== undefined) renamed.set(plan.create.id.toLowerCase(), this.makeAvatar(plan.create, command.words).id)
     const actorOf = (name: string) => renamed.get(name.toLowerCase()) ?? this.actorFor(name)
-    const newActions = new Map(plan.newActions.map((a) => [slug(a.id), { ...a, id: slug(a.id) }]))
-    const newItems = plan.newItems.map((i) => ({ ...i, id: slug(i.id) }))
+    // A new action or thing answers only to words nothing else answers to: 'hyppää' stays the jump and 'kaada' the fell made first.
+    const own = (id: string, calls: string[], find: (word: string, opts: { near: boolean }) => string | null) => calls.filter((c) => [null, id].includes(find(c, { near: false })))
+    const newActions = new Map(plan.newActions.map((a) => [slug(a.id), { ...a, id: slug(a.id), calls: own(slug(a.id), a.calls, (w) => verbFor(w, this.library)) }]))
+    const newItems = plan.newItems.map((i) => ({ ...i, id: slug(i.id), calls: own(slug(i.id), i.calls, (w, o) => this.library.itemKindFor(w, o)) }))
+    // A script is this moment's own action, under a name of this command's: its steps wait for it as for a new action.
+    const scripts = new Map((plan.scripts ?? []).map((sc) => [sc.id, { ...sc, id: momentId(line.serial, sc.id) }]))
 
     // The steps, per actor, of actions that exist or are being made. An action with a 'players' param is played together
     // (tag, football): the steps several actors were given for it are one step for the first, with the others as players.
@@ -477,8 +500,8 @@ export class Brain implements BrainApi {
     const together = new Map<string, { actor: string; step: Step }>()
     for (const s of plan.steps) {
       const actor = actorOf(s.who)
-      const action = slug(s.action)
-      if (actor === null || !(this.library.actions.has(action) || newActions.has(action) || this.inflight.has(`action:${action}`))) {
+      const action = scripts.get(s.action)?.id ?? slug(s.action)
+      if (actor === null || !(this.library.actions.has(action) || newActions.has(action) || isMoment(action) || this.inflight.has(`action:${action}`))) {
         dropped.push(`${s.who} ${s.action}`)
         continue
       }
@@ -499,16 +522,12 @@ export class Brain implements BrainApi {
       steps.set(actor, [...(steps.get(actor) ?? []), { action, args, serial: line.serial }])
     }
     const all = [...steps]
-    const uses = (step: Step, kind: string) => Object.values(step.args).includes(kind)
-    for (const [actor, list] of all) {
-      this.settle(actor)
-      sim.give(actor, list, true)
-      command.left.set(actor, list.length)
-      this.touch(actor, line.serial)
-    }
+    const uses = (step: Step, kind: string) => Object.values(step.args).some((v) => kindOfArg(v) === kind)
 
-    // New things and new actions: a job each, shared with any command already waiting for the same.
-    const jobs: Promise<boolean>[] = []
+    // New things: a draft each in the library, and in the room at once unless a step makes it now. The draft in the room
+    // is the new one a step asks for ('new:kind'): the first such arg takes it before the steps are given, so the
+    // thing is not made a second time when the step starts.
+    const making: { spec: NewItem; users: string[] }[] = []
     for (const spec of newItems) {
       const known = this.library.items.get(spec.id)
       if (known !== undefined && (known.entry === null || known.entry.code !== null)) continue
@@ -518,9 +537,48 @@ export class Brain implements BrainApi {
         if (!draft.ok) this.log({ kind: 'draft-failed', id: spec.id, error: draft.error })
       }
       const users = all.filter(([, list]) => list.some((s) => uses(s, spec.id))).map(([id]) => id)
-      const madeNow = all.some(([, list]) => list.some((s) => uses(s, spec.id) && this.library.actions.has(s.action)))
-      if (!madeNow && !world.items.some((i) => i.kind === spec.id)) this.placeDraft(spec.id, users[0] ?? null)
-      jobs.push(this.startJob(this.task('item', spec.id, spec.name, spec.nameFi, users, { kind: 'item', spec, words: command.words, context: this.context() }, undefined, null)))
+      making.push({ spec, users })
+      // A step of a known action makes it now; a script makes what it needs itself.
+      const madeNow = scripts.size > 0 || all.some(([, list]) => list.some((s) => uses(s, spec.id) && this.library.actions.has(s.action)))
+      if (madeNow || world.items.some((i) => i.kind === spec.id)) continue
+      const placed = this.placeDraft(spec.id, users[0] ?? null)
+      const asking = all.flatMap(([, list]) => list.flatMap((s) => Object.keys(s.args).filter((k) => isNewThing(s.args[k]!) && kindOfArg(s.args[k]!) === spec.id).map((k) => ({ s, k }))))[0]
+      if (asking !== undefined) asking.s.args[asking.k] = placed.id
+    }
+
+    for (const [actor, list] of all) {
+      this.settle(actor)
+      sim.give(actor, list, true)
+      command.left.set(actor, list.length)
+      this.touch(actor, line.serial)
+    }
+
+    // New things and new actions: a job each, shared with any command already waiting for the same.
+    const jobs: Promise<boolean>[] = []
+    const itemJobs: Promise<boolean>[] = []
+    for (const { spec, users } of making) {
+      const job = this.startJob(this.task('item', spec.id, spec.name, spec.nameFi, users, { kind: 'item', spec, words: command.words, context: this.context() }, undefined, null))
+      jobs.push(job)
+      itemJobs.push(job)
+    }
+    for (const sc of scripts.values()) {
+      const first = all.find(([, list]) => list.some((s) => s.action === sc.id))
+      if (first === undefined) {
+        this.log({ kind: 'unused-script', serial: line.serial, id: sc.id })
+        continue
+      }
+      const tryOn = { actor: first[0], args: first[1].find((s) => s.action === sc.id)!.args }
+      const users = all.filter(([, list]) => list.some((s) => s.action === sc.id)).map(([id]) => id)
+      const params = this.scriptParams(all.flatMap(([, list]) => list.filter((s) => s.action === sc.id)), newItems)
+      const spec: NewAction = { id: sc.id, name: plan.say, nameFi: plan.sayFi, calls: [], about: sc.about, params }
+      const given: ActionEntry | null =
+        sc.guarded === null || sc.guarded === undefined
+          ? null
+          : { type: 'action', ...spec, code: sc.code, guarded: sc.guarded, by: 'haiku', asked: command.words, made: now() }
+      // Code the guard refused goes to the designer as a fix; no code, to be written from its about.
+      const fix = given === null && sc.code.trim() !== '' ? { code: sc.code, error: sc.refused ?? 'the guard refused it' } : undefined
+      const request: InventRequest = { kind: 'script', spec, words: command.words, context: this.context() }
+      jobs.push(this.startJob(this.task('action', sc.id, spec.name, spec.nameFi, users, request, fix, tryOn, given, itemJobs.length > 0 ? Promise.all(itemJobs) : null)))
     }
     for (const spec of newActions.values()) {
       if (this.library.actions.has(spec.id)) continue
@@ -533,14 +591,19 @@ export class Brain implements BrainApi {
       const users = all.filter(([, list]) => list.some((s) => s.action === spec.id)).map(([id]) => id)
       jobs.push(this.startJob(this.task('action', spec.id, spec.name, spec.nameFi, users, { kind: 'action', spec, words: command.words, context: this.context() }, undefined, tryOn)))
     }
-    // Whoever waits for an action that is not there yet thinks about it; whoever waits from the start says so now.
+    // Whoever waits for an action that is not there yet thinks about it; whoever waits from the start says so now, unless it waits only
+    // for the interpreter's own script to be tried (a moment), and its answer waits for the start either way.
+    const quick = new Set([...scripts.values()].flatMap((sc) => (sc.guarded ? [sc.id] : [])))
     const waits = new Set<string>()
+    const holds = new Set<string>()
     for (const [actor, list] of all) {
       const waiting = list.find((s) => !this.library.actions.has(s.action))
       if (waiting === undefined) continue
       const job = this.jobs.find((j) => j.kind === 'action' && j.id === waiting.action)
       world.actors.find((a) => a.id === actor)!.thinking = { about: job?.name ?? waiting.action, since: world.t, progress: job?.progress ?? 0 }
-      if (list[0] === waiting) waits.add(actor)
+      if (list[0] !== waiting) continue
+      holds.add(actor)
+      if (!quick.has(waiting.action)) waits.add(actor)
     }
 
     const who = unique([...plan.who.map(actorOf).filter((id) => id !== null), ...steps.keys()])
@@ -549,7 +612,7 @@ export class Brain implements BrainApi {
     const answer: Answer | null = speaker === undefined ? null : { actor: speaker, say: { en: plan.say, fi: plan.sayFi } }
     // A first step that speaks is the answer itself: an "Okei!" before it would be cut off at once.
     const speaksFirst = speaker !== undefined && steps.get(speaker)?.[0]?.action === 'say'
-    if (answer !== null && waits.has(answer.actor)) command.answer = answer
+    if (answer !== null && holds.has(answer.actor)) command.answer = answer
     else if (answer !== null && !speaksFirst) this.answer(answer, true)
     for (const id of waits) this.thinkAloud(world.actors.find((a) => a.id === id)!, id === speaker)
     const nothingToDo = plan.steps.length === 0 && plan.room === undefined && plan.create === undefined
@@ -580,7 +643,8 @@ export class Brain implements BrainApi {
    * here then).
    */
   private keepPhrase(plan: Plan, command: Command, jobs: Promise<boolean>[], who: string[]): void {
-    if (!meansTheSame(command.words)) return
+    // A script fits the moment it was written for: the same words next time are understood afresh.
+    if (!meansTheSame(command.words) || (plan.scripts ?? []).length > 0) return
     const named = namedActors(command.words, this.sim.world)
     if (!who.every((id) => named.includes(id))) return
     this.track(
@@ -617,7 +681,7 @@ export class Brain implements BrainApi {
         if (action === undefined || this.actorFor(s.who) === null) return false
         return s.args.every((a) => {
           const p = action.params.find((x) => x.name === a.name)
-          return p === undefined || there(p, a.value)
+          return p === undefined || there(p, kindOfArg(a.value))
         })
       })
     )
@@ -709,17 +773,17 @@ export class Brain implements BrainApi {
   }
 
   /** A new thing's draft appears in front of whoever wants it. */
-  private placeDraft(kind: string, near: string | null): void {
+  private placeDraft(kind: string, near: string | null): Item {
     const world = this.sim.world
     const a = world.actors.find((x) => x.id === near) ?? world.actors[0]
-    this.sim.makeItem(kind, a === undefined ? { x: 0, z: 0 } : insideRoom(a.x + Math.sin(a.yaw) * 1.5, a.z + Math.cos(a.yaw) * 1.5, 1))
+    return this.sim.makeItem(kind, a === undefined ? { x: 0, z: 0 } : insideRoom(a.x + Math.sin(a.yaw) * 1.5, a.z + Math.cos(a.yaw) * 1.5, 1))
   }
 
   // ------------------------------------------------------------------ making
 
-  private task(kind: Job['kind'], id: string, name: string, nameFi: string, users: string[], request: InventRequest, fix: Task['fix'], tryOn: Task['tryOn']): Task {
-    const job: Job = { kind, id, name, nameFi, progress: 0, stage: kind === 'item' ? 'drafting' : 'designing', for: users }
-    return { job, request, fix, tryOn, t0: performance.now() }
+  private task(kind: Job['kind'], id: string, name: string, nameFi: string, users: string[], request: InventRequest, fix: Task['fix'], tryOn: Task['tryOn'], given: ActionEntry | null = null, after: Promise<unknown> | null = null): Task {
+    const job: Job = { kind, id, name, nameFi, progress: 0, stage: kind === 'item' ? 'drafting' : given !== null ? 'testing' : 'designing', for: users }
+    return { job, request, fix, tryOn, t0: performance.now(), given, after }
   }
 
   private startJob(task: Task): Promise<boolean> {
@@ -770,14 +834,17 @@ export class Brain implements BrainApi {
         // Forgotten and wanted by nobody since: no second try.
         if (this.cancelled.has(key)) return false
         const stage = fix === undefined ? 'designing' : 'fixing'
+        // The interpreter's own script is tried first; the designer writes it only when that fails, and then the avatar thinks aloud.
+        const given = round === 0 ? task.given : null
         if (round > 0) Object.assign(job, { stage, progress: 0 })
+        if (round > 0 && task.given !== null) for (const a of this.sim.world.actors) if (a.queue[0]?.action === job.id) this.waitAloud(a.id)
         this.changed()
         const t0 = performance.now()
         const wait = deadline(until - t0)
-        const made = await this.link.invent({ ...task.request, fix }, (p) => this.progress(task, stage, p), wait.signal).finally(wait.clear)
+        const made = given ?? (await this.link.invent({ ...task.request, fix }, (p) => this.progress(task, stage, p), wait.signal).finally(wait.clear))
         if (made.type !== job.kind) throw new Error(`the designer sent a ${made.type}, not a ${job.kind}`)
         const entry = { ...made, id: job.id }
-        this.log({ kind: 'invented', job: job.kind, id: job.id, round, ms: ms(t0) })
+        this.log({ kind: 'invented', job: job.kind, id: job.id, round, by: given === null ? 'designer' : 'interpreter', ms: ms(t0) })
         Object.assign(job, { stage: 'testing', progress: 1 })
         this.changed()
         const result = await validateInWorker(this.testOf(task, entry))
@@ -826,12 +893,15 @@ export class Brain implements BrainApi {
       this.log({ kind: 'not-taken', job: entry.type, id: entry.id, why: 'forgotten while it was made' })
       return false
     }
+    // A script waits for the new things it uses, so it meets their real models.
+    if (task.after !== null) await task.after
     const added = entry.type === 'item' ? this.library.addItem(entry) : this.library.addAction(entry)
     if (!added.ok) return this.giveUp(task, added.error)
     if (entry.type === 'item') this.sim.refreshKind(entry.id)
     else this.fresh.add(entry.id)
     this.log({ kind: 'made', job: entry.type, id: entry.id, ms: ms(task.t0) })
-    return this.save({ entry })
+    // A script is for this moment: it plays and is forgotten, never saved.
+    return task.request.kind === 'script' ? true : this.save({ entry })
   }
 
   /** A new action that could not be made: whoever waits for it shrugs and its steps go. A thing keeps its draft. */
@@ -860,8 +930,31 @@ export class Brain implements BrainApi {
     return false
   }
 
+  /** A script's params, from what its steps give it: a place, a number, a thing (someone, a thing here by id, a kind), else words. */
+  private scriptParams(steps: Step[], newItems: NewItem[]): Param[] {
+    const kinds = new Map<string, ParamKind>()
+    for (const s of steps) {
+      for (const [name, given] of Object.entries(s.args)) {
+        const value = kindOfArg(given)
+        const thing = this.actorFor(value) !== null || value.startsWith('#') || this.library.itemKindFor(value, { near: false }) !== null || newItems.some((i) => i.id === value)
+        const kind: ParamKind = /^-?[\d.]+,-?[\d.]+$/.test(value) ? 'place' : /^-?\d+(\.\d+)?$/.test(value) ? 'number' : thing ? 'thing' : 'text'
+        if (!kinds.has(name)) kinds.set(name, kind)
+      }
+    }
+    return [...kinds].map(([name, kind]) => ({ name, kind, about: name, optional: true }))
+  }
+
+  /** A script whose last step ended leaves the library: nobody does it again. */
+  private forgetMoment(id: string): void {
+    if (this.sim.world.actors.some((a) => a.doing?.action === id || a.queue.some((s) => s.action === id))) return
+    if (this.library.actions.has(id)) this.library.forget('action', id)
+    this.fresh.delete(id)
+  }
+
   /** A made action failed at play time; the second time it goes back to the designer (when there is one) with the error, while the old one stays. */
   private playFailed(actor: string, step: Step, error: string): void {
+    // A script is not fixed after it ran: it was for that moment.
+    if (isMoment(step.action)) return
     const made = this.library.actions.get(step.action)?.entry ?? null
     if (made === null) return
     const count = (this.failures.get(made.id) ?? 0) + 1
@@ -979,8 +1072,10 @@ export class Brain implements BrainApi {
     for (const id of ids) this.sim.react(id, kind)
   }
 
+  /** The whole scene for the interpreter and the designer, with the last three commands understood (not those that came to nothing, nor one still being understood). */
   private context(): string {
-    return interpreterContext(this.sim.world, this.library, this.addressee, this.lastMade, NEW_NAMES[this.lang])
+    const said = this.lines.flatMap((l) => (l.status === 'failed' || inLang(l.heard, this.lang) === '' ? [] : [inLang(l.heard, this.lang)])).slice(-3)
+    return interpreterContext(this.sim.world, this.library, { addressee: this.addressee, lastMade: this.lastMade, said, did: this.did, newNames: NEW_NAMES[this.lang] })
   }
 
   private log(line: LogLine): void {

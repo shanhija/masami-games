@@ -209,6 +209,17 @@ describe('stopping', () => {
     expect(hear('Alice, seis!')).toEqual({ kind: 'stop', who: ['alice'] })
     expect(hear('älä hyppää steve')).toEqual({ kind: 'stop', who: ['steve'] })
   })
+
+  it('a bare "ei" or "älä" stops the one spoken to: Noora was made to say "Ei? Okei!" and Eetu "Okay, I stop!"', () => {
+    for (const words of ['Ei!', 'Ei, ei, ei,', 'ei ei ei ei', 'älä', 'Älä!']) expect(hear(words, 'noora'), words).toEqual({ kind: 'stop', who: ['noora'] })
+    expect(hear('Ei, Alice!', 'noora')).toEqual({ kind: 'stop', who: ['alice'] })
+    expect(hear('Ei!', null)).toEqual({ kind: 'stop', who: ['alice', 'steve', 'mike', 'noora', 'mirri'] })
+    // 'no' is "well" in Finnish; in English it is no.
+    expect(understand('No!', vocab, { ...world, lang: 'fi' }, 'noora')).toMatchObject({ kind: 'plan' })
+    expect(hear('No!', 'noora')).toEqual({ kind: 'stop', who: ['noora'] })
+    // An "ei" in a sentence is no stop: "Ei vaan, Alice hyppää".
+    expect(hear('Ei vaan Alice hyppää', 'noora')).toMatchObject({ kind: 'plan' })
+  })
 })
 
 describe('changing rooms', () => {
@@ -221,7 +232,7 @@ describe('changing rooms', () => {
 
   it('knows the other rooms and their endings', () => {
     expect(sure(hear('mennään metsään')).room).toBe('forest')
-    expect(sure(hear('mene leikkipuistoon')).room).toBe('playground')
+    expect(sure(understand('mene leikkipuistoon', vocab, { ...world, room: 'forest' }, null)).room).toBe('playground')
   })
 
   it('a room change and a command together', () => {

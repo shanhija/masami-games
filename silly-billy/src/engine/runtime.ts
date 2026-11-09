@@ -9,18 +9,21 @@
  * that code `yield`s instead of `yield*`ing runs all the same (runStack).
  */
 
-import type { ActorApi, Anim, Args, ItemApi, PoseChange, Spot, WorldApi } from './api'
-import { backFrame, bodyCenter, handFrame, headFrame, proportions, type Proportions } from './body'
-import { parseColor } from './kit'
+import type { ActorApi, Anim, Args, GroundApi, ItemApi, PartApi, PoolApi, PoseChange, SkyApi, Spot, WorldApi } from './api'
+import { holdFrame, namesFrame, offsetIn, placing, wouldLoop } from './attach'
+import { backFrame, bodyCenter, handFrame, headFrame, proportions, rootFrame, type Proportions } from './body'
+import { effectName, effectPace, effectsLeft, setEffect } from './effects'
+import { Kit, parseColor } from './kit'
 import { wordsOf, type Lang, type Words } from './lang'
 import { blocker, clearLine, fieldFor, findWay, MARGIN, nextStep, type Circle, type Point } from './path'
-import type { ParamKind, Param } from './protocol'
-import { groundAt, inWater, insideRoom } from './rooms'
+import { isNewThing, kindOfArg, type ParamKind, type Param } from './protocol'
+import { groundAt, insideRoom } from './rooms'
 import type { Reaction, Sim } from './sim'
-import { HANDS, ROOM_HALF, SLOTS, STEP, restPart, type Actor, type Hand, type Item, type Look, type Pose, type Slot, type Step, type Vec3 } from './types'
+import { fadeSky, fadeTerrain, nightOf, setSky, setTerrain, skyOf, terrainOf } from './sky'
+import { HANDS, ROOM_HALF, SLOTS, STEP, restPart, type Actor, type Added, type Effect, type Hand, type Item, type ItemMeta, type ItemTraits, type Look, type Pose, type SkyKey, type Slot, type Step, type TerrainKey, type Vec3 } from './types'
 import {
-  addPuffs, anchorPoint, bottomOf, CAMERA_FACING, clamp, copyPose, ease, GRAVITY, HEAD_KEYS, heightOf, isDown, isLying, isObject, itemCentre, lerpPose, LIMB_KEYS, LIMBS, MAX_ITEMS,
-  moodName, nextRandom, num, POSE_NUMBERS, poseDistance, puffKind, restFor, restHeight, seatedRoot, solidsOf, soundName, supportAt, thinkPose, turnBetween,
+  addPuffs, anchorPoint, bottomOf, CAMERA_FACING, clamp, copyPose, ease, GRAVITY, HEAD_KEYS, heightOf, infoFor, isDown, isLying, isObject, itemCentre, itemPoint, lerpPose, LIMB_KEYS, LIMBS, MAX_ITEMS,
+  moodName, nextRandom, num, POSE_NUMBERS, poseDistance, puffKind, restFor, restHeight, seatedRoot, solidsOf, soundName, supportAt, thinkPose, turnBetween, waterTop, wetAt,
   type Loose, type Seat, type Solid,
 } from './world'
 import { matchWord, normalWord } from './words'
@@ -41,6 +44,22 @@ function lineOf(v: unknown, lang: Lang): string {
 /** What an actor says when something cannot be done. */
 const HMM: Words = { en: 'Hmm?', fi: 'Hmm?' }
 const TOO_BIG: Words = { en: 'Too big!', fi: 'Liian iso!' }
+const NOT_FOOD: Words = { en: 'Not food!', fi: 'Ei ole ruokaa!' }
+
+/** At most this many shapes added to one thing (it.add). */
+export const MAX_ADDED = 120
+
+/** How a flip turns: round which axis, which way, and where it goes (+ to its left for a cartwheel, forward for the rest), metres. */
+const FLIPS: Record<string, { axis: 'roll' | 'pitch'; sign: number; go: number }> = {
+  cartwheel: { axis: 'roll', sign: 1, go: 1.2 },
+  sideways: { axis: 'roll', sign: 1, go: 1.2 },
+  somersault: { axis: 'pitch', sign: 1, go: 0.9 },
+  forward: { axis: 'pitch', sign: 1, go: 0.9 },
+  frontflip: { axis: 'pitch', sign: 1, go: 0.9 },
+  backflip: { axis: 'pitch', sign: -1, go: -0.5 },
+  back: { axis: 'pitch', sign: -1, go: -0.5 },
+  backward: { axis: 'pitch', sign: -1, go: -0.5 },
+}
 
 /**
  * Runs a generator one frame per call the way `yield*` would, and also runs a helper that code
@@ -268,6 +287,15 @@ function* fall(rt: Runtime, a: Actor): Anim {
 
 const TAKE_OFF_ORDER: readonly Slot[] = ['head', 'face', 'hand', 'back', 'body', 'hair']
 
+/** A route: a list of two or more points or things (one point given as [x, z] is a spot, not a route). Null for anything else. */
+function routeOf(v: unknown): unknown[] | null {
+  if (!Array.isArray(v) || v.length === 0 || (v.length === 2 && isNum(v[0]) && isNum(v[1]))) return null
+  return v.slice(0, 64)
+}
+
+/** A place as words: 'x,z' in metres. */
+const SPOT = /^\s*(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)\s*$/
+
 let actorOf: (h: ActorHandle) => Actor
 let itemOf: (h: ItemHandle) => Item
 
@@ -276,6 +304,8 @@ let itemOf: (h: ItemHandle) => Item
 class ActorHandle implements ActorApi {
   readonly #rt: Runtime
   readonly #a: Actor
+  /** How deep `do` runs actions inside actions: a script calls a made action, which may call another, and no further. */
+  #depth = 0
   static {
     actorOf = (h) => h.#a
   }
@@ -378,6 +408,15 @@ class ActorHandle implements ActorApi {
     this.#join()
     this.#a.scale = clamp(v, 0.2, 4)
   }
+  get pivot(): number {
+    return this.#a.pivot ?? 0
+  }
+  /** A new pivot keeps the body where it is: what changes is what the next turn turns round. */
+  set pivot(v: unknown) {
+    if (!isNum(v)) return
+    this.#join()
+    this.#rt.setPivot(this.#a, clamp(v, 0, 1))
+  }
   get pose(): Pose {
     this.#join()
     return this.#a.pose
@@ -464,14 +503,32 @@ class ActorHandle implements ActorApi {
     const a = this.#a
     this.#join()
     const o = isObject(opts) ? opts : {}
+    // A route: one point (or thing) after another, as near as asked only at the last.
+    const route = routeOf(target)
+    if (route !== null) {
+      for (let i = 0; i < route.length; i++) yield* this.walkTo(route[i], i < route.length - 1 ? { ...o, near: 0.15 } : o)
+      return
+    }
     const near = clamp(num(o.near, 0.6), 0, 30)
     const run = o.run === true
+    // Its own pace in m/s when asked; running doubles it.
+    const own = isNum(o.speed) ? clamp(o.speed, 0.1, 12) / Math.max(0.1, Math.sqrt(a.scale)) : a.speed
     const goal = rt.thing(target)
-    if (rt.spot(target) === null) {
+    const there = rt.spot(target)
+    if (there === null) {
       yield
       return
     }
     yield* this.#upright()
+    // Up on a thing, and going somewhere off it: down first, on the side toward the goal.
+    const on = rt.standingOn(a)
+    if (on !== null) {
+      if (goal === on.it || rt.overTop(on.it, there.x, there.z, -0.05)) {
+        yield* this.#walkOnTop(goal === on.it ? null : target, clamp(num(isObject(opts) ? opts.near : undefined, 0.6), 0, 30))
+        return
+      }
+      yield* this.climbDown(target)
+    }
     const w = rt.sim.world
     const pr = proportions(a.look)
     const walk: Walk = { way: null, rest: [], next: 0, final: false, planX: 0, planZ: 0, planned: -Infinity, roundOthers: false, around: [], side: 1, left: Infinity, leftAt: w.t, nearest: Infinity, stuck: 0, start: w.t, until: Infinity }
@@ -484,9 +541,9 @@ class ActorHandle implements ActorApi {
       const dist = Math.hypot(at.x - a.x, at.z - a.z)
       if (dist - reach <= near) break
       const solids = solidsOf(w, rt.sim.library)
-      const wading = inWater(w.room, a.x, a.z)
-      const pace = (run ? 2 : 1) * (wading ? 0.6 : 1)
-      const speed = a.speed * pace * Math.sqrt(a.scale)
+      const wading = wetAt(w, a.x, a.z)
+      const pace = (run ? 2 : 1) * (wading ? 0.6 : 1) * effectPace(a, w.t)
+      const speed = own * pace * Math.sqrt(a.scale)
       if (walked === 0) walk.until = w.t + clamp(4 + (SLACK * (dist - reach - near)) / speed, 12, 50)
       const step = Math.min(speed * STEP, dist - reach - near + 0.01)
       const to = steer(rt, a, goal, walk, at, reach + near, me, step, speed, solids)
@@ -496,7 +553,7 @@ class ActorHandle implements ActorApi {
       const mz = p.z - a.z
       if (mx * mx + mz * mz > 1e-8) {
         a.yaw += clamp(turnBetween(a.yaw, Math.atan2(mx, mz)), -10 * STEP, 10 * STEP)
-        a.stride += Math.PI * 2.4 * pace * STEP
+        a.stride += Math.PI * 2.4 * pace * (own / a.speed) * STEP
         walkedIn.set(a, w.frame)
       }
       a.x = p.x
@@ -563,7 +620,7 @@ class ActorHandle implements ActorApi {
       yield
       return
     }
-    const info = rt.sim.library.info(it.kind)
+    const info = infoFor(rt.sim.library, it)
     if (info.recipe.meta.carry === 'no' || (it.rider !== null && it.rider !== a.id)) {
       yield* this.#cannot(info.recipe.meta.carry === 'no' ? TOO_BIG : HMM)
       return
@@ -656,6 +713,7 @@ class ActorHandle implements ActorApi {
       }
       yield
     }
+    rt.landed(a)
     rt.pushOut(a)
     yield* this.poseTo({ squash: 0.82, legL: { bend: bendL + 0.4 }, legR: { bend: bendR + 0.4 } }, 0.07)
     yield* this.poseTo({ squash: 1, legL: { bend: bendL }, legR: { bend: bendR } }, 0.12)
@@ -688,6 +746,8 @@ class ActorHandle implements ActorApi {
       }
       yield
     }
+    // Upright again: the next turn turns round the feet, as before.
+    if (a.riding === null && (a.pivot ?? 0) !== 0) this.#rt.setPivot(a, 0)
   }
 
   *ride(item: unknown): Anim {
@@ -754,7 +814,7 @@ class ActorHandle implements ActorApi {
     side.hopping.add(a.id)
     const from = { x: a.x, y: a.y, z: a.z, yaw: a.yaw, pitch: a.pitch, roll: a.roll }
     const pose = copyPose(a.pose)
-    const info = rt.sim.library.info(it.kind)
+    const info = infoFor(rt.sim.library, it)
     for (let i = 1, n = frames(0.3); i <= n; i++) {
       const k = ease(i / n)
       const s = seatedRoot(a, it, info)
@@ -769,6 +829,350 @@ class ActorHandle implements ActorApi {
       if (a.riding !== it.id) return
     }
     side.hopping.delete(a.id)
+  }
+
+  /** The thing whose top it stands on now, or null. */
+  get onTop(): ItemApi | null {
+    const on = this.#rt.standingOn(this.#a)
+    return on === null ? null : this.#rt.item(on.it)
+  }
+
+  /**
+   * Gets up onto a thing's top and stays there (a trampoline, a table, a rock, a roof, a
+   * treehouse's floor): walks to it, climbs up its side hand over hand when the top is higher
+   * than itself, and hops onto the middle. Jumps and flips up there land on it again; walking
+   * off it, or climbDown, gets it down.
+   */
+  *climbOnto(target: unknown): Anim {
+    const rt = this.#rt
+    const a = this.#a
+    this.#join()
+    const it = rt.liveItem(target)
+    if (it === null || it.holder !== null || rt.standingOn(a)?.it === it) {
+      yield
+      return
+    }
+    yield* this.#upright()
+    if (rt.standingOn(a) !== null) yield* this.climbDown(rt.item(it))
+    yield* this.walkTo(rt.item(it), { near: 0.1 })
+    if (!rt.alive(it) || it.holder !== null) return
+    const pr = proportions(a.look)
+    let top = rt.topOf(it)
+    yield* this.turnTo({ x: top.x, z: top.z })
+    const tall = a.look.height * a.scale
+    if (top.y - a.y > tall * 0.8) {
+      // Too high to hop: up its side, hand over hand.
+      const y0 = a.y
+      const n = frames(clamp((top.y - y0) / 1.1, 0.5, 4))
+      for (let i = 1; i <= n; i++) {
+        const k = i / n
+        const s = Math.sin(k * Math.PI * 2 * Math.max(2, Math.round((top.y - y0) * 1.5)))
+        a.y = lerp(y0, rt.topOf(it).y - tall * 0.35, k)
+        if (!pr.animal) {
+          a.pose.armL.swing = 2.7 + 0.35 * s
+          a.pose.armR.swing = 2.7 - 0.35 * s
+          a.pose.armL.bend = a.pose.armR.bend = 0.4
+        }
+        a.pose.legL.swing = 0.5 + 0.4 * s
+        a.pose.legR.swing = 0.5 - 0.4 * s
+        a.pose.legL.bend = a.pose.legR.bend = 0.8
+        yield
+        if (!rt.alive(it)) return
+      }
+    } else yield* this.poseTo({ squash: 0.8, legL: { bend: 0.6 }, legR: { bend: 0.6 } }, 0.12)
+    // A hop onto the middle of its top.
+    const from = { x: a.x, y: a.y, z: a.z }
+    for (let i = 1, n = frames(0.45); i <= n; i++) {
+      const k = i / n
+      top = rt.topOf(it)
+      const peak = Math.max(top.y, from.y) + 0.35 * a.scale
+      a.x = lerp(from.x, top.x, k)
+      a.z = lerp(from.z, top.z, k)
+      a.y = k < 0.5 ? lerp(from.y, peak, ease(k * 2)) : lerp(peak, top.y, ease((k - 0.5) * 2))
+      a.pose.squash = 1 + 0.1 * Math.sin(k * Math.PI)
+      yield
+      if (!rt.alive(it)) return
+    }
+    a.on = it.id
+    a.y = rt.topOf(it).y
+    yield* this.poseTo({ squash: 0.85, legL: { bend: 0.4 }, legR: { bend: 0.4 } }, 0.08)
+    yield* this.rest(0.15)
+  }
+
+  /** Gets down off the thing it stands on, to the ground beside it toward `where` (a thing or a place), else in front: a hop, or climbing down a high one. */
+  *climbDown(where?: unknown): Anim {
+    const rt = this.#rt
+    const a = this.#a
+    this.#join()
+    const on = (a.on ?? null) === null ? undefined : rt.sim.side.items.get(a.on!)
+    a.on = null
+    if (on === undefined || !rt.alive(on)) {
+      yield* fall(rt, a)
+      return
+    }
+    const w = rt.sim.world
+    const pr = proportions(a.look)
+    const me = pr.radius * a.scale
+    const top = rt.topOf(on)
+    const goal = where === undefined || where === null ? null : rt.spot(where)
+    const yaw = goal !== null && Math.hypot(goal.x - top.x, goal.z - top.z) > 0.05 ? Math.atan2(goal.x - top.x, goal.z - top.z) : a.yaw
+    const d = rt.radiusOf(on) + me + 0.15
+    const land = insideRoom(on.x + Math.sin(yaw) * d, on.z + Math.cos(yaw) * d, me)
+    const ground = restHeight(w, a, land.x, land.z, groundAt(w.room, land.x, land.z))
+    yield* this.turnTo(land)
+    const tall = a.look.height * a.scale
+    let from = { x: a.x, y: a.y, z: a.z }
+    if (from.y - ground > tall * 1.2) {
+      // High up: over the edge, then down its side hand over hand.
+      const edge = { x: lerp(land.x, from.x, (me + 0.15) / d), z: lerp(land.z, from.z, (me + 0.15) / d) }
+      for (let i = 1, n = frames(0.3); i <= n; i++) {
+        a.x = lerp(from.x, edge.x, i / n)
+        a.z = lerp(from.z, edge.z, i / n)
+        yield
+      }
+      const y0 = a.y
+      const low = ground + tall * 0.4
+      const n = frames(clamp((y0 - low) / 1.3, 0.4, 4))
+      for (let i = 1; i <= n; i++) {
+        const k = i / n
+        const s = Math.sin(k * Math.PI * 2 * Math.max(2, Math.round((y0 - low) * 1.5)))
+        a.y = lerp(y0, low, k)
+        if (!pr.animal) {
+          a.pose.armL.swing = 2.7 + 0.35 * s
+          a.pose.armR.swing = 2.7 - 0.35 * s
+        }
+        a.pose.legL.swing = 0.5 + 0.4 * s
+        a.pose.legR.swing = 0.5 - 0.4 * s
+        yield
+      }
+      from = { x: a.x, y: a.y, z: a.z }
+    }
+    yield* this.poseTo({ squash: 0.85, legL: { bend: 0.5 }, legR: { bend: 0.5 } }, 0.1)
+    for (let i = 1, n = frames(0.45); i <= n; i++) {
+      const k = i / n
+      const peak = from.y + 0.3 * a.scale
+      a.x = lerp(from.x, land.x, k)
+      a.z = lerp(from.z, land.z, k)
+      a.y = k < 0.35 ? lerp(from.y, peak, ease(k / 0.35)) : lerp(peak, ground, ease((k - 0.35) / 0.65))
+      yield
+    }
+    a.y = rt.groundUnder(a)
+    rt.pushOut(a)
+    yield* this.poseTo({ squash: 0.82, legL: { bend: 0.5 }, legR: { bend: 0.5 } }, 0.08)
+    yield* this.rest(0.15)
+  }
+
+  /** Walks along the top it stands on, straight, to a point up there (null: its middle). */
+  *#walkOnTop(target: unknown, near: number): Anim {
+    const rt = this.#rt
+    const a = this.#a
+    const pr = proportions(a.look)
+    for (let i = 0; i < 600; i++) {
+      const on = rt.standingOn(a)
+      if (on === null) break
+      const at = target === null ? on.top : (rt.spot(target) ?? on.top)
+      const dist = Math.hypot(at.x - a.x, at.z - a.z) - (target === null ? 0 : near)
+      if (dist <= 0.02) break
+      const step = Math.min(a.speed * 0.7 * STEP, dist)
+      const yaw = Math.atan2(at.x - a.x, at.z - a.z)
+      a.yaw += clamp(turnBetween(a.yaw, yaw), -10 * STEP, 10 * STEP)
+      a.x += Math.sin(yaw) * step
+      a.z += Math.cos(yaw) * step
+      a.y = on.top.y
+      a.stride += Math.PI * 2.4 * 0.7 * STEP
+      walkCycle(a, pr, false)
+      yield
+    }
+    yield* this.rest(0.15)
+  }
+
+  /**
+   * Moves a thing of any size to a place, a thing or an actor, and at a side or the top of a
+   * thing when `where` says ('front', 'back', 'left', 'right', 'top'): a thing a hand or two arms
+   * can take is carried there; one too big is pushed along the ground; one built into the room,
+   * or one going up onto another, is moved by magic, floating over in a sparkle. On top of
+   * another it is fixed there, so it goes where that goes.
+   */
+  *moveThing(thing: unknown, to: unknown, where?: unknown, opts?: unknown): Anim {
+    const rt = this.#rt
+    const a = this.#a
+    const w = rt.sim.world
+    this.#join()
+    const it = rt.liveItem(thing)
+    const o = isObject(opts) ? opts : {}
+    // Along a route; or to one point the same way, when it goes at a pace or takes someone with it (who rides it or stands on it).
+    const aboard = it !== null && w.actors.some((b) => b.riding === it.id || b.on === it.id)
+    const placed = typeof where === 'string' && where.trim() !== ''
+    const route = routeOf(to) ?? (!placed && (aboard || isNum(o.speed)) && rt.spot(to) !== null ? [to] : null)
+    if (it !== null && route !== null) {
+      yield* this.#travel(it, route, o)
+      return
+    }
+    const target = rt.thing(to)
+    const spot = rt.spot(to)
+    if (it === null || spot === null || target === it) {
+      yield
+      return
+    }
+    const side = typeof where === 'string' && where.trim() !== '' ? where.trim().toLowerCase() : null
+    const info = infoFor(rt.sim.library, it)
+    const handle = rt.item(it)
+    const onto = side === 'top'
+    // Where its base point goes.
+    const dest = (): { x: number; y: number; z: number } => {
+      if (target !== null && side !== null) return rt.placingFor(it, target, side)
+      const s = rt.spot(to) ?? spot
+      if (target === null) return { x: s.x, y: groundAt(w.room, s.x, s.z), z: s.z }
+      // Beside the thing or actor, on the side toward where it is now.
+      const yaw = Math.atan2(it.x - s.x, it.z - s.z)
+      const d = rt.radiusOf(target) + rt.radiusOf(it) + 0.1
+      return { x: s.x + Math.sin(yaw) * d, y: groundAt(w.room, s.x, s.z), z: s.z + Math.cos(yaw) * d }
+    }
+    const settle = () => {
+      if (target !== null && side !== null) rt.putAt(it, 'look' in target ? rt.actor(target) : rt.item(target), side, onto)
+    }
+    const carried = info.recipe.meta.carry !== 'no' && !it.fixed && it.rider === null && (it.holder === null || it.holder.actor === a.id)
+    if (carried) {
+      if (it.holder?.actor !== a.id) yield* this.pickUp(handle)
+      if (it.holder?.actor === a.id) {
+        if (target !== null && side !== null) {
+          yield* this.walkTo('look' in target ? rt.actor(target) : rt.item(target), { near: 0.3 })
+          yield* this.turnTo(spot)
+          yield* this.poseTo({ lean: 0.2, armL: { swing: 2.2 }, armR: { swing: 2.2 } }, 0.25)
+          settle()
+          rt.sound('pop')
+          yield* this.rest(0.25)
+        } else yield* this.putDown(handle, to)
+        return
+      }
+    }
+    const pr = proportions(a.look)
+    const me = pr.radius * a.scale
+    if (!it.fixed && !onto && it.holder === null && it.rider === null) {
+      // Too big to carry: pushed along the ground from behind.
+      const goal = dest()
+      const r = rt.radiusOf(it)
+      const dir = () => {
+        const dx = goal.x - it.x
+        const dz = goal.z - it.z
+        const l = Math.hypot(dx, dz)
+        return l < 1e-6 ? { x: 0, z: 0, l } : { x: dx / l, z: dz / l, l }
+      }
+      const d0 = dir()
+      if (d0.l > 0.05) {
+        yield* this.walkTo(insideRoom(it.x - d0.x * (r + me + 0.1), it.z - d0.z * (r + me + 0.1), me), { near: 0.05 })
+        yield* this.turnTo(goal)
+        yield* this.poseTo({ lean: 0.4, armL: { swing: 1.45, raise: 0.15, bend: 0.25 }, armR: { swing: 1.45, raise: 0.15, bend: 0.25 } }, 0.25)
+        rt.sound('drum')
+        for (let i = 0; i < frames(30); i++) {
+          const d = dir()
+          if (d.l <= 0.03 || !rt.alive(it) || it.holder !== null) break
+          const step = Math.min(0.9 * STEP, d.l)
+          handle.x = it.x + d.x * step
+          handle.z = it.z + d.z * step
+          const p = insideRoom(it.x - d.x * (r + me + 0.05), it.z - d.z * (r + me + 0.05), me)
+          a.x = p.x
+          a.z = p.z
+          a.yaw += clamp(turnBetween(a.yaw, Math.atan2(d.x, d.z)), -6 * STEP, 6 * STEP)
+          a.stride += Math.PI * 1.6 * STEP
+          a.pose.legL.swing = 0.45 * Math.sin(a.stride)
+          a.pose.legR.swing = -0.45 * Math.sin(a.stride)
+          if (i % 20 === 0) addPuffs(w, { kind: 'dust', x: it.x, y: 0.05, z: it.z, color: null, count: 4, size: 0.12, speed: 0.6, up: 0.3, life: 0.6, gravity: 0 })
+          yield
+        }
+        settle()
+        yield* this.rest(0.25)
+        return
+      }
+      settle()
+      yield
+      return
+    }
+    // Built into the room, held, or going up onto another: by magic.
+    yield* this.turnTo(rt.item(it))
+    this.feel('happy', 2)
+    rt.sound('zap')
+    yield* this.poseTo({ armL: { swing: 2.6, raise: 0.4 }, armR: { swing: 2.6, raise: 0.4 } }, 0.2)
+    if (it.holder !== null) rt.release(it)
+    it.fixed = false
+    const from = { x: it.x, y: it.y, z: it.z }
+    const lift = 0.6
+    const goal = dest()
+    const secs = clamp(Math.hypot(goal.x - from.x, goal.z - from.z) / 3, 0.8, 2.5)
+    let n = 0
+    yield* rt.api.during(0.4 + secs + 0.4, (k: number) => {
+      const t = k * (0.8 + secs)
+      const up = t < 0.4 ? ease(t / 0.4) : t > 0.4 + secs ? 1 - ease((t - 0.4 - secs) / 0.4) : 1
+      const g = dest()
+      const m = t < 0.4 ? 0 : t > 0.4 + secs ? 1 : ease((t - 0.4) / secs)
+      handle.x = lerp(from.x, g.x, m)
+      handle.z = lerp(from.z, g.z, m)
+      handle.y = lerp(from.y, g.y, m) + lift * up
+      if (n++ % 6 === 0) addPuffs(w, { kind: 'spark', x: it.x, y: it.y + 0.3, z: it.z, color: null, count: 5, size: 0.14, speed: 1, up: 0.4, life: 0.7, gravity: 0 })
+    })
+    settle()
+    if (target === null || side === null) {
+      handle.x = goal.x
+      handle.z = goal.z
+      handle.y = goal.y
+    }
+    rt.sound('pop')
+    yield* this.rest(0.25)
+  }
+
+  /**
+   * A thing along a route at a pace: carried along by the actor when it can be carried and nobody
+   * is on it; else it goes by itself, on what is under it or at the heights the route's points
+   * give, turning to face its way, and whoever rides it or stands on it goes with it.
+   */
+  *#travel(it: Item, route: unknown[], o: Loose): Anim {
+    const rt = this.#rt
+    const a = this.#a
+    const w = rt.sim.world
+    const info = infoFor(rt.sim.library, it)
+    const speed = clamp(num(o.speed, 1.4), 0.1, 12)
+    const aboard = (b: Actor) => b.riding === it.id || b.on === it.id
+    const carried = info.recipe.meta.carry !== 'no' && !it.fixed && it.rider === null && !w.actors.some(aboard) && (it.holder === null || it.holder.actor === a.id)
+    if (carried) {
+      if (it.holder?.actor !== a.id) yield* this.pickUp(rt.item(it))
+      if (it.holder?.actor === a.id) {
+        yield* this.walkTo(route, { ...o, near: 0.2 })
+        return
+      }
+    }
+    if (it.holder !== null) rt.release(it)
+    it.fixed = false
+    // Fixed to something (a thing set on another's top), it goes along and is fixed there again where it stops.
+    const was = it.attached?.to ?? null
+    rt.detach(it, true)
+    const handle = rt.item(it)
+    const low = bottomOf(it, info)
+    for (const target of route) {
+      for (let i = 0; i < frames(60); i++) {
+        if (!rt.alive(it) || it.holder !== null) return
+        const p = rt.spot(target)
+        if (p === null) break
+        const dx = p.x - it.x
+        const dz = p.z - it.z
+        const d = Math.hypot(dx, dz)
+        // A point with a height of its own (a thing's top, from it.point) sets the height; else what is under it.
+        const given = isObject(target) && !(target instanceof ActorHandle) && !(target instanceof ItemHandle) && isNum(target.y) ? target.y : null
+        if (d < 0.005) {
+          if (given !== null) handle.y = given
+          break
+        }
+        const step = Math.min(speed * STEP, d)
+        if (o.face !== false) it.yaw += clamp(turnBetween(it.yaw, Math.atan2(dx, dz)), -3 * STEP, 3 * STEP)
+        const nx = it.x + (dx / d) * step
+        const nz = it.z + (dz / d) * step
+        handle.x = nx
+        handle.z = nz
+        handle.y = given !== null ? it.y + (given - it.y) * Math.min(1, step / d) : supportAt(w, solidsOf(w, rt.sim.library), nx, nz, it.y + low, it) - low
+        yield
+      }
+    }
+    const to = was === null ? null : rt.thing(was)
+    if (to !== null && rt.alive(it)) rt.putAt(it, 'look' in to ? rt.actor(to) : rt.item(to), null, true)
   }
 
   *getOff(): Anim {
@@ -871,6 +1275,240 @@ class ActorHandle implements ActorApi {
     yield* fall(rt, a)
     this.feel('silly', 1.5)
   }
+
+  /** A hop that turns the body over round its middle: a cartwheel to its left, a somersault forward, a back flip. It lands on its feet, the pivot back at them. */
+  *flip(how?: unknown, opts?: unknown): Anim {
+    const rt = this.#rt
+    const a = this.#a
+    this.#join()
+    yield* this.#upright()
+    const spec = FLIPS[typeof how === 'string' ? how.toLowerCase().replace(/[\s_-]+/g, '') : ''] ?? FLIPS.cartwheel!
+    const o = isObject(opts) ? opts : {}
+    const turns = Math.round(clamp(num(o.turns, 1), 1, 4))
+    const secs = clamp(num(o.secs, 0.75 + 0.45 * (turns - 1)), 0.3, 6)
+    const h = clamp(num(o.height, 0.45), 0, 4) * a.scale
+    let go = clamp(num(o.forward, spec.go * turns), -8, 8) * a.scale
+    const pr = proportions(a.look)
+    const cart = spec.axis === 'roll'
+    // Which way it goes: to its left for a cartwheel, along its facing for the rest.
+    const dx = cart ? Math.cos(a.yaw) : Math.sin(a.yaw)
+    const dz = cart ? -Math.sin(a.yaw) : Math.cos(a.yaw)
+    // Up on a thing, it lands on that thing again: no further than its top reaches.
+    const on = rt.standingOn(a)
+    if (on !== null) {
+      const inside = (g: number) => rt.overTop(on.it, a.x + dx * g, a.z + dz * g, 0.1)
+      const k = [1, 0.75, 0.5, 0.25].find((f) => inside(go * f)) ?? 0
+      go *= k
+    }
+    yield* this.poseTo({ squash: 0.82, legL: { bend: 0.6 }, legR: { bend: 0.6 }, ...(pr.animal ? {} : { armL: { swing: 0.4, raise: 1.2 }, armR: { swing: 0.4, raise: 1.2 } }) }, 0.12)
+    rt.setPivot(a, 0.5)
+    const shape: PoseChange = pr.animal
+      ? { squash: 1, armL: { swing: 1.2, bend: 0.8 }, armR: { swing: 1.2, bend: 0.8 }, legL: { swing: -0.9, bend: 0.8 }, legR: { swing: -0.9, bend: 0.8 }, tail: 1 }
+      : cart
+        ? { squash: 1, armL: { swing: 0, raise: 2.9, bend: 0 }, armR: { swing: 0, raise: 2.9, bend: 0 }, legL: { swing: 0, raise: 0.55, bend: 0 }, legR: { swing: 0, raise: 0.55, bend: 0 } }
+        : { squash: 1, lean: 0.4, armL: { swing: 1.3, raise: 0.2, bend: 1.1 }, armR: { swing: 1.3, raise: 0.2, bend: 1.1 }, legL: { swing: 1.7, raise: 0.1, bend: 2 }, legR: { swing: 1.7, raise: 0.1, bend: 2 } }
+    const targets = poseTargets(shape)
+    const from = targets.map((t) => readJoint(a.pose, t))
+    const x0 = a.x
+    const z0 = a.z
+    const y0 = a.y
+    rt.sound('whoosh')
+    for (let i = 1, n = frames(secs); i <= n; i++) {
+      const k = i / n
+      const turn = spec.sign * turns * Math.PI * 2 * ease(k)
+      if (cart) a.roll = turn
+      else a.pitch = turn
+      const p = insideRoom(x0 + dx * go * k, z0 + dz * go * k, pr.radius * a.scale)
+      a.x = p.x
+      a.z = p.z
+      const ground = rt.groundUnder(a)
+      a.y = Math.max(ground, lerp(y0, ground, k) + 4 * h * k * (1 - k))
+      const tuck = Math.min(1, k * 4, (1 - k) * 4)
+      targets.forEach((t, j) => writeJoint(a.pose, t, from[j]! + (t.to - from[j]!) * tuck))
+      yield
+    }
+    a.pitch = 0
+    a.roll = 0
+    rt.setPivot(a, 0)
+    a.y = rt.groundUnder(a)
+    rt.landed(a)
+    rt.pushOut(a)
+    yield* this.poseTo({ squash: 0.82, legL: { bend: 0.5 }, legR: { bend: 0.5 } }, 0.08)
+    yield* this.poseTo({ squash: 1, legL: { bend: 0 }, legR: { bend: 0 } }, 0.12)
+  }
+
+  get effects(): Partial<Record<Effect, number>> {
+    return effectsLeft(this.#a, this.#rt.sim.world.t)
+  }
+
+  effect(name: unknown, secs?: unknown): void {
+    const e = effectName(name)
+    if (e !== null) setEffect(this.#a, e, num(secs, 10), this.#rt.sim.world.t)
+  }
+
+  /**
+   * Puts a held thing down nicely, not dropped: bends and sets it on what is under the spot. The
+   * spot: in front of it; beside a thing or in front of an actor `where` names (walking there);
+   * at a place; or 'back', where the thing was picked up (its very spot and turn).
+   */
+  *putDown(item?: unknown, where?: unknown): Anim {
+    const rt = this.#rt
+    const a = this.#a
+    this.#join()
+    const it = item === undefined || item === null ? rt.heldBy(a) : rt.liveItem(item)
+    if (it === null || it.holder?.actor !== a.id) {
+      yield
+      return
+    }
+    const info = infoFor(rt.sim.library, it)
+    const pr = proportions(a.look)
+    const me = pr.radius * a.scale
+    const r = info.radius * it.scale
+    const home = it.home ?? null
+    let spot: { x: number; z: number; y: number | null; yaw: number | null } | null = null
+    if (where === 'back' && home !== null) spot = { x: home.x, z: home.z, y: home.y, yaw: home.yaw }
+    else if (where !== undefined && where !== null && where !== 'back') {
+      const t = rt.thing(where)
+      if (t !== null && t !== it) {
+        yield* this.walkTo('look' in t ? rt.actor(t) : rt.item(t), { near: 0.3 + 2 * r })
+        const tr = rt.radiusOf(t)
+        // Beside a thing on the side toward whoever puts it there; in front of an actor.
+        const yaw = 'look' in t ? t.yaw : Math.atan2(a.x - t.x, a.z - t.z)
+        spot = { x: t.x + Math.sin(yaw) * (tr + r + 0.08), z: t.z + Math.cos(yaw) * (tr + r + 0.08), y: null, yaw: null }
+      } else {
+        const p = rt.spot(where)
+        if (p !== null) spot = { x: p.x, z: p.z, y: null, yaw: null }
+      }
+    }
+    if (spot === null) {
+      const d = me + r + 0.15
+      spot = { x: a.x + Math.sin(a.yaw) * d, z: a.z + Math.cos(a.yaw) * d, y: null, yaw: null }
+    }
+    const at = insideRoom(spot.x, spot.z, Math.min(r, ROOM_HALF - 0.5))
+    if (Math.hypot(at.x - a.x, at.z - a.z) > me + r + 0.45) yield* this.walkTo(at, { near: me + r + 0.1 })
+    if (it.holder?.actor !== a.id) return
+    yield* this.turnTo(at)
+    const side = it.holder.hand
+    const arm = { swing: 0.75, raise: 0.1, bend: 0.15 }
+    const both = a.hands.left === it.id && a.hands.right === it.id
+    yield* this.poseTo(pr.animal ? { head: { nod: 0.6 } } : { lean: 0.55, ...(both ? { armL: arm, armR: arm } : side === 'left' ? { armL: arm } : { armR: arm }) }, 0.22)
+    if (it.holder?.actor !== a.id) return
+    rt.setDown(it, at.x, at.z, spot.y, spot.yaw ?? a.yaw)
+    yield* this.poseTo(restFor(a, rt.seat(a)), 0.22)
+  }
+
+  *putBack(item?: unknown): Anim {
+    yield* this.putDown(item, 'back')
+  }
+
+  /**
+   * Eats a thing bite by bite: picks it up (a thing too big to carry, or built in, it eats from
+   * where it stands), brings it to its mouth, and it gets smaller with every munch until it is
+   * gone. What it is decides the rest: yummy is a happy face and hearts, yucky a yuck, poison
+   * makes it sick for a while (it gets better), hot or cold makes it hot or cold, and a thing that
+   * is not food gets a lick and "Not food!". Nobody gets hurt.
+   */
+  *eat(item: unknown): Anim {
+    const rt = this.#rt
+    const a = this.#a
+    const w = rt.sim.world
+    this.#join()
+    const it = rt.liveItem(item)
+    if (it === null) {
+      yield
+      return
+    }
+    const info = infoFor(rt.sim.library, it)
+    const from = info.recipe.meta.carry === 'no' || it.fixed
+    const pr = proportions(a.look)
+    const handle = rt.item(it)
+    if (!from && it.holder?.actor !== a.id) {
+      yield* this.pickUp(handle)
+      if (it.holder?.actor !== a.id) return
+    } else if (from) {
+      yield* this.walkTo(handle, { near: 0.15 })
+      yield* this.turnTo(handle)
+    }
+    const { food, temp } = info.recipe.traits
+    const hand = it.holder?.hand ?? 'right'
+    const chin = { swing: 1.55, raise: 1.3, bend: 1.9 }
+    const mouth: PoseChange = pr.animal || from ? { lean: pr.animal ? 0 : 0.35, head: { nod: pr.animal ? 0.55 : 0.25 } } : { [hand === 'left' ? 'armL' : 'armR']: chin, head: { nod: 0.15 } }
+    const away: PoseChange = pr.animal || from ? { lean: 0, head: { nod: 0 } } : { [hand === 'left' ? 'armL' : 'armR']: { swing: 0.9, raise: 0.4, bend: 1.2 }, head: { nod: 0 } }
+    if (food === null) {
+      yield* this.poseTo(mouth, 0.25)
+      rt.sound('squeak')
+      this.say(NOT_FOOD, 1.8)
+      this.feel('surprised', 1.8)
+      yield* rt.api.wait(0.5)
+      yield* this.poseTo(away, 0.2)
+      return
+    }
+    const colour = it.tint ?? info.recipe.shapes[0]?.color ?? '#d9c7a3'
+    for (let i = 0, bites = from ? 3 : 4; i < bites; i++) {
+      yield* this.poseTo(mouth, 0.18)
+      if (!rt.alive(it)) return
+      rt.sound('munch')
+      const head = headFrame(a).p
+      const fx = Math.sin(a.yaw) * pr.headR * a.scale
+      const fz = Math.cos(a.yaw) * pr.headR * a.scale
+      addPuffs(w, { kind: 'dust', x: head[0] + fx, y: head[1] - 0.05, z: head[2] + fz, color: parseColor(colour), count: 5, size: 0.05, speed: 0.8, up: 0.3, life: 0.5, gravity: 4 })
+      if (!from) it.scale = clamp(it.scale * 0.72, 0.2, 4)
+      yield* this.poseTo(away, 0.16)
+    }
+    if (!from && rt.alive(it)) {
+      rt.sim.removeItem(it.id)
+      rt.sound('pop')
+    }
+    if (food === 'yummy') {
+      this.feel('happy', 2.5)
+      this.say(rt.api.pick([{ en: 'Yum!', fi: 'Nam!' }, { en: 'Yummy!', fi: 'Herkullista!' }, { en: 'So good!', fi: 'Tosi hyvää!' }]), 1.8)
+      const c = bodyCenter(a)
+      addPuffs(w, { kind: 'heart', x: c[0], y: c[1] + 0.3, z: c[2], color: null, count: 4, size: 0.13, speed: 0.6, up: 0.9, life: 1.1, gravity: null })
+      yield* this.poseTo(pr.animal ? { tail: 1 } : { armL: { swing: 0.5, raise: 0.1, bend: 1.5 }, armR: { swing: 0.5, raise: 0.1, bend: 1.5 } }, 0.2)
+    } else if (food === 'yucky') {
+      this.feel('sad', 2)
+      this.say({ en: 'Yuck!', fi: 'Yäk!' }, 1.8)
+      for (const turn of [0.4, -0.4, 0.3, 0]) yield* this.poseTo({ head: { turn } }, 0.1)
+    } else {
+      this.feel('sad', 3)
+      this.say({ en: 'Uh oh...', fi: 'Voi ei...' }, 2)
+      setEffect(a, 'sick', 12, w.t)
+    }
+    if (temp === 'hot') {
+      setEffect(a, 'hot', 6, w.t)
+      this.say({ en: 'Hot hot!', fi: 'Kuumaa!' }, 1.6)
+    } else if (temp === 'cold') {
+      setEffect(a, 'cold', 5, w.t)
+      this.say({ en: 'Brr, cold!', fi: 'Brr, kylmää!' }, 1.6)
+    }
+    yield* rt.api.wait(0.4)
+  }
+
+  keep(item: unknown): void {
+    const it = this.#rt.liveItem(item)
+    if (it !== null) this.#rt.sim.side.picked.delete(it.id)
+  }
+
+  /**
+   * Does a library action as part of this one ("hyppikää trampoliinilla ja tehkää voltti": a
+   * script bounces, then flips): the action by id or by a word for it, its args by its params'
+   * names as things, actors, spots, or words read as a step's are. An action nobody has is an error.
+   */
+  *do(action: unknown, args?: unknown): Anim {
+    const lib = this.#rt.sim.library
+    const word = typeof action === 'string' ? action.trim() : ''
+    const id = lib.actions.has(word) ? word : lib.actionFor(word, { near: false })
+    const act = id === null ? undefined : lib.actions.get(id)
+    if (act === undefined) throw new Error(`there is no action ${JSON.stringify(word)}`)
+    if (this.#depth >= 3) throw new Error('actions inside actions go three deep at most')
+    const given = isObject(args) ? (args as Record<string, unknown>) : {}
+    this.#depth++
+    try {
+      yield* act.run(this, this.#rt.argsFrom(this.#a, act.params, given), this.#rt.api)
+    } finally {
+      this.#depth--
+    }
+  }
 }
 Object.freeze(ActorHandle.prototype)
 
@@ -913,10 +1551,11 @@ class ItemHandle implements ItemApi {
     this.#it = it
   }
 
-  /** Code put it somewhere: it stays put while code keeps moving it, and falls if left in the air. */
+  /** Code put it somewhere: it stays put while code keeps moving it, and falls if left in the air. A thing fixed to another stays fixed where it was put. */
   #placed() {
     const it = this.#it
-    if (it.holder !== null || it.fixed) return
+    this.#rt.refix(it)
+    if (it.holder !== null || it.fixed || (it.attached ?? null) !== null) return
     it.loose = false
     it.vx = it.vy = it.vz = it.spin = 0
     this.#rt.sim.side.placed.set(it.id, this.#rt.sim.world.t)
@@ -927,9 +1566,10 @@ class ItemHandle implements ItemApi {
     return v === 0 && !this.#it.loose
   }
 
-  /** Code gave it a speed: it flies. */
+  /** Code gave it a speed: it flies, off whatever held it or it was fixed to. */
   #fly() {
     const it = this.#it
+    this.#rt.detach(it, true)
     if (it.holder !== null) this.#rt.release(it)
     it.fixed = false
     if (!it.loose) this.#rt.setLoose(it, this.#rt.current)
@@ -983,25 +1623,33 @@ class ItemHandle implements ItemApi {
     return this.#it.yaw
   }
   set yaw(v: unknown) {
-    if (isNum(v)) this.#it.yaw = v
+    if (!isNum(v)) return
+    this.#it.yaw = v
+    this.#rt.refix(this.#it)
   }
   get pitch(): number {
     return this.#it.pitch
   }
   set pitch(v: unknown) {
-    if (isNum(v)) this.#it.pitch = v
+    if (!isNum(v)) return
+    this.#it.pitch = v
+    this.#rt.refix(this.#it)
   }
   get roll(): number {
     return this.#it.roll
   }
   set roll(v: unknown) {
-    if (isNum(v)) this.#it.roll = v
+    if (!isNum(v)) return
+    this.#it.roll = v
+    this.#rt.refix(this.#it)
   }
   get scale(): number {
     return this.#it.scale
   }
   set scale(v: unknown) {
-    if (isNum(v)) this.#it.scale = clamp(v, 0.2, 4)
+    if (!isNum(v)) return
+    this.#it.scale = clamp(v, 0.2, 4)
+    this.#rt.refix(this.#it)
   }
   get vx(): number {
     return this.#it.vx
@@ -1028,12 +1676,12 @@ class ItemHandle implements ItemApi {
     this.#it.vz = clamp(v, -40, 40)
   }
   get size(): { w: number; h: number; d: number } {
-    const [w, h, d] = this.#rt.sim.library.info(this.#it.kind).size
+    const [w, h, d] = infoFor(this.#rt.sim.library, this.#it).size
     const s = this.#it.scale
     return { w: w * s, h: h * s, d: d * s }
   }
   get radius(): number {
-    return this.#rt.sim.library.info(this.#it.kind).radius * this.#it.scale
+    return infoFor(this.#rt.sim.library, this.#it).radius * this.#it.scale
   }
   get holder(): ActorApi | null {
     const h = this.#it.holder
@@ -1073,20 +1721,216 @@ class ItemHandle implements ItemApi {
     if (isObject(v)) for (const k of Object.keys(v)) if (isNum(v[k])) this.#it.state[k] = v[k]
   }
 
-  part(name: unknown): { x: number; y: number; z: number; rx: number; ry: number; rz: number; s: number } {
+  get meta(): ItemMeta & ItemTraits {
+    const r = infoFor(this.#rt.sim.library, this.#it).recipe
+    return { ...r.meta, ...r.traits }
+  }
+  get glow(): boolean | null {
+    return this.#it.glow ?? null
+  }
+  set glow(v: unknown) {
+    if (v === null || typeof v === 'boolean') this.#it.glow = v
+  }
+  get glowColor(): string | null {
+    return this.#it.glowColor ?? null
+  }
+  set glowColor(v: unknown) {
+    this.#it.glowColor = v === null || v === undefined || v === '' ? null : (parseColor(v) ?? this.#it.glowColor ?? null)
+  }
+  get light(): string | null {
+    return this.#it.light ?? null
+  }
+  set light(v: unknown) {
+    this.#it.light = v === null || v === undefined || v === '' || v === false ? null : v === true ? '#fff2c8' : (parseColor(v) ?? this.#it.light ?? null)
+  }
+  get parts(): string[] {
+    return [...new Set(infoFor(this.#rt.sim.library, this.#it).recipe.parts.map((p) => p.pose ?? p.name))]
+  }
+  get anchors(): string[] {
+    return Object.keys(infoFor(this.#rt.sim.library, this.#it).recipe.anchors)
+  }
+
+  part(name: unknown): PartApi {
     const it = this.#it
     const n = String(name)
-    if (!this.#rt.sim.library.info(it.kind).recipe.parts.some((p) => p.name === n || p.pose === n)) return restPart()
+    if (!infoFor(this.#rt.sim.library, it).recipe.parts.some((p) => p.name === n || p.pose === n)) return restPart() as PartApi
     this.#touch()
-    return (it.parts[n] ??= restPart())
+    const p = (it.parts[n] ??= restPart())
+    // A part from a room saved before parts were drawn their own way gets those fields now.
+    p.color ??= null
+    p.show ??= true
+    p.glow ??= null
+    return p as PartApi
   }
 
   anchor(name: unknown): Spot & { y: number } {
-    const p = anchorPoint(this.#it, this.#rt.sim.library.info(this.#it.kind), String(name))
+    const p = anchorPoint(this.#it, infoFor(this.#rt.sim.library, this.#it), String(name))
     return { x: p[0], y: p[1], z: p[2] }
+  }
+
+  /** A point of its box now, in its own frame: x from its right (-1) to its left (1), y from its bottom (-1) to its top (1), z from its back (-1) to its front (1). */
+  point(x?: unknown, y?: unknown, z?: unknown): Spot & { y: number } {
+    const it = this.#it
+    const info = infoFor(this.#rt.sim.library, it)
+    const b = info.recipe.bounds
+    const at = (k: unknown, i: 0 | 1 | 2) => lerp(b.min[i], b.max[i], (clamp(num(k, 0), -1, 1) + 1) / 2)
+    const p = itemPoint(it, info, null, [at(x, 0), at(y, 1), at(z, 2)])
+    return { x: p[0], y: p[1], z: p[2] }
+  }
+
+  add(build: unknown, part?: unknown): void {
+    if (typeof build === 'function') this.#rt.addShapes(this.#it, build as (m: Kit) => unknown, typeof part === 'string' ? part : null)
+  }
+
+  putAt(target: unknown, where?: unknown, opts?: unknown): void {
+    this.#rt.putAt(this.#it, target, typeof where === 'string' ? where : 'front', false, isObject(opts) ? opts.up : null)
+  }
+
+  attachTo(target: unknown, where?: unknown, opts?: unknown): void {
+    this.#rt.putAt(this.#it, target, typeof where === 'string' ? where : null, true, isObject(opts) ? opts.up : null)
+  }
+
+  detach(): void {
+    this.#rt.detach(this.#it, false)
+  }
+
+  get attachedTo(): ItemApi | ActorApi | null {
+    const to = this.#it.attached?.to
+    return to === undefined ? null : (this.#rt.actorById(to) ?? this.#rt.itemById(to))
   }
 }
 Object.freeze(ItemHandle.prototype)
+
+// ------------------------------------------------------------------------------ the sky, the water, the ground
+
+/** Fade's own wait: the change goes on by itself; this only waits for it. */
+function* waitFor(rt: Runtime, secs: number): Anim {
+  yield* rt.api.wait(secs)
+}
+
+class SkyHandle {
+  readonly #rt: Runtime
+  constructor(rt: Runtime) {
+    this.#rt = rt
+  }
+  #get(key: SkyKey) {
+    return skyOf(this.#rt.sim.world)[key]
+  }
+  #set(key: SkyKey, v: unknown) {
+    setSky(skyOf(this.#rt.sim.world), key, v)
+  }
+  get time() {
+    return this.#get('time') as number
+  }
+  set time(v: unknown) {
+    this.#set('time', v)
+  }
+  get night(): number {
+    return nightOf(skyOf(this.#rt.sim.world).time)
+  }
+  get rain() {
+    return this.#get('rain') as number
+  }
+  set rain(v: unknown) {
+    this.#set('rain', v)
+  }
+  get snow() {
+    return this.#get('snow') as number
+  }
+  set snow(v: unknown) {
+    this.#set('snow', v)
+  }
+  get fog() {
+    return this.#get('fog') as number
+  }
+  set fog(v: unknown) {
+    this.#set('fog', v)
+  }
+  get wind() {
+    return this.#get('wind') as number
+  }
+  set wind(v: unknown) {
+    this.#set('wind', v)
+  }
+  get color() {
+    return this.#get('color') as string | null
+  }
+  set color(v: unknown) {
+    this.#set('color', v)
+  }
+  get light() {
+    return this.#get('light') as string | null
+  }
+  set light(v: unknown) {
+    this.#set('light', v)
+  }
+  fade(changes: unknown, secs?: unknown): Anim {
+    return waitFor(this.#rt, fadeSky(this.#rt.sim.world, changes, secs))
+  }
+}
+Object.freeze(SkyHandle.prototype)
+
+/** Code's words for this room's water and ground, as the terrain keeps them. */
+const POOL_KEYS: Record<string, TerrainKey> = { level: 'water', color: 'waterColor' }
+const GROUND_KEYS: Record<string, TerrainKey> = { color: 'ground' }
+
+function terrainChanges(changes: unknown, keys: Record<string, TerrainKey>): Record<string, unknown> | null {
+  if (!isObject(changes)) return null
+  const out: Record<string, unknown> = {}
+  for (const [k, key] of Object.entries(keys)) if (k in changes) out[key] = changes[k]
+  return out
+}
+
+class PoolHandle {
+  readonly #rt: Runtime
+  constructor(rt: Runtime) {
+    this.#rt = rt
+  }
+  get #t() {
+    const w = this.#rt.sim.world
+    return terrainOf(w, w.room)
+  }
+  get level(): number {
+    return this.#t.water
+  }
+  set level(v: unknown) {
+    setTerrain(this.#t, 'water', v)
+  }
+  get y(): number {
+    return waterTop(this.#rt.sim.world)
+  }
+  get color(): string | null {
+    return this.#t.waterColor
+  }
+  set color(v: unknown) {
+    setTerrain(this.#t, 'waterColor', v)
+  }
+  fade(changes: unknown, secs?: unknown): Anim {
+    const w = this.#rt.sim.world
+    return waitFor(this.#rt, fadeTerrain(w, w.room, terrainChanges(changes, POOL_KEYS), secs))
+  }
+}
+Object.freeze(PoolHandle.prototype)
+
+class GroundHandle {
+  readonly #rt: Runtime
+  constructor(rt: Runtime) {
+    this.#rt = rt
+  }
+  get color(): string | null {
+    const w = this.#rt.sim.world
+    return terrainOf(w, w.room).ground
+  }
+  set color(v: unknown) {
+    const w = this.#rt.sim.world
+    setTerrain(terrainOf(w, w.room), 'ground', v)
+  }
+  fade(changes: unknown, secs?: unknown): Anim {
+    const w = this.#rt.sim.world
+    return waitFor(this.#rt, fadeTerrain(w, w.room, terrainChanges(changes, GROUND_KEYS), secs))
+  }
+}
+Object.freeze(GroundHandle.prototype)
 
 // ------------------------------------------------------------------------------ the world
 
@@ -1114,6 +1958,15 @@ class WorldHandle implements WorldApi {
   }
   get items(): ItemApi[] {
     return this.#rt.sim.world.items.map((it) => this.#rt.item(it))
+  }
+  get sky(): SkyApi {
+    return this.#rt.sky
+  }
+  get pool(): PoolApi {
+    return this.#rt.pool
+  }
+  get ground(): GroundApi {
+    return this.#rt.ground
   }
 
   find(kind: unknown, opts?: unknown): ItemApi | null {
@@ -1187,7 +2040,7 @@ class WorldHandle implements WorldApi {
     const rt = this.#rt
     const it = rt.liveItem(item)
     if (it === null) return
-    const c = itemCentre(it, rt.sim.library.info(it.kind))
+    const c = itemCentre(it, infoFor(rt.sim.library, it))
     addPuffs(rt.sim.world, { kind: 'smoke', x: c[0], y: c[1], z: c[2], color: '#ffffff', count: 10, size: 0.22, speed: 1.4, up: 0.6, life: 0.7, gravity: -0.3 })
     rt.sound('pop')
     rt.sim.removeItem(it.id)
@@ -1201,7 +2054,7 @@ class WorldHandle implements WorldApi {
     const speed = clamp(num(o.speed, 8), 1, 40)
     const arc = clamp(num(o.arc, 0.35), 0, 3)
     const by = it.holder?.actor ?? rt.current
-    const info = rt.sim.library.info(it.kind)
+    const info = infoFor(rt.sim.library, it)
     const from = itemCentre(it, info)
     let to = rt.centre(target)
     if (to === null) {
@@ -1212,6 +2065,7 @@ class WorldHandle implements WorldApi {
       to = [x, groundAt(rt.sim.world.room, x, z) + 0.1, z]
     }
     if (it.holder !== null) rt.release(it)
+    rt.detach(it, true)
     it.fixed = false
     const dx = to[0] - from[0]
     const dz = to[2] - from[2]
@@ -1230,6 +2084,7 @@ class WorldHandle implements WorldApi {
     if (it === null) return
     const by = it.holder?.actor ?? rt.current
     if (it.holder !== null) rt.release(it)
+    rt.detach(it, true)
     it.fixed = false
     rt.setLoose(it, by)
     it.vx = clamp(num(vx, 0), -40, 40)
@@ -1264,7 +2119,7 @@ class WorldHandle implements WorldApi {
 
   water(x: unknown, z: unknown): boolean {
     const p = this.#rt.spot(x) ?? { x: num(x, 0), z: num(z, 0) }
-    return inWater(this.#rt.sim.world.room, p.x, p.z)
+    return wetAt(this.#rt.sim.world, p.x, p.z)
   }
 
   groundAt(x: unknown, z: unknown): number {
@@ -1365,6 +2220,9 @@ Object.freeze(WorldHandle.prototype)
 export class Runtime {
   readonly sim: Sim
   readonly api: WorldApi
+  readonly sky: SkyApi
+  readonly pool: PoolApi
+  readonly ground: GroundApi
   /** The actor whose code is running now: what w.find and w.make measure from, and who other actors join when its code moves them. */
   current: string | null = null
   private readonly actors = new Map<string, ActorHandle>()
@@ -1373,6 +2231,9 @@ export class Runtime {
   constructor(sim: Sim) {
     this.sim = sim
     this.api = Object.freeze(new WorldHandle(this))
+    this.sky = Object.freeze(new SkyHandle(this)) as unknown as SkyApi
+    this.pool = Object.freeze(new PoolHandle(this)) as unknown as PoolApi
+    this.ground = Object.freeze(new GroundHandle(this)) as unknown as GroundApi
   }
 
   actor(a: Actor): ActorApi {
@@ -1450,13 +2311,13 @@ export class Runtime {
   /** The middle of a target: an actor's body, an item's bounds, a spot's ground (or its y). */
   centre(v: unknown): Vec3 | null {
     const t = this.thing(v)
-    if (t !== null) return 'look' in t ? bodyCenter(t) : itemCentre(t, this.sim.library.info(t.kind))
+    if (t !== null) return 'look' in t ? bodyCenter(t) : itemCentre(t, infoFor(this.sim.library, t))
     const s = this.spot(v)
     return s === null ? null : [s.x, s.y, s.z]
   }
 
   radiusOf(t: Actor | Item): number {
-    return 'look' in t ? proportions(t.look).radius * t.scale : this.sim.library.info(t.kind).radius * t.scale
+    return 'look' in t ? proportions(t.look).radius * t.scale : infoFor(this.sim.library, t).radius * t.scale
   }
 
   /** How far a target reaches on the ground, and from what height to what height. */
@@ -1467,7 +2328,7 @@ export class Runtime {
       return { r: 0, bottom: s?.y ?? 0, top: s?.y ?? 0 }
     }
     if ('look' in t) return { r: this.radiusOf(t), bottom: t.y, top: t.y + t.look.height * t.scale }
-    const info = this.sim.library.info(t.kind)
+    const info = infoFor(this.sim.library, t)
     return { r: this.radiusOf(t), bottom: t.y + bottomOf(t, info), top: t.y + heightOf(t, info) }
   }
 
@@ -1533,14 +2394,65 @@ export class Runtime {
 
   standAt(a: Actor, solids: Solid[]): number {
     const w = this.sim.world
-    return restHeight(w, a, a.x, a.z, supportAt(w, solids, a.x, a.z, a.y, null))
+    const ground = restHeight(w, a, a.x, a.z, supportAt(w, solids, a.x, a.z, a.y, null))
+    const on = this.standingOn(a)
+    return on === null ? ground : Math.max(ground, on.top.y)
+  }
+
+  /**
+   * The top of a thing, where one stands on it: its 'top' anchor (a model without one has its
+   * top middle), and how far round that point there is room to stand.
+   */
+  topOf(it: Item): { x: number; y: number; z: number; r: number } {
+    const info = infoFor(this.sim.library, it)
+    const p = anchorPoint(it, info, 'top')
+    return { x: p[0], y: p[1], z: p[2], r: clamp(info.radius * it.scale * 0.7, 0.25, 2.5) }
+  }
+
+  /**
+   * Whether a spot is over a thing's top: inside its footprint as it lies (its box in its own
+   * frame, turned and sized with it), `margin` metres in from its edge; a footprint too small for
+   * that is its middle. A long thing is stood on from end to end.
+   */
+  overTop(it: Item, x: number, z: number, margin: number): boolean {
+    const info = infoFor(this.sim.library, it)
+    const b = info.recipe.bounds
+    const dx = x - it.x
+    const dz = z - it.z
+    // Within its reach too, so a round thing's box corners are not stood on.
+    if (Math.hypot(dx, dz) > Math.max(0.05, info.radius * it.scale - margin)) return false
+    const c = Math.cos(it.yaw)
+    const s = Math.sin(it.yaw)
+    // Into its own frame: its front is +z, its left +x.
+    const lx = (dx * c - dz * s) / it.scale
+    const lz = (dx * s + dz * c) / it.scale
+    const m = margin / it.scale
+    const inside = (v: number, lo: number, hi: number) => (hi - lo > 2 * m ? v >= lo + m && v <= hi - m : Math.abs(v - (lo + hi) / 2) <= 0.05 / it.scale)
+    return inside(lx, b.min[0], b.max[0]) && inside(lz, b.min[2], b.max[2])
+  }
+
+  /** The thing the actor got up onto, while its feet are over that thing's top; a thing gone, held or worn lets it down. */
+  standingOn(a: Actor): { it: Item; top: { x: number; y: number; z: number; r: number } } | null {
+    if ((a.on ?? null) === null) return null
+    const it = this.sim.side.items.get(a.on!)
+    if (it === undefined || !this.alive(it) || it.holder !== null || a.riding !== null) {
+      a.on = null
+      return null
+    }
+    const top = this.topOf(it)
+    return this.overTop(it, a.x, a.z, -0.05) ? { it, top } : null
+  }
+
+  /** After a landing: still up on its thing, or down off it. */
+  landed(a: Actor): void {
+    if ((a.on ?? null) !== null && this.standingOn(a) === null) a.on = null
   }
 
   /** Out of any solid thing it landed inside (not one it stands on). */
   pushOut(a: Actor): void {
     const me = proportions(a.look).radius * a.scale
     for (const s of solidsOf(this.sim.world, this.sim.library)) {
-      if (s.top <= a.y + 0.3) continue
+      if (s.top <= a.y + 0.3 || s.item.id === a.on) continue
       const dx = a.x - s.x
       const dz = a.z - s.z
       const d = Math.hypot(dx, dz)
@@ -1613,6 +2525,12 @@ export class Runtime {
     const side = this.sim.side
     const animal = proportions(a.look).animal
     const hug = this.sim.library.info(it.kind).recipe.meta.carry === 'hug' && !animal
+    // Taken from where it lay (not from another's hand), it remembers the spot to be put back on.
+    if (it.holder === null) it.home = { x: it.x, y: it.y, z: it.z, yaw: it.yaw }
+    // Picked up while a made action runs: put down when that action ends, unless kept.
+    const by = this.current === null ? undefined : side.actors.get(this.current)
+    if (by !== undefined && by.doing !== null && this.sim.library.actions.get(by.doing.action)?.entry != null) side.picked.set(it.id, by.doing)
+    this.detach(it, true)
     this.release(it)
     const dropFrom = (hand: Hand) => {
       const id = a.hands[hand]
@@ -1646,14 +2564,150 @@ export class Runtime {
   /** Things standing on a solid thing that went away fall now. */
   unsupport(it: Item): void {
     const lib = this.sim.library
-    const info = lib.info(it.kind)
+    const info = infoFor(lib, it)
     if (!info.recipe.meta.solid) return
     const r = info.radius * it.scale
     const top = it.y + heightOf(it, info)
     for (const o of this.sim.world.items) {
-      if (o === it || o.loose || o.holder !== null || o.fixed) continue
-      if (Math.abs(o.y + bottomOf(o, lib.info(o.kind)) - top) < 0.1 && (o.x - it.x) ** 2 + (o.z - it.z) ** 2 < r * r) this.sim.side.placed.set(o.id, -Infinity)
+      if (o === it || o.loose || o.holder !== null || o.fixed || (o.attached ?? null) !== null) continue
+      if (Math.abs(o.y + bottomOf(o, infoFor(lib, o)) - top) < 0.1 && (o.x - it.x) ** 2 + (o.z - it.z) ** 2 < r * r) this.sim.side.placed.set(o.id, -Infinity)
     }
+  }
+
+  // ------------------------------------------------------------ the body's pivot, putting down, fixing and adding
+
+  /** A new pivot that keeps the body where it is drawn: the feet move by what the turn round the new point would move them. */
+  setPivot(a: Actor, v: number): void {
+    const before = rootFrame(a).p
+    a.pivot = v
+    const after = rootFrame(a).p
+    a.x += before[0] - after[0]
+    a.y += before[1] - after[1]
+    a.z += before[2] - after[2]
+  }
+
+  /** What an actor holds, the right hand first. */
+  heldBy(a: Actor): Item | null {
+    for (const id of [a.hands.right, a.hands.left]) {
+      const it = id === null ? undefined : this.sim.side.items.get(id)
+      if (it !== undefined) return it
+    }
+    return null
+  }
+
+  /** Out of the hand and set down at (x, z): on what is under it (or at height y), turned to yaw, staying there (floating on water). It is not put down again when the action ends. */
+  setDown(it: Item, x: number, z: number, y: number | null, yaw: number): void {
+    const w = this.sim.world
+    const info = infoFor(this.sim.library, it)
+    this.release(it)
+    this.sim.side.picked.delete(it.id)
+    it.x = x
+    it.z = z
+    it.yaw = yaw
+    it.pitch = it.roll = 0
+    it.vx = it.vy = it.vz = it.spin = 0
+    const low = bottomOf(it, info)
+    if (y !== null) it.y = y
+    else if (wetAt(w, x, z)) it.y = waterTop(w) - low
+    else it.y = supportAt(w, solidsOf(w, this.sim.library), x, z, it.y + low, it) - low
+    it.loose = false
+    this.sim.side.placed.set(it.id, w.t)
+    if (wetAt(w, x, z)) this.setLoose(it, null)
+  }
+
+  /** A thing fixed to another keeps its place there after code moved or turned it. */
+  refix(it: Item): void {
+    const att = it.attached ?? null
+    if (att === null) return
+    const f = holdFrame(this.sim.side, this.sim.library, att)
+    if (f === null) this.detach(it, false)
+    else Object.assign(att, offsetIn(f, it))
+  }
+
+  /** Not fixed to anything any more. `keepPlace`: it stays where it is (it was taken or thrown); else, left in the air, it falls. */
+  detach(it: Item, keepPlace: boolean): void {
+    if ((it.attached ?? null) === null) return
+    it.attached = null
+    if (!keepPlace) this.sim.side.placed.set(it.id, -Infinity)
+  }
+
+  /**
+   * Puts a thing in the room at another thing or an actor (attach.ts's placing; `where` null:
+   * where it is now), out of any hand, and with `attach` fixes it there: at the anchor or part
+   * `where` names, else in the other's own frame. A thing cannot be fixed to itself or to what
+   * is fixed to it.
+   */
+  putAt(it: Item, target: unknown, where: string | null, attach: boolean, up: unknown = null): void {
+    const side = this.sim.side
+    const lib = this.sim.library
+    const t = this.thing(target)
+    if (!this.alive(it) || t === null || t === it || (attach && wouldLoop(side, it, t.id))) return
+    if (it.holder !== null) this.release(it)
+    side.picked.delete(it.id)
+    this.detach(it, true)
+    const tinfo = 'look' in t ? null : infoFor(lib, t)
+    // Sized to reach up to a height, or to a point of the other (stairs, a ladder or a slide up to a floor).
+    if (up !== null && up !== undefined) {
+      const h = isNum(up) ? up : typeof up === 'string' && tinfo !== null ? anchorPoint(t as Item, tinfo, up)[1] - t.y : null
+      const b = infoFor(lib, it).recipe.bounds
+      const own = b.max[1] - b.min[1]
+      if (h !== null && h > 0.05 && own > 0.01) it.scale = clamp(h / own, 0.2, 4)
+    }
+    if (where !== null) {
+      const p = placing(it, infoFor(lib, it), t, tinfo, where)
+      it.x = clamp(p.x, -ROOM_HALF, ROOM_HALF)
+      it.y = clamp(p.y, -2, 30)
+      it.z = clamp(p.z, -ROOM_HALF, ROOM_HALF)
+      it.yaw = p.yaw
+      it.pitch = p.pitch
+      it.roll = p.roll
+    }
+    it.loose = false
+    it.vx = it.vy = it.vz = it.spin = 0
+    if (!attach) {
+      side.placed.set(it.id, this.sim.world.t)
+      return
+    }
+    side.placed.delete(it.id)
+    const at = where !== null && namesFrame(t, tinfo, where) ? where : null
+    const att = { to: t.id, at, x: 0, y: 0, z: 0, yaw: 0, pitch: 0, roll: 0 }
+    it.attached = { ...att, ...offsetIn(holdFrame(side, lib, att)!, it) }
+  }
+
+  /** Where a thing's base point and turn go when it is put at another at `where` (attach.ts's placing), as it is now. */
+  placingFor(it: Item, t: Actor | Item, where: string): { x: number; y: number; z: number; yaw: number; pitch: number; roll: number } {
+    const lib = this.sim.library
+    return placing(it, infoFor(lib, it), t, 'look' in t ? null : infoFor(lib, t), where)
+  }
+
+  /** Shapes, parts and anchors built with the kit, added to this one thing (on the part named, from its pivot): a part named as one it has moves with that one. */
+  addShapes(it: Item, build: (m: Kit) => unknown, onto: string | null): void {
+    const w = this.sim.world
+    const info = infoFor(this.sim.library, it)
+    const kit = new Kit()
+    build(kit)
+    const prev = it.added ?? null
+    const room = MAX_ADDED - (prev?.shapes.length ?? 0)
+    if (room <= 0 || kit.shapes.length === 0) return
+    const part = onto === null ? null : (info.recipe.parts.find((p) => p.name === onto) ?? info.recipe.parts.find((p) => p.pose === onto))?.name ?? null
+    const taken = new Set(info.recipe.parts.map((p) => p.name))
+    const renamed = new Map<string, string>()
+    const parts = kit.parts.map((def) => {
+      let own = def.name
+      for (let k = 2; taken.has(own); k++) own = `${def.name}+${k}`
+      taken.add(own)
+      renamed.set(def.name, own)
+      const pose = own === def.name ? def.pose : (def.pose ?? def.name)
+      return { name: own, at: def.at, rot: def.rot, parent: def.parent === null ? part : renamed.get(def.parent)!, ...(pose === undefined ? {} : { pose }) }
+    })
+    const inPart = (p: string | null) => (p === null ? part : renamed.get(p)!)
+    const added: Added = {
+      key: w.nextId++,
+      shapes: [...(prev?.shapes ?? []), ...kit.shapes.slice(0, room).map((sh) => ({ ...sh, part: inPart(sh.part) }))],
+      parts: [...(prev?.parts ?? []), ...parts],
+      anchors: { ...(prev?.anchors ?? {}), ...Object.fromEntries(Object.entries(kit.anchors).map(([k, v]) => [k, { at: v.at, part: inPart(v.part) }])) },
+    }
+    it.added = added
   }
 
   unseat(a: Actor): void {
@@ -1684,7 +2738,7 @@ export class Runtime {
   /** A free spot next to a thing: in front of the rider, else to a side, else behind. */
   besideSpot(a: Actor, it: Item): { x: number; z: number } {
     const me = proportions(a.look).radius * a.scale
-    const d = this.sim.library.info(it.kind).radius * it.scale + me + 0.1
+    const d = infoFor(this.sim.library, it).radius * it.scale + me + 0.1
     const solids = solidsOf(this.sim.world, this.sim.library)
     for (const turn of [0, Math.PI / 2, -Math.PI / 2, Math.PI]) {
       const x = it.x + Math.sin(a.yaw + turn) * d
@@ -1732,8 +2786,33 @@ export class Runtime {
     return out
   }
 
-  private arg(a: Actor, kind: ParamKind, value: string, slot: number): Args[string] {
+  /**
+   * An action's args from what code gave it (`me.do`): a thing, an actor or a spot as it is, words
+   * and numbers read by each param's kind as a step's are; a param given nothing is null.
+   */
+  argsFrom(a: Actor, params: Param[], given: Record<string, unknown>): Args {
+    const out: Args = {}
+    let things = 0
+    for (const p of params) {
+      const v = given[p.name]
+      const slot = p.kind === 'item' || p.kind === 'thing' ? things++ : 0
+      if (v instanceof ActorHandle || v instanceof ItemHandle) out[p.name] = p.kind === 'text' || p.kind === 'number' ? null : v
+      else if (isObject(v) && isNum(v.x) && isNum(v.z)) out[p.name] = p.kind === 'place' || p.kind === 'thing' ? insideRoom(v.x, v.z, 0.3) : null
+      else out[p.name] = typeof v === 'string' || isNum(v) ? this.arg(a, p.kind, String(v).trim(), slot) : null
+    }
+    return out
+  }
+
+  private arg(a: Actor, kind: ParamKind, given: string, slot: number): Args[string] {
+    // 'new:slide': a new one made for the step (what it makes or builds), never one already here.
+    const fresh = isNewThing(given)
+    const value = kindOfArg(given)
     if (value === '') return null
+    const spot = SPOT.exec(value)
+    if (fresh && (kind === 'item' || kind === 'thing')) {
+      const it = this.newItemFor(a, value, slot)
+      return it === null ? null : this.item(it)
+    }
     switch (kind) {
       case 'text':
         return value.slice(0, 200)
@@ -1750,14 +2829,15 @@ export class Runtime {
         return it === null ? null : this.item(it)
       }
       case 'thing': {
+        // A spot is a thing too: the room's water ("heitä se lampeen") is a place, not an item.
+        if (spot) return insideRoom(Number(spot[1]), Number(spot[2]), 0.3)
         const b = this.actorFor(value)
         if (b !== null) return this.actor(b)
         const it = this.itemFor(a, value, slot)
         return it === null ? null : this.item(it)
       }
       case 'place': {
-        const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(value)
-        if (m) return insideRoom(Number(m[1]), Number(m[2]), 0.3)
+        if (spot) return insideRoom(Number(spot[1]), Number(spot[2]), 0.3)
         const b = this.actorFor(value)
         if (b !== null) return { x: b.x, z: b.z }
         const it = this.itemFor(a, value, -1)
@@ -1791,7 +2871,19 @@ export class Runtime {
       }
     }
     if (best !== null || slot < 0) return best
-    const d = (slot === 0 ? 1.5 : 4) + lib.info(kind).radius
+    return this.makeInFront(a, kind, slot)
+  }
+
+  /** A new thing of the kind a word means, in front of the actor; null for a word that is no kind. */
+  private newItemFor(a: Actor, word: string, slot: number): Item | null {
+    const lib = this.sim.library
+    const kind = lib.items.has(word) ? word : lib.itemKindFor(word)
+    return kind === null ? null : this.makeInFront(a, kind, Math.max(0, slot))
+  }
+
+  /** A new thing in front of the actor: the first thing of a step 1.5 m off, a second 4 m, so there is room to act. */
+  private makeInFront(a: Actor, kind: string, slot: number): Item {
+    const d = (slot === 0 ? 1.5 : 4) + this.sim.library.info(kind).radius
     return this.sim.makeItem(kind, { x: a.x + Math.sin(a.yaw) * d, z: a.z + Math.cos(a.yaw) * d, yaw: a.yaw + Math.PI })
   }
 }
@@ -1809,6 +2901,19 @@ function* prelude(rt: Runtime, a: Actor, keep: ReadonlySet<string>): Anim {
   if (isLying(a) || isDown(a) || poseDistance(a.pose, restFor(a, rt.seat(a))) > 0.6) {
     yield* me.rest(0.25)
     yield* fall(rt, a)
+  }
+  yield* putLeftovers(rt, a, keep)
+}
+
+/** Puts down nicely what a made action left in its hands (not what the next step is about). */
+function* putLeftovers(rt: Runtime, a: Actor, keep: ReadonlySet<string>): Anim {
+  const side = rt.sim.side
+  const ids = side.leftovers.get(a.id)
+  if (ids === undefined) return
+  side.leftovers.delete(a.id)
+  for (const id of ids) {
+    const it = side.items.get(id)
+    if (it !== undefined && it.holder?.actor === a.id && !keep.has(id)) yield* rt.actor(a).putDown(rt.item(it))
   }
 }
 
@@ -1828,11 +2933,13 @@ export function* settleDown(rt: Runtime, a: Actor, getOff: boolean): Anim {
   if (getOff && a.riding !== null) yield* me.getOff()
   yield* me.rest(0.3)
   yield* fall(rt, a)
+  yield* putLeftovers(rt, a, new Set())
 }
 
 /** Whether settleDown has anything to do. */
 export function needsSettling(rt: Runtime, a: Actor, getOff: boolean): boolean {
   if (getOff && a.riding !== null) return true
+  if (rt.sim.side.leftovers.has(a.id) || (a.pivot ?? 0) !== 0) return true
   if (a.riding === null && (Math.abs(a.pitch) > 0.02 || Math.abs(a.roll) > 0.02)) return true
   if (poseDistance(a.pose, restFor(a, rt.seat(a))) > 0.05) return true
   return a.riding === null && Math.abs(a.y - rt.groundUnder(a)) > 0.01
@@ -1883,6 +2990,36 @@ export function* reaction(rt: Runtime, a: Actor, kind: Reaction): Anim {
       yield* me.poseTo(thinkPose(a, rt.seat(a)), 0.25)
       yield* w.wait(1.2)
       break
+    case 'better': {
+      // Sick no more: a little lie-down, then up with a hop.
+      me.say({ en: 'A little rest...', fi: 'Lepään vähän...' }, 1.8)
+      me.feel('sleepy', 2.2)
+      if (a.riding === null && !isLying(a)) {
+        const pitch = a.pitch
+        const roll = a.roll
+        const flat: PoseChange = animal
+          ? { lean: 0.1, bob: 0.1 * (a.look.height / 0.5), armL: { swing: 0.5, bend: 0.9 }, armR: { swing: 0.5, bend: 0.9 }, legL: { swing: -0.4, bend: 0.9 }, legR: { swing: -0.4, bend: 0.9 }, tail: 1.3 }
+          : { bob: 0.11 * (a.look.height / 1.15), armL: { swing: 0, raise: 0.5, bend: 0.3 }, armR: { swing: 0, raise: 0.5, bend: 0.3 }, legL: { swing: 0, raise: 0.08, bend: 0 }, legR: { swing: 0, raise: 0.08, bend: 0 }, head: { nod: 0, turn: 0, tilt: 0.3 } }
+        yield* w.together(
+          w.during(0.6, (k) => {
+            if (animal) a.roll = roll + (1.45 - roll) * ease(k)
+            else a.pitch = pitch + (-Math.PI / 2 - pitch) * ease(k)
+          }),
+          me.poseTo(flat, 0.6),
+        )
+        yield* w.wait(1.4)
+        yield* me.rest(0.4)
+        yield* fall(rt, a)
+      } else yield* w.wait(1)
+      me.say({ en: 'All better!', fi: 'Nyt on parempi!' }, 2)
+      me.feel('happy', 2)
+      rt.sound('yay')
+      const c = bodyCenter(a)
+      addPuffs(rt.sim.world, { kind: 'heart', x: c[0], y: c[1] + 0.3, z: c[2], color: null, count: 5, size: 0.14, speed: 0.7, up: 1, life: 1.1, gravity: null })
+      yield* me.poseTo(animal ? { tail: 0.9 } : { armL: up, armR: up }, 0.15)
+      if (a.riding === null) yield* me.jump(0.4)
+      break
+    }
   }
   yield* me.rest(0.3)
 }

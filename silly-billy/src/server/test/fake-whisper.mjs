@@ -2,8 +2,11 @@
 // the model) it listens on --port, answers GET / with its pid and POST /inference with the words
 // in the file FAKE_WHISPER_TEXT_FILE names (read for each request, so a test can change them),
 // else FAKE_WHISPER_TEXT, logging every form field it got (the clip as whether it is a WAV) to
-// FAKE_WHISPER_LOG as a JSON line. Told to stop, it goes on answering for FAKE_WHISPER_STOP_DELAY
-// ms first, as a real server freeing its memory might.
+// FAKE_WHISPER_LOG as a JSON line. Asked for verbose_json, the words come as one segment with a
+// no-speech probability of 0.25 and a mean log probability of -0.5. With FAKE_WHISPER_EXTRAS it
+// says in an X-Whisper-Extras header that it understands those fields, as Silly Billy's build
+// does. Told to stop, it goes on answering for FAKE_WHISPER_STOP_DELAY ms first, as a real
+// server freeing its memory might.
 import fs from 'node:fs'
 import http from 'node:http'
 
@@ -29,6 +32,7 @@ const words = () => (process.env.FAKE_WHISPER_TEXT_FILE && fs.existsSync(process
 setTimeout(() => {
   const server = http
     .createServer((req, res) => {
+      if (process.env.FAKE_WHISPER_EXTRAS) res.setHeader('x-whisper-extras', process.env.FAKE_WHISPER_EXTRAS)
       if (req.method === 'GET') return res.end(`whisper ${process.pid}`)
       const chunks = []
       req.on('data', (c) => chunks.push(c))
@@ -38,7 +42,8 @@ setTimeout(() => {
         for (const [k, v] of Object.entries(got)) if (typeof v === 'string' && k !== 'model') got[k] = Buffer.from(v, 'latin1').toString('utf8')
         if (process.env.FAKE_WHISPER_LOG) fs.appendFileSync(process.env.FAKE_WHISPER_LOG, `${JSON.stringify(got)}\n`)
         res.setHeader('content-type', 'application/json')
-        res.end(JSON.stringify({ text: words() }))
+        const text = words()
+        res.end(JSON.stringify(got.response_format === 'verbose_json' ? { text, segments: [{ text, no_speech_prob: 0.25, avg_logprob: -0.5 }] } : { text }))
       })
     })
     .listen(Number(arg('--port')), '127.0.0.1')

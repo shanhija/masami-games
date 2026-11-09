@@ -13,16 +13,19 @@ import type { Anim, WorldApi } from './api'
 import { anglesOf, apply, backFrame, handFrame, headFrame, KID_HEAD_R, pointIn, proportions, rootFrame, type Frame } from './body'
 import { useLang, type CastNames, type Lang } from './lang'
 import type { LibAction, Library, LibItem } from './library'
+import { holdFrame, placeIn } from './attach'
+import { stepEffects } from './effects'
 import { stepPhysics, stepPuffs } from './physics'
 import { groundAt, inWater, insideRoom, ROOM_GEO, WATER_Y } from './rooms'
 import { needsSettling, reaction, Runtime, settleDown, stepTask } from './runtime'
 import { describeError, resetGuard } from './sandbox'
+import { newSky, newTerrain, skyOf, stepFades, terrainOf } from './sky'
 import {
   HANDS, ROOM_HALF, ROOMS, SLOTS, STEP, restPose, type Actor, type BodyKind, type Item, type Look, type Pronoun, type Reaction, type RoomId, type Slot, type Step, type World,
 } from './types'
 import {
-  addPuffs, CAMERA_FACING, clamp, cleanActorRoot, cleanItemData, cleanItemRoot, cleanLook, cleanPose, copyLook, goodLook, hash01, isDown, isLying, itemCentre,
-  itemRotation, lerpPose, listenPose, num, partFrame, placeHeld, restFor, restHeight, seatedRoot, Side, TAU, thinkPose, turnBetween, wornKey,
+  addPuffs, CAMERA_FACING, clamp, cleanActorRoot, cleanItemData, cleanItemRoot, cleanLook, cleanPose, copyLook, goodLook, hash01, infoFor, isDown, isLying, itemCentre,
+  itemRotation, lerpPose, listenPose, num, partFrame, placeHeld, restFor, restHeight, seatedRoot, Side, TAU, thinkPose, turnBetween, waterTop, wetAt, withAdded, wornKey,
 } from './world'
 
 /** Where a thing stands when a room is set up (content/layouts.ts). */
@@ -172,6 +175,8 @@ export function createWorld(opts: { room: RoomId; actors: Actor[]; layouts: Reco
     nextId: 1,
     rng: opts.seed >>> 0,
     spotlight: null,
+    sky: newSky(),
+    terrain: { playground: newTerrain(), pool: newTerrain(), forest: newTerrain() },
   }
   for (const room of ROOMS) {
     const list = room === opts.room ? w.items : w.away[room]
@@ -238,6 +243,9 @@ export class Sim {
     side.left.clear()
     this.runtime.clear()
     side.index(w)
+    // A world from before the sky and the terrain gets them now, so everything after may read them.
+    skyOf(w)
+    for (const room of ROOMS) terrainOf(w, room)
     for (const a of w.actors) {
       a.doing = null
       a.joinedBy = null
@@ -257,8 +265,32 @@ export class Sim {
     this.side.sounds = 0
     this.side.speeches = 0
     this.side.spoken.clear()
+    stepFades(w)
     for (const a of w.actors) this.runActor(a)
+    this.stepEffects()
     this.stepItems()
+  }
+
+  /** Everybody's states: what water, rain, snow and a hot thing near do, the sway and face they show, and getting better when sick runs out. */
+  private stepEffects() {
+    const w = this.world
+    const sky = skyOf(w)
+    const top = waterTop(w)
+    const hot: { x: number; z: number; r: number }[] = []
+    for (const it of w.items) {
+      const info = infoFor(this.library, it)
+      if (info.recipe.traits.temp === 'hot') hot.push({ x: it.x, z: it.z, r: info.radius * it.scale + 1.5 })
+    }
+    for (const a of w.actors) {
+      if (a.effects === undefined && sky.rain < 0.25 && sky.snow < 0.35 && !inWater(w.room, a.x, a.z)) {
+        if (a.sway !== undefined && a.sway !== null) a.sway = null
+        continue
+      }
+      const deep = wetAt(w, a.x, a.z) && a.y < top - 0.1 * a.look.height * a.scale
+      const warm = hot.some((h) => (a.x - h.x) ** 2 + (a.z - h.z) ** 2 < h.r * h.r)
+      const ended = stepEffects(a, w.t, hash01(a.id, 3), { wet: deep || sky.rain >= 0.25, snowing: sky.snow >= 0.35, warm })
+      if (ended.includes('sick') && !this.reactions.has(a.id)) this.react(a.id, 'better')
+    }
   }
 
   /** Real seconds since the last frame: fixed steps, at most 4 a call. */
@@ -365,6 +397,8 @@ export class Sim {
     }
     const held = new Set<string>()
     for (const a of w.actors) for (const hand of HANDS) if (a.hands[hand] !== null) held.add(a.hands[hand]!)
+    // Things fixed to someone go along with them.
+    for (const it of w.items) if (it.attached !== undefined && it.attached !== null && this.side.actors.has(it.attached.to)) held.add(it.id)
     w.away[w.room] = w.items.filter((it) => !held.has(it.id))
     w.items = [...w.away[room], ...w.items.filter((it) => held.has(it.id))]
     w.away[room] = []
@@ -404,8 +438,9 @@ export class Sim {
     }
     if (a.riding !== null) this.runtime.unseat(a)
     for (const b of w.actors) if (b.joinedBy === id) b.joinedBy = null
+    for (const it of w.items) if (it.attached?.to === id) this.runtime.detach(it, false)
     w.actors.splice(w.actors.indexOf(a), 1)
-    for (const m of [this.tasks, this.reactions, this.settles, this.modes, this.idleSince, this.budgets, this.side.actors, this.side.looks, this.side.voiced, this.side.left]) m.delete(id)
+    for (const m of [this.tasks, this.reactions, this.settles, this.modes, this.idleSince, this.budgets, this.side.actors, this.side.looks, this.side.voiced, this.side.left, this.side.leftovers]) m.delete(id)
     this.runtime.forget(id)
     if (w.spotlight === id) w.spotlight = null
   }
@@ -417,8 +452,8 @@ export class Sim {
     const info = this.library.info(kind)
     const p = insideRoom(num(at.x, 0), num(at.z, 0), Math.min(info.radius, ROOM_HALF - 0.5))
     const low = info.recipe.bounds.min[1]
-    const wet = inWater(w.room, p.x, p.z)
-    const ground = (wet ? WATER_Y : groundAt(w.room, p.x, p.z)) - low
+    const wet = wetAt(w, p.x, p.z)
+    const ground = (wet ? waterTop(w) : groundAt(w.room, p.x, p.z)) - low
     const y = at.y === undefined ? ground : clamp(num(at.y, ground), -2, 30)
     const still = fixed === true
     const it = newItem(`#i${w.nextId++}`, kind, { x: p.x, y, z: p.z, yaw: num(at.yaw ?? 0, 0) }, w.t, still, !still && (wet || y > ground + 0.02), null)
@@ -453,6 +488,8 @@ export class Sim {
     }
     w.items.splice(i, 1)
     this.runtime.unsupport(it)
+    // What was fixed to it comes loose: left in the air, it falls.
+    for (const o of w.items) if (o.attached?.to === id) this.runtime.detach(o, false)
     this.side.forgetItem(id)
     if (!keepHandle) this.runtime.forget(id)
   }
@@ -460,6 +497,7 @@ export class Sim {
   /** A thing someone puts on leaves the room but goes on as its slot's stand-in: its process runs, its parts move, and code's handle on it stays live. */
   wearItem(a: Actor, slot: Slot, it: Item): void {
     this.removeItem(it.id, true)
+    it.attached = null
     it.loose = false
     it.holder = null
     it.rider = null
@@ -483,9 +521,9 @@ export class Sim {
   putItem(it: Item, at: { x: number; z: number; y: number; yaw: number }): Item {
     this.sync()
     const w = this.world
-    const p = insideRoom(num(at.x, 0), num(at.z, 0), Math.min(this.library.info(it.kind).radius, ROOM_HALF - 0.5))
+    const p = insideRoom(num(at.x, 0), num(at.z, 0), Math.min(infoFor(this.library, it).radius, ROOM_HALF - 0.5))
     Object.assign(it, { x: p.x, y: clamp(num(at.y, 0), -2, 30), z: p.z, yaw: num(at.yaw, 0), pitch: 0, roll: 0, scale: 1, vx: 0, vy: 0, vz: 0, spin: 0 })
-    Object.assign(it, { loose: false, holder: null, rider: null, born: w.t, fixed: false })
+    Object.assign(it, { loose: false, holder: null, rider: null, born: w.t, fixed: false, attached: null })
     w.items.push(it)
     this.side.items.set(it.id, it)
     return it
@@ -504,7 +542,7 @@ export class Sim {
     for (const it of w.items) {
       if (it.kind !== kind) continue
       it.born = w.t
-      const c = itemCentre(it, info)
+      const c = itemCentre(it, withAdded(info, it.added ?? null))
       sparkle(c[0], c[1], c[2])
       if (it.holder === null && it.rider === null && !it.fixed) this.runtime.setLoose(it, null)
     }
@@ -666,9 +704,21 @@ export class Sim {
     const step = { action: doing.action, args: doing.args, serial: doing.serial }
     w.events.push(how === 'failed' ? { type: 'failed', actor: a.id, step, error: error ?? 'it went wrong' } : { type: 'done', actor: a.id, step })
     if (w.spotlight === a.id) w.spotlight = null
+    // What the step picked up and still holds goes down nicely when its holder settles or starts anew.
+    for (const [id, step] of this.side.picked) {
+      if (step !== doing) continue
+      this.side.picked.delete(id)
+      const holder = this.side.items.get(id)?.holder ?? null
+      if (holder === null) continue
+      const list = this.side.leftovers.get(holder.actor) ?? new Set<string>()
+      list.add(id)
+      this.side.leftovers.set(holder.actor, list)
+    }
     for (const b of w.actors) if (b.joinedBy === a.id) this.free(b)
     for (const [id, step] of this.side.left) if (step === doing) this.side.left.delete(id)
     this.idleSince.set(a.id, w.t)
+    // The next turn turns round the feet again; the body stays where it is drawn.
+    if ((a.pivot ?? 0) !== 0) this.runtime.setPivot(a, 0)
     if (how === 'failed') this.react(a.id, 'shrug')
     if (how !== 'done' || (a.riding === null && !isLying(a) && !isDown(a))) this.settle(a, true)
   }
@@ -817,7 +867,7 @@ export class Sim {
 
   /** A stand-in where its slot is, as the scene draws it: a 'hand' thing upright in the right hand by its 'hand' anchor, the rest on the head, the body or the back, sized from the model kid to this body. */
   private placeWorn(a: Actor, slot: Slot, it: Item) {
-    const info = this.library.info(it.kind)
+    const info = infoFor(this.library, it)
     const pr = proportions(a.look)
     let f: Frame
     let size = a.scale
@@ -873,9 +923,57 @@ export class Sim {
         this.runtime.setLoose(it, null)
         continue
       }
-      placeHeld(it, a, this.library.info(it.kind), a.hands.left === it.id && a.hands.right === it.id && !proportions(a.look).animal)
+      placeHeld(it, a, infoFor(this.library, it), a.hands.left === it.id && a.hands.right === it.id && !proportions(a.look).animal)
     }
+    this.placeAttached()
     this.carryRiders(true)
+    this.carryStanders()
+  }
+
+  /**
+   * Whoever stands on a thing's top (climbOnto) goes with it when it moves or turns: by however
+   * far it went since the last frame, round its middle, as a rider goes with what it rides.
+   */
+  private carryStanders() {
+    const side = this.side
+    for (const a of this.world.actors) {
+      const on = a.riding === null ? (a.on ?? null) : null
+      const it = on === null ? undefined : side.items.get(on)
+      if (it === undefined) {
+        side.standing.delete(a.id)
+        continue
+      }
+      const was = side.standing.get(a.id)
+      if (was !== undefined && was.id === it.id) {
+        const turn = it.yaw - was.yaw
+        const dx = a.x - was.x
+        const dz = a.z - was.z
+        const c = Math.cos(turn)
+        const s = Math.sin(turn)
+        a.x = clamp(it.x + dx * c + dz * s, -ROOM_HALF, ROOM_HALF)
+        a.z = clamp(it.z - dx * s + dz * c, -ROOM_HALF, ROOM_HALF)
+        a.y = clamp(a.y + it.y - was.y, -2, 30)
+        a.yaw += turn
+      }
+      side.standing.set(a.id, { id: it.id, x: it.x, y: it.y, z: it.z, yaw: it.yaw })
+    }
+  }
+
+  /** Things fixed to others go where those are now, the ones they hang from first; one whose holder left the room comes loose. */
+  private placeAttached() {
+    const side = this.side
+    const done = new Set<string>()
+    const place = (it: Item, depth: number) => {
+      const att = it.attached ?? null
+      if (att === null || done.has(it.id)) return
+      done.add(it.id)
+      const up = side.items.get(att.to)
+      if (up !== undefined && depth < 16) place(up, depth + 1)
+      const f = holdFrame(side, this.library, att)
+      if (f === null) this.runtime.detach(it, false)
+      else placeIn(f, att, it)
+    }
+    for (const it of this.world.items) place(it, 0)
   }
 
   private carryRiders(onHeld: boolean) {
@@ -888,8 +986,9 @@ export class Sim {
         this.settle(a, false)
         continue
       }
-      if ((it.holder !== null) !== onHeld) continue
-      const s = seatedRoot(a, it, this.library.info(it.kind))
+      // Riders of free things go first; riders of held things and of things fixed to others, after those are placed.
+      if ((it.holder !== null || (it.attached ?? null) !== null) !== onHeld) continue
+      const s = seatedRoot(a, it, infoFor(this.library, it))
       a.x = clamp(s.x, -ROOM_HALF, ROOM_HALF)
       a.y = clamp(s.y, -2, 30)
       a.z = clamp(s.z, -ROOM_HALF, ROOM_HALF)

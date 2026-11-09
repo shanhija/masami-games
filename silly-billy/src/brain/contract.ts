@@ -22,6 +22,7 @@ import type {
 } from '../engine/protocol'
 import type { Sim } from '../engine/sim'
 import type { WorldEvent } from '../engine/types'
+import type { MicInfo } from '../voice/mic'
 
 /** The dev server, reached at ./api/ beside the page. In the static build every call fails and `online` stays false. */
 export interface Link {
@@ -32,9 +33,10 @@ export interface Link {
   /**
    * 16 kHz mono 16-bit WAV to words in `lang`; partial asks (the live words while the button is
    * held) are not logged. `prime` is a sentence in `lang` with the names of who is here
-   * (voice/prime.ts), which Whisper is primed with; without it the server uses its own.
+   * (voice/prime.ts), which Whisper is primed with; without it the server uses its own. `mic`,
+   * what the browser gave for the microphone, goes with a whole clip, which the server keeps.
    */
-  hear(wav: ArrayBuffer, lang: 'fi' | 'en', partial: boolean, prime?: string): Promise<HearReply>
+  hear(wav: ArrayBuffer, lang: 'fi' | 'en', partial: boolean, prime?: string, mic?: MicInfo): Promise<HearReply>
   /** Rejects when `signal` aborts (the page waited long enough); the server then stops asking. */
   interpret(req: InterpretRequest, signal?: AbortSignal): Promise<InterpretReply>
   /** Streams progress 0..1 to onProgress; resolves with the made entry or rejects with the designer's error, or when `signal` aborts (the server then kills the designer). */
@@ -106,4 +108,6 @@ export interface BrainApi {
   see(events: readonly WorldEvent[]): void
   /** Forgets the newest made thing (the pause card's button) and gives its name, or null when nothing was made; one still being made is not taken in when it is done. */
   forgetNewest(): Promise<Words | null>
+  /** Forgets everything made (the pause card's other button), newest first, and gives how many. */
+  forgetAll(): Promise<number>
 }

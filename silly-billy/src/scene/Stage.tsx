@@ -1,17 +1,19 @@
 import { PerspectiveCamera } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, type RefObject } from 'react'
-import { Vector3, type DirectionalLight, type PerspectiveCamera as PerspectiveCameraObject } from 'three'
+import { Vector3, type PerspectiveCamera as PerspectiveCameraObject } from 'three'
 
 import { CAMERA_FOV } from '../../../castle-builder/src/scene/look'
 import type { ItemInfo, RoomId, World } from '../engine/types'
-import { Actors } from './Actors'
+import { ActorLayer, Actors } from './Actors'
 import { Effects } from './Effects'
 import { busyPoints, frameFor, Reveals, type Frame } from './frame'
 import { Ground } from './Ground'
-import { Items } from './Items'
-import { palette, type Clock } from './look'
+import { ItemLayer, Items } from './Items'
+import type { Clock } from './look'
 import { Models } from './recipeMesh'
+import { Lamps, SkyDome, SkyLights, Weather } from './Sky'
+import { States } from './States'
 import { BACK, standBack, View } from './zoom'
 
 /** What the scene draws from: the sim's world (read fresh every frame), the library's models, whether the game is paused, and how close the player has zoomed. */
@@ -168,48 +170,20 @@ function useGestures(stage: RefObject<HTMLDivElement | null>, view: View, tapped
   }, [stage, view, tappedActor])
 }
 
-/** Castle Builder's light: one warm sun with soft shadows following the aim, and a hemisphere fill of sky over grass. */
-function Lights({ aim }: { aim: Vector3 }) {
-  const sun = useRef<DirectionalLight>(null!)
-  useFrame(() => {
-    const s = sun.current
-    s.position.set(aim.x - 40, 60, aim.z + 34)
-    s.target.position.set(aim.x, 0, aim.z)
-    s.target.updateMatrixWorld()
-  })
-  return (
-    <>
-      <directionalLight
-        ref={sun}
-        color={palette.sunlight}
-        position={[-40, 60, 34]}
-        intensity={2.2}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-bias={-0.0004}
-        shadow-normalBias={0.04}
-        shadow-camera-left={-24}
-        shadow-camera-right={24}
-        shadow-camera-top={24}
-        shadow-camera-bottom={-24}
-        shadow-camera-near={1}
-        shadow-camera-far={200}
-      />
-      <hemisphereLight args={[palette.skyLight, palette.groundLight, 0.8]} />
-    </>
-  )
-}
-
 /**
- * The room as a diorama on a light sky: the ground slab, the things, the people and the
- * animals, the puffs. Drives the game's `advance` once a frame, says which actor a finger
- * tapped, and lets the player zoom and pan.
+ * The room as a diorama under the world's sky: the light, the sun or moon and stars, the ground
+ * slab and its water, the things, the people and the animals and the states they are in, the
+ * puffs, rain and snow, and the lamps' lights. Drives the game's `advance` once a frame, says
+ * which actor a finger tapped, and lets the player zoom and pan.
  */
 export function Stage({ source, advance, onTapActor }: { source: SceneSource; advance: (dt: number) => void; onTapActor: (id: string) => void }) {
   const aim = useMemo(() => new Vector3(), [])
   const clock = useMemo<Clock>(() => ({ t: 0 }), [])
   const models = useMemo(() => new Models(source), [source])
   useEffect(() => () => models.dispose(), [models])
+  const items = useMemo(() => new ItemLayer(models), [models])
+  const actors = useMemo(() => new ActorLayer(models), [models])
+  const lampSources = useMemo(() => [items, actors], [items, actors])
   const stage = useRef<HTMLDivElement>(null)
   // An avatar is tapped as the finger goes down, before the stage sees it: that tap is no tap on the ground.
   const tappedActor = useRef(false)
@@ -217,22 +191,25 @@ export function Stage({ source, advance, onTapActor }: { source: SceneSource; ad
   return (
     <div ref={stage} className="stage" style={{ position: 'fixed', inset: 0, touchAction: 'none' }}>
       <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
-        <color attach="background" args={[palette.sky]} />
         <Driver source={source} advance={advance} clock={clock} />
         <CameraRig source={source} aim={aim} />
-        <Lights aim={aim} />
+        <SkyLights source={source} aim={aim} />
+        <SkyDome source={source} />
         <Ground source={source} clock={clock} />
-        <Items source={source} models={models} clock={clock} />
+        <Items layer={items} source={source} clock={clock} />
         <Actors
+          layer={actors}
           source={source}
-          models={models}
           clock={clock}
           onTapActor={(id) => {
             tappedActor.current = true
             onTapActor(id)
           }}
         />
+        <States source={source} clock={clock} />
         <Effects source={source} />
+        <Weather source={source} aim={aim} clock={clock} />
+        <Lamps from={lampSources} aim={aim} source={source} />
       </Canvas>
     </div>
   )

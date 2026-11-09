@@ -5,9 +5,18 @@
  */
 
 import type { RoughShape } from './kit'
-import type { BodyKind, ItemMeta, Look, Pronoun, RoomId } from './types'
+import type { BodyKind, ItemMeta, ItemTraits, Look, Pronoun, RoomId } from './types'
 
 // ------------------------------------------------------------------------------ the plan
+
+/**
+ * A step's arg that asks for a new thing of a kind, not one already here: 'new:slide'. What a
+ * step makes or builds is new; a kind alone is the nearest one here, and an id that very one.
+ */
+export const NEW_THING = 'new:'
+/** The kind an arg names: 'new:slide' and 'slide' are both 'slide'. */
+export const kindOfArg = (value: string): string => (isNewThing(value) ? value.trim().slice(NEW_THING.length).trim() : value)
+export const isNewThing = (value: string): boolean => value.trim().toLowerCase().startsWith(NEW_THING)
 
 /** What kind of thing a param takes. 'thing' is an actor or an item; 'place' is a thing or a spot on the ground. */
 export type ParamKind = 'actor' | 'item' | 'thing' | 'place' | 'text' | 'number'
@@ -60,7 +69,26 @@ export interface NewItem {
   /** What it looks like: shape, parts, colours. */
   about: string
   rough: RoughShape[]
-  meta: Partial<ItemMeta>
+  /** How it behaves, and whether it is food, hot or cold, soft: the draft plays by it until the real model comes. */
+  meta: Partial<ItemMeta & ItemTraits>
+}
+
+/**
+ * Something to do just now that known actions run whole one after another cannot say
+ * ("hyppikää trampoliinilla ja tehkää voltti siellä", "tee puumajaan tikkaat"): code for this
+ * moment, run as the steps that name it and then forgotten. A verb worth keeping is a new action.
+ */
+export interface PlanScript {
+  /** Short English kebab-case for what happens: 'backflip-on-trampoline'. The plan's steps name it as their action. */
+  id: string
+  /** What happens from start to end, the things by id: what the designer writes it from when there is no code, or the code failed. */
+  about: string
+  /** The body of function* (me, args, w), a few lines; '' for the designer to write. */
+  code: string
+  /** The code as the dev server's guard let it through (it adds this), or null when there was none or it was refused. */
+  guarded?: string | null
+  /** Why the guard refused the code, for the designer to fix. */
+  refused?: string
 }
 
 /** What may change about an avatar's body; worn things are 'wear' steps. */
@@ -99,6 +127,8 @@ export interface Plan {
   create?: NewAvatar
   /** Everyone goes to this room before the steps. */
   room?: RoomId
+  /** Code for this moment, which steps name as their action. */
+  scripts?: PlanScript[]
   /** The avatar's answer: 1 to 4 simple words in English and the same in Finnish; the bubble shows and the voice says the game's language. */
   say: string
   sayFi: string
@@ -123,7 +153,7 @@ export interface ItemEntry {
   tickGuarded: string | null
   /** The interpreter's draft, kept until the model arrives. */
   rough: RoughShape[] | null
-  roughMeta: Partial<ItemMeta> | null
+  roughMeta: Partial<ItemMeta & ItemTraits> | null
   by: MadeBy
   /** The words that asked for it. */
   asked: string
@@ -163,6 +193,8 @@ export interface PhraseEntry {
   words: string
   plan: Plan
   made: string
+  /** Which interpreter prompt made the plan (the dev server stamps it): a phrase from another prompt is understood afresh. */
+  prompt?: string
 }
 
 export type Entry = ItemEntry | ActionEntry | AvatarEntry
@@ -212,7 +244,7 @@ export type InventRequest = {
   context: string
   /** A first try that failed validation: its code and what went wrong. */
   fix?: { code: string; error: string }
-} & ({ kind: 'action'; spec: NewAction } | { kind: 'item'; spec: NewItem })
+} & ({ kind: 'action'; spec: NewAction } | { kind: 'item'; spec: NewItem } | { kind: 'script'; spec: NewAction })
 
 export type InventLine = { progress: number } | { done: ActionEntry | ItemEntry; ms: number } | { error: string }
 
@@ -247,6 +279,6 @@ export const slugOf = (s: string): string =>
  */
 export function planUses(plan: Plan, type: Entry['type'], id: string): boolean {
   if (type === 'action') return plan.steps.some((s) => slugOf(s.action) === id)
-  if (type === 'item') return plan.steps.some((s) => s.args.some((a) => slugOf(a.value) === id))
+  if (type === 'item') return plan.steps.some((s) => s.args.some((a) => slugOf(kindOfArg(a.value)) === id))
   return plan.who.includes(id)
 }

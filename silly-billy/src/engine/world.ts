@@ -11,12 +11,13 @@
  */
 
 import { anglesOf, apply, child, eulerXYZ, eulerYXZ, handFrame, hugFrame, IDENTITY, mul, pointIn, proportions, type Frame, type Mat3 } from './body'
-import { parseColor } from './kit'
-import type { Library } from './library'
-import { inWater, groundAt, WATER_Y } from './rooms'
+import { boundsOf, parseColor } from './kit'
+import { measure, type Library } from './library'
+import { inWater, groundAt, ROOM_GEO, WATER_Y } from './rooms'
+import { terrainOf } from './sky'
 import {
   BODY_KINDS, MOODS, PUFF_KINDS, ROOM_HALF, SLOTS, SOUND_NAMES, restPose,
-  type Actor, type BodyKind, type Doing, type Item, type ItemInfo, type Look, type Mood, type PartPose, type Pose, type PuffKind, type Recipe, type Slot, type SoundName, type Vec3, type World, type Worn,
+  type Actor, type Added, type BodyKind, type Doing, type Item, type ItemInfo, type Look, type Mood, type PartPose, type Pose, type PuffKind, type Recipe, type Slot, type SoundName, type Vec3, type World, type Worn,
 } from './types'
 
 /** The yaw that faces the camera (Castle Builder's CAMERA_YAW, 35 degrees): an idle actor turns this way to look at the child. */
@@ -64,6 +65,38 @@ export function nextRandom(w: World): number {
 // ------------------------------------------------------------------------------ geometry
 
 export const itemRotation = (it: Pick<Item, 'yaw' | 'pitch' | 'roll'>): Mat3 => eulerYXZ(it.pitch, it.yaw, -it.roll)
+
+const merged = new WeakMap<Added, { base: Recipe; info: ItemInfo }>()
+
+/**
+ * A kind's info with one thing's own added shapes, parts and anchors (the kind's own when it has
+ * none): what is drawn, where its anchors and parts are, how big it is. Made once per addition
+ * and per model of the kind (a draft becoming the real thing makes it again).
+ */
+export function withAdded(info: ItemInfo, added: Added | null): ItemInfo {
+  if (added === null) return info
+  const known = merged.get(added)
+  if (known !== undefined && known.base === info.recipe) return known.info
+  const base = info.recipe
+  const shapes = [...base.shapes, ...added.shapes]
+  const parts = [...base.parts, ...added.parts]
+  const recipe: Recipe = { shapes, parts, anchors: { ...base.anchors, ...added.anchors }, meta: base.meta, traits: base.traits, bounds: boundsOf(shapes, parts) }
+  const out: ItemInfo = { ...info, recipe, ...measure(recipe.bounds) }
+  merged.set(added, { base, info: out })
+  return out
+}
+
+/** What the sim measures of this one thing: its kind's, with what code added to it. */
+export const infoFor = (lib: Library, it: Item): ItemInfo => withAdded(lib.info(it.kind), it.added ?? null)
+
+/** The water's surface in the room now: the full pool's at WATER_Y, lower as it empties, down to its floor. */
+export function waterTop(w: World): number {
+  const floor = ROOM_GEO[w.room].floor
+  return floor + (WATER_Y - floor) * terrainOf(w, w.room).water
+}
+
+/** Over water that is there now: in the pool or the pond, and not emptied. */
+export const wetAt = (w: World, x: number, z: number): boolean => terrainOf(w, w.room).water > 0.02 && inWater(w.room, x, z)
 
 const ORIGIN: Frame = { p: [0, 0, 0], r: IDENTITY, s: 1 }
 
@@ -117,7 +150,7 @@ export function solidsOf(w: World, library: Library): Solid[] {
   const out: Solid[] = []
   for (const it of w.items) {
     if (it.loose || it.holder !== null) continue
-    const info = library.info(it.kind)
+    const info = infoFor(library, it)
     if (info.recipe.meta.solid) out.push({ item: it, x: it.x, z: it.z, r: info.radius * it.scale, top: it.y + heightOf(it, info) })
   }
   return out
@@ -144,8 +177,8 @@ const WADE_DEPTH = 0.6
  * or a shrunk kid must not walk on the pool's floor out of sight.
  */
 export function restHeight(w: World, a: Pick<Actor, 'look' | 'scale'>, x: number, z: number, ground: number): number {
-  if (!inWater(w.room, x, z)) return ground
-  return Math.max(ground, WATER_Y - WADE_DEPTH * a.look.height * a.scale)
+  if (!wetAt(w, x, z)) return ground
+  return Math.max(ground, waterTop(w) - WADE_DEPTH * a.look.height * a.scale)
 }
 
 export const isLying = (a: Pick<Actor, 'pitch' | 'roll'>) => Math.abs(a.pitch) > 0.6 || Math.abs(a.roll) > 0.6
@@ -408,6 +441,7 @@ export function cleanActorRoot(a: Actor): void {
   a.pitch = turn(a.pitch)
   a.roll = turn(a.roll)
   a.scale = clamp(num(a.scale, 1), 0.2, 4)
+  if (a.pivot !== undefined) a.pivot = clamp(num(a.pivot, 0), 0, 1)
 }
 
 export function cleanItemRoot(it: Item): void {
@@ -424,7 +458,7 @@ export function cleanItemRoot(it: Item): void {
   it.spin = clamp(num(it.spin, 0), -60, 60)
 }
 
-const PART_KEYS = ['x', 'y', 'z', 'rx', 'ry', 'rz', 's']
+const PART_KEYS = ['x', 'y', 'z', 'rx', 'ry', 'rz', 's', 'color', 'show', 'glow']
 
 /** An item's own numbers and its parts' offsets: only finite numbers stay (true and false become 1 and 0). */
 export function cleanItemData(it: Item): void {
@@ -458,6 +492,10 @@ export function cleanItemData(it: Item): void {
       p.ry = angle(p.ry, 0)
       p.rz = angle(p.rz, 0)
       p.s = clamp(num(p.s, 1), 0.01, 20)
+      // How it is drawn: a colour or null, shown or not, glowing, switched off or as the thing says; anything else is as built.
+      if (p.color !== undefined && p.color !== null) p.color = parseColor(p.color)
+      if (p.show !== undefined) p.show = p.show !== false && p.show !== 0
+      if (p.glow !== undefined && p.glow !== null) p.glow = typeof p.glow === 'boolean' ? p.glow : null
       trimKeys(p, PART_KEYS)
     }
   } catch {
@@ -593,6 +631,12 @@ export class Side {
   readonly voiced = new Map<string, { text: string; until: number; doing: Doing | null }>()
   /** Actors a newer command took out of another actor's step that had them joined, by that step: it cannot take them in again. */
   readonly left = new Map<string, Doing>()
+  /** Things picked up while a made action ran, by the step it was: still held when it ends, they are put down nicely (me.keep takes one out). */
+  readonly picked = new Map<string, Doing>()
+  /** Things each actor is to put down nicely when it settles or starts its next step (unless that step is about them). */
+  readonly leftovers = new Map<string, Set<string>>()
+  /** Where the thing each actor stands on was last frame: when it moves or turns, whoever stands on it goes with it. */
+  readonly standing = new Map<string, { id: string; x: number; y: number; z: number; yaw: number }>()
   /** Sounds asked for this frame: a loop full of them plays a few. */
   sounds = 0
   /** Lines said aloud this frame, the same way: a few in all, and a line or two from each actor ("kaikki sanokaa hei" is everyone's hello). */
@@ -626,6 +670,7 @@ export class Side {
 
   forgetItem(id: string): void {
     this.items.delete(id)
+    this.picked.delete(id)
     this.still.delete(id)
     this.thrownBy.delete(id)
     this.hitDone.delete(id)
@@ -636,7 +681,7 @@ export class Side {
 
   /** Forgets everything about the things in the room (they went away, or the world was swapped). */
   clearItems(): void {
-    for (const m of [this.still, this.thrownBy, this.placed]) m.clear()
+    for (const m of [this.still, this.thrownBy, this.placed, this.picked, this.leftovers]) m.clear()
     for (const s of [this.hitDone, this.exposed, this.touched, this.grounded]) s.clear()
   }
 }

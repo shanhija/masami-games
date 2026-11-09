@@ -7,7 +7,7 @@ import { toggleFullscreen, useGameView, type Game } from './game'
 import { BinIcon, CogIcon, FullIcon, GamesIcon, KeyboardIcon, MicIcon, PauseIcon, Portrait, RoomIcon, SendIcon, SoundIcon, VoiceIcon, ZoomIcon } from './Icons'
 import type { Listener } from './voice/mic'
 
-/** "Forget the newest thing" wants a second tap within this long, ms: the world stands still while the card is up. */
+/** "Forget the newest thing" and "Forget everything" want a second tap within this long, ms: the world stands still while the card is up. */
 const ARM_FOR = 3000
 
 /** Every word the HUD shows, in both languages: the setting picks one when it is shown. */
@@ -31,6 +31,8 @@ const SAY = {
   voicesOff: { en: 'Voices off', fi: 'Puhe pois' },
   forget: { en: 'Forget the newest thing', fi: 'Unohda uusin juttu' },
   reallyForget: { en: 'Really forget it?', fi: 'Unohdetaanko varmasti?' },
+  forgetAll: { en: 'Forget everything made', fi: 'Unohda kaikki tehty' },
+  reallyForgetAll: { en: 'Really forget everything?', fi: 'Unohdetaanko kaikki?' },
   fullScreen: { en: 'Full screen', fi: 'Koko näyttö' },
   moreGames: { en: 'More games', fi: 'Lisää pelejä' },
   blocked: { en: ' The microphone is blocked: let this page use it, or type.', fi: ' Mikrofoni on estetty: anna tämän sivun käyttää sitä, tai kirjoita.' },
@@ -308,18 +310,17 @@ function TypeBox({ game, ask }: { game: Game; ask: boolean }) {
   )
 }
 
-/** Paused: keep going, the settings, forgetting, more games, and two plain lines for the parent. Closing it forgets a first tap on "forget". */
+/** Paused: keep going, the settings, forgetting the newest or everything, more games, and two plain lines for the parent. Closing it forgets a first tap on either. */
 function PauseCard({ game }: { game: Game }) {
-  const [armedAt, setArmedAt] = useState(-1)
+  const [armed, setArmed] = useState<'newest' | 'all' | null>(null)
   useEffect(() => {
-    if (armedAt < 0) return
-    const id = setTimeout(() => setArmedAt(-1), ARM_FOR)
+    if (armed === null) return
+    const id = setTimeout(() => setArmed(null), ARM_FOR)
     return () => clearTimeout(id)
-  }, [armedAt])
+  }, [armed])
   const s = game.settings
   const say = (words: Words) => inLang(words, s.lang)
   const status = game.status
-  const armed = armedAt >= 0
   const voice = say(VOICE[game.listener]) + (game.mic.blocked ? say(SAY.blocked) : '') + (status !== null && status.whisper === 'starting' ? say(SAY.waking) : '')
   const invent = say(status !== null && status.claude ? inventing(status.models.interpret, status.models.invent) : SAY.noInventing)
   return (
@@ -349,16 +350,30 @@ function PauseCard({ game }: { game: Game }) {
         {/* Without the dev server nothing can be forgotten for good: it would come back on the next visit. */}
         {status !== null && (
           <Btn
-            className={armed ? 'armed' : ''}
+            className={armed === 'newest' ? 'armed' : ''}
             label={say(SAY.forget)}
             onTap={() => {
-              if (!armed) return setArmedAt(Date.now())
-              setArmedAt(-1)
+              if (armed !== 'newest') return setArmed('newest')
+              setArmed(null)
               void game.forgetNewest()
             }}
           >
             <BinIcon size={30} />
-            {say(armed ? SAY.reallyForget : SAY.forget)}
+            {say(armed === 'newest' ? SAY.reallyForget : SAY.forget)}
+          </Btn>
+        )}
+        {status !== null && (
+          <Btn
+            className={armed === 'all' ? 'armed' : ''}
+            label={say(SAY.forgetAll)}
+            onTap={() => {
+              if (armed !== 'all') return setArmed('all')
+              setArmed(null)
+              void game.forgetAll()
+            }}
+          >
+            <BinIcon size={30} />
+            {say(armed === 'all' ? SAY.reallyForgetAll : SAY.forgetAll)}
           </Btn>
         )}
         <Btn className="" label={say(SAY.fullScreen)} onTap={toggleFullscreen}>

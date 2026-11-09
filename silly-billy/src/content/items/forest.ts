@@ -86,7 +86,7 @@ export const FOREST_ITEMS: BuiltinItem[] = [
       m.lathe([[0, 0.6], [0.14, 0.59], [0.25, 0.54], [0.32, 0.45], [0.33, 0.38], [0.1, 0.35], [0, 0.35]], { color: 'red' })
       for (const dot of dotsOn([0, 0.35, 0], [0.36, 0.26, 0.36], 22, (d) => d[1] > 0.3)) m.sphere(0.045, { at: dot.at, rot: dot.rot, scale: [1, 0.35, 1], color: 'white' })
       m.anchor('hand', [0, 0.2, 0])
-      return { carry: 'hug', bouncy: 0.3, solid: false }
+      return { carry: 'hug', bouncy: 0.3, solid: false, food: 'poison' }
     },
   }),
   item({
@@ -133,7 +133,7 @@ export const FOREST_ITEMS: BuiltinItem[] = [
         const at = [[0, 0.08, 0], [0.07, 0.08, 0.05], [-0.07, 0.08, -0.04]][i]
         m.part(name, { at }, () => m.cone(0.2 - i * 0.055, 0.6 - i * 0.14, { at: [0, 0.3 - i * 0.07, 0], color: palette.fire[i], glow: true }))
       }
-      return { carry: 'no', solid: true, bouncy: 0 }
+      return { carry: 'no', solid: true, bouncy: 0, temp: 'hot' }
     },
     tick: (it, w, dt) => {
       for (const [i, name] of FLAMES.entries()) {
@@ -158,7 +158,7 @@ export const FOREST_ITEMS: BuiltinItem[] = [
       m.sphere(0.06, { at: [0, 0.055, 0], scale: [0.85, 0.85, 1.5], color: palette.trunk })
       for (const z of [-0.05, 0, 0.05]) m.torus(0.05 - Math.abs(z) * 0.3, 0.013, { at: [0, 0.055, z], color: '#6b4a2b' })
       m.cylinder(0.008, 0.008, 0.035, { at: [0, 0.055, -0.1], rot: [Math.PI / 2, 0, 0], color: '#5a3a24' })
-      return { carry: 'hand', bouncy: 0.35, solid: false }
+      return { carry: 'hand', bouncy: 0.35, solid: false, food: 'yucky' }
     },
   }),
   item({
@@ -173,7 +173,7 @@ export const FOREST_ITEMS: BuiltinItem[] = [
       m.cylinder(0.012, 0.016, twig.length, { at: twig.at, rot: twig.rot, color: palette.trunk })
       m.sphere(0.045, { at: [0.19, 0.03, 0.34], rot: alongY([0.6, 0, 1]), scale: [0.6, 1.6, 0.25], color: palette.leaves[1] })
       m.anchor('hand', [0, 0.03, -0.38])
-      return { carry: 'hand', bouncy: 0.3, solid: false }
+      return { carry: 'hand', bouncy: 0.3, solid: false, food: 'yucky' }
     },
   }),
   item({
@@ -197,7 +197,7 @@ export const FOREST_ITEMS: BuiltinItem[] = [
         const a = (i / 6) * Math.PI * 2 + 0.5
         m.cone(0.09, 0.22, { at: [Math.sin(a) * 0.5, 0.11, Math.cos(a) * 0.5], color: palette.leaves[i % 3] })
       }
-      return { carry: 'no', solid: false }
+      return { carry: 'no', solid: false, food: 'yucky' }
     },
   }),
   item({
@@ -211,7 +211,7 @@ export const FOREST_ITEMS: BuiltinItem[] = [
       m.sphere(0.4, { at: [0.45, 0.35, 0.15], color: palette.leaves[0] })
       m.sphere(0.38, { at: [-0.42, 0.33, -0.12], color: palette.leaves[1] })
       for (const berry of dotsOn([0, 0.55, 0], [0.6, 0.54, 0.6], 30, (d) => d[1] > -0.1)) m.sphere(0.05, { at: berry.at, color: 'red' })
-      return { carry: 'no', solid: true }
+      return { carry: 'no', solid: true, food: 'yummy' }
     },
   }),
 ]

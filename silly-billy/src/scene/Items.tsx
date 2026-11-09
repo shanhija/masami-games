@@ -1,8 +1,12 @@
 import { useFrame } from '@react-three/fiber'
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 import { Group, InstancedMesh, MeshBasicMaterial, Object3D, OctahedronGeometry } from 'three'
 
-import type { World } from '../engine/types'
+import { apply } from '../engine/body'
+import { nightOf, skyOf } from '../engine/sky'
+import type { Vec3, World } from '../engine/types'
+import { itemRotation } from '../engine/world'
+import type { Lamp } from './daylight'
 import { MODEL, palette, type Clock } from './look'
 import { ModelView, type Models } from './recipeMesh'
 import type { SceneSource } from './Stage'
@@ -24,14 +28,18 @@ function popScale(age: number): number {
 const scratch = new Object3D()
 
 /**
- * Every thing in the room, each a drawn copy of its kind's model placed from the world
- * every frame: where it is, how it is turned, how big, its parts as the pose says. A copy
+ * Every thing in the room, each a drawn copy of its kind's model (with the shapes code added to
+ * it) placed from the world every frame: where it is, how it is turned, how big, its parts as
+ * the pose says and drawn as this thing says (hidden, painted, glowing, its lights off). A copy
  * is made when the thing appears, made again when its model changes (a draft becoming the
- * real thing, a coat of paint), and dropped when it goes. Drafts breathe together, see-
- * through, with glints circling them while the real thing is being made.
+ * real thing, a coat of paint, shapes added), and dropped when it goes. Drafts breathe together,
+ * see-through, with glints circling them while the real thing is being made. Things that give
+ * light (their own, or lamps and fires at night) are listed for the scene's lamps.
  */
-class ItemLayer {
+export class ItemLayer {
   readonly root = new Group()
+  /** The light things give this frame. */
+  readonly lamps: Lamp[] = []
   private readonly views = new Map<string, { view: ModelView; seen: number }>()
   private readonly glints = new InstancedMesh(new OctahedronGeometry(0.11), new MeshBasicMaterial({ color: palette.glint }), GLINTS * MAX_DRAFTS)
   private tick = 0
@@ -45,9 +53,11 @@ class ItemLayer {
   update(world: World, clock: number) {
     const tick = ++this.tick
     const breathe = Math.sin(clock * 4)
+    const night = nightOf(skyOf(world).time)
+    this.lamps.length = 0
     let glints = 0
     for (const item of world.items) {
-      const model = this.models.get(item.kind, item.tint, null)
+      const model = this.models.get(item.kind, item.tint, null, item.added ?? null)
       let entry = this.views.get(item.id)
       if (entry === undefined || entry.view.model !== model) {
         if (entry !== undefined) this.root.remove(entry.view.root)
@@ -61,7 +71,20 @@ class ItemLayer {
       r.position.set(item.x, item.y, item.z)
       r.rotation.set(item.pitch, item.yaw, -item.roll, 'YXZ')
       r.scale.setScalar(size * (model.rough ? 1 + 0.035 * breathe : 1))
-      entry.view.pose(item.parts)
+      const glow = item.glow ?? null
+      const glowColor = item.glowColor ?? null
+      entry.view.pose(item.parts, { glow, glowColor })
+      // Its own light shines day and night; a lamp or a fire that is on, at night.
+      const light = item.light ?? null
+      const lit = model.lights !== null && glow !== false && night > 0.02 && !model.rough
+      if (light !== null || lit) {
+        const { min, max } = model.recipe.bounds
+        const at: Vec3 = light !== null ? [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2] : model.lights!.at
+        const o = apply(itemRotation(item), at)
+        const p = { x: item.x + o[0] * item.scale, y: item.y + o[1] * item.scale, z: item.z + o[2] * item.scale }
+        if (light !== null) this.lamps.push({ ...p, color: light, strength: 0.6 + 0.4 * night })
+        else this.lamps.push({ ...p, color: glowColor ?? model.lights!.color, strength: night * Math.min(1, 0.5 + model.lights!.size * item.scale) })
+      }
       if (!model.rough || glints >= GLINTS * MAX_DRAFTS) continue
       const { min, max } = model.recipe.bounds
       const reach = (Math.max(max[0] - min[0], max[2] - min[2]) / 2 + 0.2) * size
@@ -92,8 +115,7 @@ class ItemLayer {
   }
 }
 
-export function Items({ source, models, clock }: { source: SceneSource; models: Models; clock: Clock }) {
-  const layer = useMemo(() => new ItemLayer(models), [models])
+export function Items({ layer, source, clock }: { layer: ItemLayer; source: SceneSource; clock: Clock }) {
   useEffect(() => () => layer.dispose(), [layer])
   useFrame(() => layer.update(source.world, clock.t))
   return <primitive object={layer.root} />

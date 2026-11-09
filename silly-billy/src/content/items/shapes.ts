@@ -8,12 +8,12 @@
 import { eulerYXZ, type Mat3 } from '../../engine/body'
 import type { Kit } from '../../engine/kit'
 import type { BuiltinItem } from '../../engine/library'
-import type { ItemMeta, Vec3 } from '../../engine/types'
+import type { ItemMeta, ItemTraits, Vec3 } from '../../engine/types'
 
 export { palette } from '../../../../castle-builder/src/scene/look'
 
-/** A built-in thing: its build returns how it behaves, checked against ItemMeta. */
-export const item = (spec: Omit<BuiltinItem, 'build'> & { build: (m: Kit) => Partial<ItemMeta> }): BuiltinItem => spec
+/** A built-in thing: its build returns how it behaves and what it is, checked against ItemMeta and ItemTraits. */
+export const item = (spec: Omit<BuiltinItem, 'build'> & { build: (m: Kit) => Partial<ItemMeta & ItemTraits> }): BuiltinItem => spec
 
 /** The 'XYZ' angles (as three.js reads them, and as shape opts take them) of a rotation. */
 function anglesXYZ(m: Mat3): Vec3 {

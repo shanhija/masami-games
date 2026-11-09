@@ -246,6 +246,20 @@ describe('making new things', () => {
     expect([steve.doing?.action, ...steve.queue.map((s) => s.action)]).toContain('throw')
   })
 
+  it('makes a new thing once when a new action asks for a new one: the step takes the draft standing in the room', async () => {
+    const { sim, link, brain } = setup()
+    await brain.start()
+    const asksNew: Plan = { ...THROW_PLAN, steps: [{ who: 'steve', action: 'throw', args: [{ name: 'thing', value: 'new:frisbee' }, { name: 'target', value: 'alice' }] }] }
+    link.plans.set(WORDS, asksNew)
+    link.design = designer(() => GOOD_THROW)
+    await brain.hear(WORDS)
+    const drafts = sim.world.items.filter((i) => i.kind === 'frisbee')
+    expect(drafts).toHaveLength(1)
+    await brain.settled()
+    expect(play(sim, brain, 2, (e) => e.type === 'started' && e.step.action === 'throw')).not.toBeNull()
+    expect(sim.world.items.filter((i) => i.kind === 'frisbee').map((i) => i.id)).toEqual([drafts[0]!.id])
+  })
+
   it('sends a failed test back once with the error, and takes the fix', async () => {
     const { library, link, brain } = setup()
     await brain.start()
@@ -464,6 +478,28 @@ describe('avatars', () => {
     expect(await brain.forgetNewest()).toEqual({ en: 'frisbee', fi: 'liitokiekko' })
     expect(library.items.has('frisbee')).toBe(false)
     expect(await brain.forgetNewest()).toBeNull()
+  })
+
+  it('forgets everything made at once: things, actions, avatars and the phrases that use them, on disk too', async () => {
+    const { sim, library, link, brain } = setup()
+    link.data = {
+      items: [{ ...itemEntry('frisbee', FRISBEE_MODEL), made: '2026-11-01T00:00:00.000Z' }],
+      actions: [{ ...actionEntry('throw', GOOD_THROW, THROW.params), made: '2026-11-03T00:00:00.000Z' }],
+      avatars: [{ ...ELLA, made: '2026-11-02T00:00:00.000Z' }],
+      phrases: [{ words: WORDS, plan: { ...THROW_PLAN, newActions: [], newItems: [] }, made: MADE }],
+    }
+    await brain.start()
+    sim.makeItem('frisbee', { x: 1, z: 1 })
+    expect(await brain.forgetAll()).toBe(3)
+    expect([library.items.has('frisbee'), library.actions.has('throw'), sim.world.actors.some((a) => a.id === 'ella')]).toEqual([false, false, false])
+    expect(sim.world.items.some((i) => i.kind === 'frisbee')).toBe(false)
+    expect(library.phrases.size).toBe(0)
+    expect(link.forgot).toEqual([
+      { type: 'action', id: 'throw' },
+      { type: 'avatar', id: 'ella' },
+      { type: 'item', id: 'frisbee' },
+    ])
+    expect(await brain.forgetAll()).toBe(0)
   })
 })
 
@@ -1150,5 +1186,126 @@ describe('games played together', () => {
     await brain.hear('Aino, pelaa jalkapalloa')
     const football = [actor(sim, 'alice').doing, ...actor(sim, 'alice').queue].find((s) => s?.action === 'football-game')!
     expect(football.args.players).toBeUndefined()
+  })
+})
+
+describe('understanding the child better, from the play of 2026-11-09', () => {
+  it('a bare "Ei!" stops what the one spoken to was just told, whatever a phrase once made of the words', async () => {
+    const { sim, library, link, brain } = setup()
+    await brain.start()
+    await brain.hear('Noora, hyppää kolme kertaa')
+    await brain.hear('Mikko, pyöri')
+    await brain.hear('Noora, hyppää kolme kertaa')
+    expect(doingOrQueued(actor(sim, 'noora'))).toEqual(['jump'])
+    // Haiku made Noora say "Ei? Okei!": a phrase like it, kept before, must not play either.
+    library.addPhrase({ words: 'ei', plan: plan({ who: ['noora'], steps: [{ who: 'noora', action: 'say', args: [{ name: 'words', value: 'Ei? Okei!' }] }] }), made: MADE })
+    await brain.hear('Ei!')
+    expect(doingOrQueued(actor(sim, 'noora'))).toEqual([])
+    expect(doingOrQueued(actor(sim, 'mike'))).toEqual(['spin'])
+    expect(brain.lines.at(-1)).toMatchObject({ heard: { en: 'Nora: stop', fi: 'Noora: seis' }, by: 'local', status: 'done' })
+    expect(link.interprets).toHaveLength(0)
+  })
+
+  it("a new action or thing answers to no word another already answers to: 'kaada' stays the fell made first, 'pallo' the ball", async () => {
+    const { library, link, brain } = setup()
+    await brain.start()
+    const thing = [{ name: 'thing', kind: 'item' as const, about: 'what to fell', optional: false }]
+    library.addAction({ ...actionEntry('fell', 'yield* me.rest()', thing), calls: ['kaada', 'kaataa', 'fell'] })
+    shut(link)
+    // 'hyppikää' is the jump said to many: a verb ending is no word of the new action's either (jump-rope had taken "kaikki hyppikää").
+    const TIP: NewAction = { id: 'tip-over', name: 'tip over', nameFi: 'kaada', calls: ['kaada', 'kaatakaa', 'kellista', 'hyppää', 'hyppikää', 'tip'], about: 'pushes the thing over', params: [{ name: 'thing', kind: 'thing', about: 'what', optional: false }] }
+    const GIANT: NewItem = { ...FRISBEE, id: 'giant-ball', name: 'giant ball', nameFi: 'jättipallo', calls: ['jättipallo', 'pallo', 'giant ball'] }
+    link.plans.set('Aino, kaada Mirri jättipallolla', plan({ who: ['alice'], steps: [{ who: 'alice', action: 'tip-over', args: [{ name: 'thing', value: 'mirri' }] }], newActions: [TIP], newItems: [GIANT] }))
+    await brain.hear('Aino, kaada Mirri jättipallolla')
+    const asked = (kind: 'action' | 'item') => link.invents.find((r) => r.kind === kind)!.spec.calls
+    expect(asked('action')).toEqual(['kellista', 'tip'])
+    expect(asked('action')).not.toContain('kaada')
+    expect(asked('action')).not.toContain('hyppää')
+    expect(asked('action')).not.toContain('hyppikää')
+    expect(asked('item')).toEqual(['jättipallo', 'giant ball'])
+    expect(library.items.get('giant-ball')!.calls).toEqual(['jättipallo', 'giant ball'])
+  })
+
+  it('tells the interpreter the whole scene: where everyone is and what they did, the things by id, the water and what was said', async () => {
+    const { sim, link, brain } = setup()
+    await brain.start()
+    await brain.hear('Aino, hyppää!')
+    expect(play(sim, brain, 10, (e) => e.type === 'done' && e.actor === 'alice')).not.toBeNull()
+    link.plans.set('Aino, tee se uudestaan', plan({ who: ['alice'], steps: [{ who: 'alice', action: 'jump', args: [] }] }))
+    await brain.hear('Aino, tee se uudestaan')
+    const context = link.interprets[0]!.context
+    expect(context).toMatch(/^- alice Aino kid she; at -?\d+,-?\d+ facing [a-z-]+; wears hair-ponytail \(#[0-9a-f]+\); did jump$/m)
+    expect(context).toContain('Said before: Aino: hyppää.')
+    expect(context).toContain('Water: none.')
+    expect(context).toMatch(/^- #i\d+ slide -?\d+,-?\d+ fixed$/m)
+    expect(context).toMatch(/^- slide: [\d.]+x[\d.]+x[\d.]+; too big to carry/m)
+    expect(context).toContain('ball (pallo)')
+  })
+})
+
+describe('scripts: code for this moment', () => {
+  const wrap = (code: string) => `function* __action(me, args, w) {\n${code}\n}`
+  const BOUNCE_FLIP = "yield* me.jump(0.4)\nyield* me.flip('backflip')\nme.say({ en: 'Ta-da!', fi: 'Tadaa!' })\nyield* me.rest()"
+  const flipPlan = (code: string, guarded: string | null): Plan =>
+    plan({
+      who: ['alice'],
+      steps: [{ who: 'alice', action: 'backflip-on-ball', args: [{ name: 'thing', value: 'ball' }] }],
+      scripts: [{ id: 'backflip-on-ball', about: 'Alice jumps and does a backflip by the ball.', code, guarded }],
+      say: 'Ta-da!',
+      sayFi: 'Tadaa!',
+    })
+
+  it("plays the interpreter's own script after a quick test, asks no designer, keeps no phrase and forgets it once done", async () => {
+    const { sim, library, link, brain } = setup()
+    await brain.start()
+    link.plans.set('Aino, hyppää ja tee voltti pallon luona', flipPlan(BOUNCE_FLIP, wrap(BOUNCE_FLIP)))
+    await brain.hear('Aino, hyppää ja tee voltti pallon luona')
+    // It waits for the test, without saying it thinks: that takes no time.
+    expect(actor(sim, 'alice').queue[0]!.action).toMatch(/^moment-\d+-backflip-on-ball$/)
+    expect(actor(sim, 'alice').bubble?.text ?? '').not.toBe('Hmm, mietitäänpä!')
+    await brain.settled()
+    const id = actor(sim, 'alice').queue[0]!.action
+    expect(library.actions.get(id)!.params).toEqual([{ name: 'thing', kind: 'thing', about: 'thing', optional: true }])
+    expect(play(sim, brain, 6, (e) => e.type === 'done' && e.actor === 'alice')).not.toBeNull()
+    expect(link.invents).toEqual([])
+    expect(savedIds(link)).toEqual([])
+    expect(library.actions.has(id)).toBe(false)
+    expect(brain.lines.at(-1)!.status).toBe('done')
+  })
+
+  it('sends a script the guard refused or the test failed to the designer as a fix, with the whole scene, while the avatar thinks aloud', async () => {
+    const { sim, link, brain } = setup()
+    await brain.start()
+    link.design = designer(() => BOUNCE_FLIP)
+    const broken = 'yield\nthrow new Error("boom")'
+    link.plans.set('Aino, voltti', flipPlan(broken, wrap(broken)))
+    await brain.hear('Aino, voltti')
+    await brain.settled()
+    expect(link.invents).toHaveLength(1)
+    expect(link.invents[0]).toMatchObject({ kind: 'script', fix: { code: broken, error: expect.stringContaining('boom') }, spec: { about: 'Alice jumps and does a backflip by the ball.', calls: [] } })
+    expect(link.invents[0]!.context).toContain('Things here (id kind where)')
+    expect(play(sim, brain, 6, (e) => e.type === 'done' && e.actor === 'alice')).not.toBeNull()
+    // Refused by the guard: the designer gets its reason.
+    link.plans.set('Aino, voltti taas', { ...flipPlan('window.x', null), scripts: [{ id: 'backflip-on-ball', about: 'again', code: 'window.x', guarded: null, refused: 'window is not allowed (line 1)' }] })
+    await brain.hear('Aino, voltti taas')
+    await brain.settled()
+    expect(link.invents.at(-1)).toMatchObject({ kind: 'script', fix: { code: 'window.x', error: 'window is not allowed (line 1)' } })
+  })
+
+  it('has the designer write a script with no code from its about, and starts one that uses a new thing only once the thing is made', async () => {
+    const { sim, link, brain } = setup()
+    await brain.start()
+    const open = shut(link)
+    link.design = designer(() => "const f = w.find('frisbee')\nif (f) yield* me.walkTo(f)\nyield* me.flip('somersault')")
+    link.plans.set('Eetu, tee frisbee ja kuperkeikka sen luona', plan({ who: ['steve'], steps: [{ who: 'steve', action: 'flip-by', args: [] }], newItems: [FRISBEE], scripts: [{ id: 'flip-by', about: 'Steve makes a frisbee and somersaults by it.', code: '', guarded: null }] }))
+    await brain.hear('Eetu, tee frisbee ja kuperkeikka sen luona')
+    expect(actor(sim, 'steve').thinking).not.toBeNull()
+    // A script makes what it needs: no draft is set down for it.
+    expect(sim.world.items.some((i) => i.kind === 'frisbee')).toBe(false)
+    open()
+    await brain.settled()
+    expect(link.invents.map((r) => r.kind).sort()).toEqual(['item', 'script'])
+    expect(link.invents.find((r) => r.kind === 'script')!.fix).toBeUndefined()
+    expect(play(sim, brain, 10, (e) => e.type === 'done' && e.actor === 'steve')).not.toBeNull()
   })
 })

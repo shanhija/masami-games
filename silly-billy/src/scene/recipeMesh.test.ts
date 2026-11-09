@@ -6,7 +6,7 @@ import { buildRecipe, type Kit } from '../engine/kit'
 import { itemPoint } from '../engine/world'
 import { restPart, type Item, type ItemInfo, type PartPose, type Recipe } from '../engine/types'
 import { MODEL } from './look'
-import { buildModel, Models, ModelView, shapeColors } from './recipeMesh'
+import { AS_BUILT, buildModel, Models, ModelView, shapeColors } from './recipeMesh'
 
 /** A thing made of every kind of shape, with a part inside a part and a glowing lamp. */
 const everything = (m: Kit) => {
@@ -33,7 +33,7 @@ const restItem = (): Item => ({ id: '#i1', kind: 'crane', x: 0, y: 0, z: 0, yaw:
 
 describe('a recipe as three.js', () => {
   it('merges each part into one solid geometry and one glowing one, every vertex coloured', () => {
-    const { recipe } = buildRecipe(everything)
+    const { recipe } = buildRecipe(everything, [])
     const model = buildModel(recipe, false, null, null)
     expect([...model.parts.keys()].sort()).toEqual([null, 'arm', 'wheel'].sort())
     const own = model.parts.get(null)!
@@ -54,9 +54,9 @@ describe('a recipe as three.js', () => {
   })
 
   it('stands where the kit measured it: the drawn model fills the recipe bounds', () => {
-    const { recipe } = buildRecipe(everything)
+    const { recipe } = buildRecipe(everything, [])
     const view = new ModelView(buildModel(recipe, false, null, null))
-    view.pose({})
+    view.pose({}, AS_BUILT)
     view.root.updateMatrixWorld(true)
     const box = new Box3().setFromObject(view.root)
     const { min, max } = recipe.bounds
@@ -75,15 +75,15 @@ describe('a recipe as three.js', () => {
         m.box(0.1, 0.1, 0.1, { at: [0.5, 0, 0], color: '#e8503f' })
         m.part('knob', { at: [0.5, 0.2, 0] }, () => m.sphere(0.05, { color: '#2b2b30' }))
       })
-    })
+    }, [])
     const view = new ModelView(buildModel(recipe, false, null, null))
     const centre = (part: number) => {
       view.root.updateMatrixWorld(true)
       return new Box3().setFromObject(view.meshes[part]!).getCenter(new Vector3())
     }
-    view.pose({})
+    view.pose({}, AS_BUILT)
     expect(centre(1).distanceTo(new Vector3(0.5, 1, 0))).toBeLessThan(1e-6)
-    view.pose({ lid: { ...restPart(), y: 0.5, rz: Math.PI / 2 } })
+    view.pose({ lid: { ...restPart(), y: 0.5, rz: Math.PI / 2 } }, AS_BUILT)
     expect(centre(1).distanceTo(new Vector3(0, 2, 0))).toBeLessThan(1e-6)
     // The knob rides on the lid: (0.5, 0.2) from its pivot, turned a quarter.
     expect(centre(2).distanceTo(new Vector3(-0.2, 2, 0))).toBeLessThan(1e-6)
@@ -99,7 +99,7 @@ describe('a recipe as three.js', () => {
           m.anchor('tip', [0.1, 0.2, -0.05])
         })
       })
-    })
+    }, [])
     const info: ItemInfo = { kind: 'crane', name: 'crane', nameFi: 'nosturi', recipe, size: [1, 1, 1], radius: 0.5, rough: false }
     const model = buildModel(recipe, false, null, null)
     const view = new ModelView(model)
@@ -111,7 +111,7 @@ describe('a recipe as three.js', () => {
       view.root.position.set(it.x, it.y, it.z)
       view.root.rotation.set(it.pitch, it.yaw, -it.roll, 'YXZ')
       view.root.scale.setScalar(it.scale)
-      view.pose(it.parts)
+      view.pose(it.parts, AS_BUILT)
       view.root.updateMatrixWorld(true)
       const hand = view.meshes.find((m) => m.geometry === model.parts.get('hand')!.solid)!.parent!
       const drawn = new Vector3(...recipe.anchors.tip!.at).applyMatrix4(hand.matrixWorld)
@@ -121,14 +121,14 @@ describe('a recipe as three.js', () => {
   })
 
   it('draws a tube that goes nowhere as a ball, not as nothing', () => {
-    const { recipe } = buildRecipe((m) => m.tube([[0, 0.2, 0], [0, 0.2, 0]], 0.05))
+    const { recipe } = buildRecipe((m) => m.tube([[0, 0.2, 0], [0, 0.2, 0]], 0.05), [])
     const g = buildModel(recipe, false, null, null).parts.get(null)!.solid!
     g.computeBoundingSphere()
     expect(g.boundingSphere!.radius).toBeCloseTo(0.05, 5)
   })
 
   it('keeps a mirrored shape facing out', () => {
-    const { recipe } = buildRecipe((m) => m.extrude([[0, 0], [1, 0], [0, 1]], 0.2, { scale: [-1, 1, 1] }))
+    const { recipe } = buildRecipe((m) => m.extrude([[0, 0], [1, 0], [0, 1]], 0.2, { scale: [-1, 1, 1] }), [])
     const g = buildModel(recipe, false, null, null).parts.get(null)!.solid!
     const pos = g.getAttribute('position')
     const nrm = g.getAttribute('normal')
@@ -173,7 +173,7 @@ describe('a recipe as three.js', () => {
       [0, 3.4],
     ]
     for (const points of [up, [...up].reverse()]) {
-      const { recipe } = buildRecipe((m) => m.lathe(points, { color: '#3cb043' }))
+      const { recipe } = buildRecipe((m) => m.lathe(points, { color: '#3cb043' }), [])
       const g = buildModel(recipe, false, null, null).parts.get(null)!.solid!
       const { out, agree, faces } = facing(g, (c) => c.clone().sub(new Vector3(0, 1.8, 0)))
       expect(out).toBe(faces)
@@ -190,7 +190,7 @@ describe('a recipe as three.js', () => {
         [0, 0.5],
       ],
     ]) {
-      const g = buildModel(buildRecipe((m) => m.lathe(points)).recipe, false, null, null).parts.get(null)!.solid!
+      const g = buildModel(buildRecipe((m) => m.lathe(points), []).recipe, false, null, null).parts.get(null)!.solid!
       const { out, faces } = facing(g, () => new Vector3(0, 1, 0))
       expect(out).toBe(faces)
     }
@@ -205,7 +205,7 @@ describe('a recipe as three.js', () => {
       m.sphere(0.04, { at: [0, 0.52, 0.15], color: '#ffffff' })
       for (const x of [-0.11, 0.11]) m.capsule(0.02, 0.1, { at: [x, 0.71, 0], color: '#e4789f' })
       return { carry: 'hand', wear: 'body' }
-    })
+    }, [])
     const whole = buildModel(recipe, false, 'blue', null).parts.get(null)!.solid!
     const upper = buildModel(recipe, false, 'blue', 'upper').parts.get(null)!.solid!
     const lower = buildModel(recipe, false, 'blue', 'lower').parts.get(null)!.solid!
@@ -238,7 +238,7 @@ describe('a recipe as three.js', () => {
       (m: Kit) => m.lathe([[0.34, 0.66], [0.2, 0.3], [0.15, 0.2], [0.12, 0]], { at: [0, 0.7, 0], rot: [Math.PI, 0, 0] }),
     ]
     for (const draw of gowns) {
-      const { recipe } = buildRecipe(draw)
+      const { recipe } = buildRecipe(draw, [])
       const lower = buildModel(recipe, false, null, 'lower').parts.get(null)!.solid!
       const upper = buildModel(recipe, false, null, 'upper').parts.get(null)!.solid!
       expect(box(lower).max.y).toBeCloseTo(0.4, 5)
@@ -247,7 +247,7 @@ describe('a recipe as three.js', () => {
       expect(ringAt(upper, 0.4)).toBeCloseTo(ringAt(lower, 0.4), 6)
     }
     // Tilted, it goes whole to one half, as any other shape.
-    const { recipe } = buildRecipe((m) => m.lathe([[0.3, 0.1], [0.1, 0.7]], { rot: [0.5, 0, 0] }))
+    const { recipe } = buildRecipe((m) => m.lathe([[0.3, 0.1], [0.1, 0.7]], { rot: [0.5, 0, 0] }), [])
     expect(buildModel(recipe, false, null, 'upper').parts.size + buildModel(recipe, false, null, 'lower').parts.size).toBe(1)
   })
 
@@ -255,7 +255,7 @@ describe('a recipe as three.js', () => {
     const { recipe } = buildRecipe((m) => {
       m.box(1, 1, 1, { color: '#2b2b30' })
       m.box(1, 1, 1, { color: '#f5d33b' })
-    })
+    }, [])
     const [dark, light] = shapeColors(recipe.shapes, 'pink').map((c) => c.getHSL({ h: 0, s: 0, l: 0 }, SRGBColorSpace))
     const pink = new Color('#ff9ccf').getHSL({ h: 0, s: 0, l: 0 }, SRGBColorSpace)
     expect(dark!.h).toBeCloseTo(pink.h, 5)
@@ -264,7 +264,7 @@ describe('a recipe as three.js', () => {
   })
 
   it('draws a draft see-through, its solid shapes still casting their shadow', () => {
-    const { recipe } = buildRecipe(everything)
+    const { recipe } = buildRecipe(everything, [])
     const view = new ModelView(buildModel(recipe, true, null, null))
     for (const mesh of view.meshes) {
       expect([MODEL.draftSolid, MODEL.draftGlow]).toContain(mesh.material)
@@ -280,55 +280,55 @@ describe('the models', () => {
   }
 
   it('keeps a model until its recipe changes, and lets the old one go', () => {
-    const source = library(buildRecipe(everything).recipe)
+    const source = library(buildRecipe(everything, []).recipe)
     const models = new Models(source)
-    const first = models.get('thing', null, null)
-    expect(models.get('thing', null, null)).toBe(first)
-    expect(models.get('thing', 'red', null)).not.toBe(first)
+    const first = models.get('thing', null, null, null)
+    expect(models.get('thing', null, null, null)).toBe(first)
+    expect(models.get('thing', 'red', null, null)).not.toBe(first)
     source.libraryVersion++
-    expect(models.get('thing', null, null)).toBe(first)
+    expect(models.get('thing', null, null, null)).toBe(first)
     let dropped = 0
     first.parts.get(null)!.solid!.addEventListener('dispose', () => dropped++)
-    source.recipe = buildRecipe((m) => m.sphere(0.3)).recipe
-    expect(models.get('thing', null, null)).toBe(first)
+    source.recipe = buildRecipe((m) => m.sphere(0.3), []).recipe
+    expect(models.get('thing', null, null, null)).toBe(first)
     source.libraryVersion++
-    const second = models.get('thing', null, null)
+    const second = models.get('thing', null, null, null)
     expect(second).not.toBe(first)
     expect(second.recipe).toBe(source.recipe)
     expect(dropped).toBe(1)
   })
 
   it('lets go of a model nothing has drawn for ten seconds, and keeps the ones in use', () => {
-    const source = library(buildRecipe(everything).recipe)
+    const source = library(buildRecipe(everything, []).recipe)
     const models = new Models(source)
-    const pink = models.get('thing', 'pink', null)
-    const plain = models.get('thing', null, null)
+    const pink = models.get('thing', 'pink', null, null)
+    const plain = models.get('thing', null, null, null)
     let dropped = 0
     pink.parts.get(null)!.solid!.addEventListener('dispose', () => dropped++)
     plain.parts.get(null)!.solid!.addEventListener('dispose', () => dropped++)
     for (let frame = 0; frame < 900; frame++) {
-      models.get('thing', null, null)
+      models.get('thing', null, null, null)
       models.sweep()
     }
     expect(dropped).toBe(1)
-    expect(models.get('thing', null, null)).toBe(plain)
-    expect(models.get('thing', 'pink', null)).not.toBe(pink)
+    expect(models.get('thing', null, null, null)).toBe(plain)
+    expect(models.get('thing', 'pink', null, null)).not.toBe(pink)
   })
 
   it('keeps only the newest few tints of a thing its process paints a new colour every frame, and never lets go of one still drawn', () => {
-    const source = library(buildRecipe(everything).recipe)
+    const source = library(buildRecipe(everything, []).recipe)
     const models = new Models(source)
     // Six copies in six colours stay in the room all along.
     const paints = ['red', 'blue', 'green', 'yellow', 'pink', 'purple']
-    const kept = paints.map((p) => models.get('thing', p, null))
+    const kept = paints.map((p) => models.get('thing', p, null, null))
     let built = 0
     let dropped = 0
     for (let frame = 0; frame < 120; frame++) {
       // A rainbow wand.
-      const model = models.get('thing', `hsl(${frame * 3}, 80%, 60%)`, null)
+      const model = models.get('thing', `hsl(${frame * 3}, 80%, 60%)`, null, null)
       built++
       model.parts.get(null)!.solid!.addEventListener('dispose', () => dropped++)
-      paints.forEach((p, i) => expect(models.get('thing', p, null)).toBe(kept[i]))
+      paints.forEach((p, i) => expect(models.get('thing', p, null, null)).toBe(kept[i]))
       models.sweep()
     }
     expect(built - dropped).toBeLessThanOrEqual(4)

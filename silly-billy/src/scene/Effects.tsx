@@ -53,7 +53,8 @@ function outline(points: [number, number][], depth: number): BufferGeometry {
   return new ExtrudeGeometry(new Shape(points.map(([x, y]) => new Vector2(x, y))), { depth, bevelEnabled: false }).translate(0, 0, -depth / 2)
 }
 
-function star(): BufferGeometry {
+/** A five-pointed star half a unit across, flat along z. */
+export function star(): BufferGeometry {
   const points: [number, number][] = []
   for (let i = 0; i < 10; i++) {
     const a = Math.PI / 2 + (i / 10) * Math.PI * 2
@@ -83,7 +84,8 @@ function flake(): BufferGeometry {
   return mergeGeometries([0, 1, 2].map((i) => new BoxGeometry(1, 0.1, 0.06).rotateZ((i * Math.PI) / 3).toNonIndexed()))!
 }
 
-const drop = () =>
+/** A water drop a unit tall, its point up. */
+export const drop = () =>
   new LatheGeometry(
     [
       [0, -0.5],

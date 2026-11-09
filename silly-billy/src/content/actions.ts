@@ -186,14 +186,14 @@ function* pickUp(me: ActorApi, args: Args, w: WorldApi): Anim {
   yield* me.rest()
 }
 
+/** Puts what it holds down nicely in front of it, not dropped: it stays where it was set. */
 function* drop(me: ActorApi, args: Args, w: WorldApi): Anim {
   const hand = handWith(me, itemOf(args.thing)) ?? handWith(me, null)
   if (hand === null) return yield* shrug(me, w, { en: 'Nothing!', fi: 'Ei mitään!' })
-  yield* me.poseTo(animal(me) ? { head: { nod: 0.4 } } : { ...arm(hand, { swing: 0.9 }), lean: 0.25 }, 0.2)
-  me.drop(hand)
+  yield* me.putDown(me.holding(hand))
   w.sound('pop')
-  yield* w.wait(0.35)
-  me.say(w.pick([{ en: 'There!', fi: 'Kas noin!' }, { en: 'Oops!', fi: 'Hups!' }, { en: 'Done!', fi: 'Valmis!' }]))
+  me.say(w.pick([{ en: 'There!', fi: 'Kas noin!' }, { en: 'Here it is!', fi: 'Tässä!' }, { en: 'Done!', fi: 'Valmis!' }]))
+  yield* w.wait(0.3)
   yield* me.rest()
 }
 
@@ -420,21 +420,34 @@ function* look(me: ActorApi, args: Args, w: WorldApi): Anim {
   yield* me.rest()
 }
 
+/** The sides a made thing can be fixed at: anything else is the front. */
+const SIDES = ['front', 'back', 'left', 'right', 'top']
+
 function* make(me: ActorApi, args: Args, w: WorldApi): Anim {
   const kind = textOf(args.thing)
   if (kind === null) return yield* shrug(me, w, { en: 'Make what?', fi: 'Mitä teen?' })
   const color = colorOf(textOf(args.color))
+  // Made for another thing ("tee puumajaan tikkaat"): fixed at its side or top, and sized to reach up to its point when asked.
+  const to = targetOf(args.at)
+  const onto = to !== null && 'isActor' in to ? to : null
+  const side = SIDES.find((s) => s === textOf(args.side)?.toLowerCase()) ?? (onto !== null && !onto.isActor && onto.meta.carry !== 'no' ? 'top' : 'front')
+  const reach = textOf(args.reach)
+  if (onto !== null) {
+    yield* me.walkTo(onto, { near: 1.2 })
+    yield* me.turnTo(onto)
+  }
   me.feel('happy')
   yield* me.poseTo(cheer(me), 0.25)
-  const spot = me.ahead(1.2)
+  const spot = onto !== null ? { x: onto.x, z: onto.z } : me.ahead(1.2)
   w.sound('magic')
   yield* w.during(0.8, (k, dt) => {
     if (animal(me)) me.pose.tail = Math.sin(k * 20)
     else me.pose.armL.raise = me.pose.armR.raise = 2.4 + 0.3 * Math.sin(k * 25)
     if (w.random() < dt * 20) w.puff({ x: spot.x, y: 0.3 + k, z: spot.z, kind: 'spark', color: palette.sparkle, count: 1, size: 0.1, speed: 1.2, life: 0.6 })
   })
-  // It stands in front of its maker, clear of it however big it is, facing the child.
+  // It stands in front of its maker, clear of it however big it is, facing the child; or it goes where it was made for.
   const it = w.make(kind)
+  if (onto !== null) it.attachTo(onto, side, reach === null ? undefined : { up: /^\d+(\.\d+)?$/.test(reach) ? Number(reach) : reach })
   if (color) it.tint = color
   sparkle(w, it)
   w.puff({ at: it, kind: 'confetti', count: 16, size: 0.1, speed: 2, up: 1.5, life: 1.2 })
@@ -777,8 +790,14 @@ export const BASIC_VERBS: BuiltinAction[] = [
     name: 'make',
     nameFi: 'tee',
     calls: ['tee', 'tehkää', 'tehdä', 'tekee', 'luo', 'luokaa', 'luoda', 'rakenna', 'rakentakaa', 'rakentaa', 'taio', 'taiko', 'taikoa', 'loihdi', 'loihtia', 'askartele', 'make', 'build', 'create'],
-    about: 'Makes a thing appear by magic in front of it: any kind, in a colour if asked.',
-    params: [param('thing', 'text', 'the kind of thing to make', false), param('color', 'text', 'a colour for it', true)],
+    about: "Makes a new thing appear by magic in front of it: any kind, in a colour if asked; or made for another thing, fixed at its side or top (at, side), sized to reach up to a point of it when reach says ('top').",
+    params: [
+      param('thing', 'text', 'the kind of thing to make', false),
+      param('color', 'text', 'a colour for it', true),
+      param('at', 'thing', 'a thing it is made for and fixed to', true),
+      param('side', 'text', "front, back, left, right or top of that thing", true),
+      param('reach', 'text', "a point of that thing it reaches up to: 'top'", true),
+    ],
     run: make,
   },
   {

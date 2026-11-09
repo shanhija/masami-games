@@ -21,11 +21,13 @@ import { Library } from '../engine/library'
 import { createWorld } from '../engine/sim'
 import type { Lang } from '../engine/lang'
 import type { RoomId } from '../engine/types'
-import { contextNames, fromElsewhere, leakedMarkup, listLostKinds, tidyPlan } from './api'
+import { contextNames, fromElsewhere, guardScripts, leakedMarkup, listLostKinds, meetRoomWater, tidyPlan } from './api'
 import { guard } from './guard'
 import { API_PATH, sillyBilly } from './plugin'
 import { ACTION_SYSTEM, INTERPRET_SYSTEM, ITEM_SYSTEM, PLAN_SCHEMA } from './prompts'
 import { alive, fakeBin, freePort, until } from './test/fakes'
+import { RATE, wav } from '../voice/mic'
+import type { Clip } from './voice'
 import { defaultPrime, hearFields } from './whisper'
 
 type Handler = (req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void
@@ -93,6 +95,9 @@ const answers = (a: Record<string, unknown>) => fs.writeFileSync(process.env.FAK
 const lines = (file: string) => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>) : [])
 const calls = () => lines(process.env.FAKE_CLAUDE_LOG!) as { argv: string[]; prompt: string }[]
 const library = () => path.join(dir, 'library')
+/** The kept voice clips' names, oldest first, and one clip's JSON. */
+const clips = () => (fs.existsSync(path.join(library(), 'voice')) ? fs.readdirSync(path.join(library(), 'voice')).filter((f) => f.endsWith('.wav')).map((f) => f.slice(0, -4)).sort() : [])
+const clip = (name: string) => JSON.parse(fs.readFileSync(path.join(library(), 'voice', `${name}.json`), 'utf8')) as Clip
 
 async function post(route: string, body: unknown, query = '') {
   const r = await fetch(`${base}${route}${query}`, { method: 'POST', body: typeof body === 'string' || body instanceof Uint8Array ? (body as BodyInit) : JSON.stringify(body) })
@@ -176,7 +181,7 @@ describe('the plugin', () => {
 
   it('reports its status and starts whisper on the first status; words sent meanwhile wait for it', async () => {
     const first = (await get('/status')).body as unknown as Status
-    expect(first).toEqual({ claude: true, whisper: 'starting', models: { interpret: 'haiku', invent: 'opus' } })
+    expect(first).toEqual({ claude: true, whisper: 'starting', models: { interpret: 'opus', invent: 'opus' } })
     expect(logs[0]).toContain(`Claude: ${process.env.CLAUDE_BIN}`)
     const early = await post('/hear', WAV, '?lang=fi&partial=1')
     expect([early.status, early.body.text]).toEqual([200, 'Alice, hyppää!'])
@@ -200,12 +205,52 @@ describe('the plugin', () => {
     ])
     // Every field every time, and the live words asked the same way as the final ones.
     const fields = (a: Record<string, unknown>) => Object.fromEntries(Object.entries(a).filter(([k]) => !['pid', 'prompt', 'language'].includes(k)))
-    expect(asked().map(fields)).toEqual(Array.from({ length: 4 }, () => fields({ model: process.env.SILLY_WHISPER_MODEL, file: { wav: true }, ...hearFields('fi', '') })))
+    expect(asked().map(fields)).toEqual(Array.from({ length: 4 }, () => fields({ model: process.env.SILLY_WHISPER_MODEL, file: { wav: true }, ...hearFields('fi', '', new Set()) })))
     // Only the final words are logged, each with its language (and in English without the letters English does not write).
-    expect(lines(path.join(library(), 'log.jsonl')).filter((l) => l.kind === 'hear').map((l) => [l.lang, l.text])).toEqual([
+    const logged = lines(path.join(library(), 'log.jsonl')).filter((l) => l.kind === 'hear')
+    expect(logged.map((l) => [l.lang, l.text])).toEqual([
       ['fi', 'Alice, hyppää!'],
       ['en', 'Alice, hyppaa!'],
     ])
+    // Only the final clips are kept, and each log line names its clip.
+    expect(clips()).toEqual(logged.map((l) => l.clip))
+    expect(clips().map((c) => (clip(c).text))).toEqual(['Alice, hyppää!', 'Alice, hyppaa!'])
+  })
+
+  it('keeps each whole clip with what came with it and what Whisper made of it, for measuring hearing', async () => {
+    const mic = {
+      device: { userAgent: 'Mozilla/5.0 (X11; Linux x86_64)', platform: 'Linux armv81', maxTouchPoints: 10, fingerOnly: true },
+      asked: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      got: { sampleRate: 48000, channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false, latency: 0.01 },
+      label: '',
+      contextRate: 16000,
+      heldMs: 1840,
+      startMs: 35,
+    }
+    const before = clips().length
+    const sound = Buffer.from(wav([new Float32Array(RATE).map((_, i) => 0.3 * Math.sin((2 * Math.PI * 280 * i) / RATE))], RATE))
+    const r = await fetch(`${base}/hear?lang=fi&mic=${encodeURIComponent(JSON.stringify(mic))}`, { method: 'POST', body: sound, headers: { 'user-agent': 'Mozilla/5.0 (Linux; Android 14; SM-X710)' } })
+    expect(r.status).toBe(200)
+    const kept = clips().slice(before)
+    expect(kept).toHaveLength(1)
+    const c = clip(kept[0]!)
+    expect(c).toMatchObject({ lang: 'fi', prime: defaultPrime('fi'), raw: 'Alice, hyppää! [Musiikkia]', text: 'Alice, hyppää!', noSpeech: 0.25, logprob: -0.5, userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-X710)', mic, said: null, who: null })
+    expect(c.recognizer).toEqual({ model: 'model.bin', extras: [] })
+    expect(c.sound).toMatchObject({ seconds: 1, zeroLeadMs: 0 })
+    expect(c.sound!.pitchHz).toBeGreaterThan(270)
+    expect(fs.readFileSync(path.join(library(), 'voice', `${kept[0]}.wav`)).equals(sound)).toBe(true)
+    // A live clip is not kept, whatever came with it; a mic that is not JSON is refused.
+    await post('/hear', WAV, `?lang=fi&partial=1&mic=${encodeURIComponent(JSON.stringify(mic))}`)
+    expect(clips().slice(before)).toHaveLength(1)
+    // A clip with no voice in it hears nothing, live or whole, though Whisper wrote words for it; the clip keeps what it wrote.
+    const silence = Buffer.from(wav([new Float32Array(RATE / 2)], RATE))
+    expect((await post('/hear', new Uint8Array(silence), '?lang=fi&partial=1')).body.text).toBe('')
+    expect((await post('/hear', new Uint8Array(silence), '?lang=fi')).body.text).toBe('')
+    const quiet = clip(clips().at(-1)!)
+    expect([quiet.raw, quiet.text, quiet.sound!.voiced]).toEqual(['Alice, hyppää! [Musiikkia]', '', 0])
+    expect(lines(path.join(library(), 'log.jsonl')).at(-1)).toMatchObject({ kind: 'hear', text: '', raw: 'Alice, hyppää! [Musiikkia]', clip: clips().at(-1) })
+    expect((await post('/hear', WAV, '?lang=fi&mic=%7Bnot')).status).toBe(400)
+    expect((await post('/hear', WAV, '?lang=fi&mic=%5B1%5D')).status).toBe(400)
   })
 
   it('folds letters Finnish does not write to Finnish ones before the words go on, and logs what Whisper wrote', async () => {
@@ -236,7 +281,7 @@ describe('the plugin', () => {
     ])
     expect([plan.heard, plan.heardFi, plan.say, plan.sayFi]).toEqual([MESSY.heard, MESSY.heardFi, MESSY.say, MESSY.sayFi])
     const call = calls().at(-1)!
-    expect(call.argv.slice(call.argv.indexOf('--model'), call.argv.indexOf('--model') + 2)).toEqual(['--model', 'haiku'])
+    expect(call.argv.slice(call.argv.indexOf('--model'), call.argv.indexOf('--model') + 2)).toEqual(['--model', 'opus'])
     expect(call.argv[call.argv.indexOf('--system-prompt') + 1]).toBe(INTERPRET_SYSTEM)
     expect(call.argv[call.argv.indexOf('--json-schema') + 1]).toBe(JSON.stringify(PLAN_SCHEMA))
     expect(call.prompt).toContain('- steve Eetu kid he')
@@ -263,7 +308,7 @@ describe('the plugin', () => {
     const before = calls().length
     const r = await post('/interpret', { words: 'hyppää SHAPELESS_ONCE', lang: 'fi', context: 'Room: playground' })
     expect(r.status).toBe(200)
-    expect((r.body as unknown as InterpretReply).plan.steps).toEqual(tidyPlan(MESSY).steps)
+    expect((r.body as unknown as InterpretReply).plan.steps).toEqual(tidyPlan(MESSY, 'fi').steps)
     expect(calls().slice(before)).toHaveLength(2)
     expect(lines(path.join(library(), 'log.jsonl')).filter((l) => l.kind === 'interpret-broken' && l.words === 'hyppää SHAPELESS_ONCE')).toHaveLength(1)
   })
@@ -356,7 +401,7 @@ describe('the plugin', () => {
   })
 
   it('asks the designer for the Finnish name of a thing the interpreter used without listing it', async () => {
-    const [tree] = listLostKinds({ ...tidyPlan(MESSY), newItems: [] }, 'Item kinds: ball.').newItems
+    const [tree] = listLostKinds({ ...tidyPlan(MESSY, 'fi'), newItems: [] }, 'Item kinds: ball.').newItems
     expect(tree).toMatchObject({ id: 'christmas-tree', name: 'christmas tree', nameFi: 'christmas tree' })
     answers({ code: MODEL, nameFi: ' Joulukuusi ' })
     const out = await invent({ kind: 'item', spec: tree, words: 'eetu aja joulukuusen yli', context: 'Room: forest' })
@@ -547,7 +592,7 @@ describe('listLostKinds', () => {
   const library = new Library({ items: BUILTIN_ITEMS, actions: BUILTIN_ACTIONS })
   /** The context the page really sends (brain/context.ts) in a room: the game's own verbs, kinds, cast and rooms, played in Finnish (the game's default) unless `lang` says otherwise. */
   const worldIn = (room: RoomId, lang: Lang = 'fi') => createWorld({ room, actors: makeCast(lang), layouts: LAYOUTS, seed: 7, lang })
-  const contextIn = (room: RoomId, lang: Lang = 'fi') => interpreterContext(worldIn(room, lang), library, null, null, NEW_NAMES[lang])
+  const contextIn = (room: RoomId, lang: Lang = 'fi') => interpreterContext(worldIn(room, lang), library, { addressee: null, lastMade: null, said: [], did: new Map(), newNames: NEW_NAMES[lang] })
   const context = contextIn('playground')
   /** A plan of one step, its args by name. */
   const step = (who: string, action: string, args: Record<string, string>, more: Partial<Plan> = {}): Plan => ({
@@ -602,6 +647,19 @@ describe('listLostKinds', () => {
     for (const plan of [step('noora', 'wear', { thing: 'cap', color: 'gold' }), step('noora', 'wear', { thing: 'hair' }), step('noora', 'take-off', { thing: 'magic-wand' })]) expect(listLostKinds(plan, context)).toBe(plan)
   })
 
+  it("reads a step's new thing ('new:castle') as its kind: listed when nobody made it, tidied with its new thing's id", () => {
+    expect(lost(step('steve', 'build', { thing: 'new:castle' }, { newActions: [{ ...THROW, id: 'build', params: [{ name: 'thing', kind: 'item', about: 'what to build', optional: false }] }] }))).toEqual(['castle'])
+    const known = step('steve', 'make', { thing: 'new:slide' })
+    expect(listLostKinds(known, context)).toBe(known)
+    const messy = step('steve', 'build', { thing: 'new:Water Slide' }, { newItems: [{ ...BIKE, id: 'Water Slide', name: 'water slide' }] })
+    const tidy = tidyPlan(messy, 'fi')
+    expect(tidy.newItems.map((i) => i.id)).toEqual(['water-slide'])
+    expect(tidy.steps[0]!.args).toEqual([{ name: 'thing', value: 'new:water-slide' }])
+    // A new pond a step asks for is made, not the room's water.
+    const pond = meetRoomWater(step('alice', 'make', { thing: 'new:pond' }, { newItems: [{ ...BIKE, id: 'pond', name: 'pond' }] }), contextIn('forest'))
+    expect(pond.newItems.map((i) => i.id)).toEqual(['pond'])
+  })
+
   it('lists no room, ground, sky, avatar or person who is no avatar as a new thing', () => {
     const plans: Array<[Plan, RoomId]> = [
       [step('alice', 'sit', { on: 'ground' }), 'playground'],
@@ -629,7 +687,7 @@ describe('listLostKinds', () => {
     // A renamed avatar is called by its new name.
     const world = worldIn('playground')
     Object.assign(world.actors.find((a) => a.id === 'mirri')!, { name: 'Fluffy Paws', names: null })
-    const renamed = interpreterContext(world, library, null, null, NEW_NAMES.fi)
+    const renamed = interpreterContext(world, library, { addressee: null, lastMade: null, said: [], did: new Map(), newNames: NEW_NAMES.fi })
     const look = step('steve', 'look', { at: 'fluffy-paws' })
     expect(listLostKinds(look, renamed)).toBe(look)
   })
@@ -653,6 +711,79 @@ describe('listLostKinds', () => {
     const english = contextNames(contextIn('pool', 'en'))
     for (const word of ['luna', 'alice', 'mike', 'cat']) expect(english.scene.has(word), word).toBe(true)
     for (const id of ['alice', 'steve', 'mike', 'noora', 'mirri']) expect(english.known.has(id) && names.known.has(id), id).toBe(true)
+    // The kinds' Finnish names ('ball (pallo)') are no kinds; the room's water is the scene's, with the spot in its middle.
+    expect(names.known.has('(pallo)') || names.known.has('pallo')).toBe(false)
+    expect(names.water.get('pool')).toBe('0,-2.5')
+    expect(contextNames(contextIn('forest')).water.get('pond')).toBe('6.5,-6.5')
+    expect(contextNames(contextIn('forest')).scene.has('pond')).toBe(true)
+    expect(contextNames(contextIn('playground')).water.size).toBe(0)
+  })
+
+  it('keeps the whole scene of a full room short', () => {
+    // Haiku's time follows its answer, not this (measured on the CLI): 2.3k characters more than the old context cost no time.
+    for (const room of ['playground', 'pool', 'forest'] as const) expect(contextIn(room).length, room).toBeLessThan(9000)
+  })
+})
+
+describe('scripts', () => {
+  const library = new Library({ items: BUILTIN_ITEMS, actions: BUILTIN_ACTIONS })
+  const context = interpreterContext(createWorld({ room: 'forest', actors: makeCast('fi'), layouts: LAYOUTS, seed: 7, lang: 'fi' }), library, { addressee: null, lastMade: null, said: [], did: new Map(), newNames: NEW_NAMES.fi })
+  const withScript = (code: string, args: Plan['steps'][number]['args'] = []): Plan => ({
+    ...MESSY,
+    who: ['alice'],
+    steps: [{ who: 'alice', action: 'Ladder To Treehouse!', args }],
+    newActions: [],
+    newItems: [],
+    scripts: [{ id: 'Ladder To Treehouse!', about: 'Aino makes a ladder — and fixes it to #i9.', code }],
+  })
+
+  it('tidies a script like a new action: its id in kebab-case in the steps too, its about without dashes, its code as it is', () => {
+    const plan = tidyPlan(withScript("w.make('ladder') // a — dash in code stays"), 'fi')
+    expect(plan.scripts).toEqual([{ id: 'ladder-to-treehouse', about: 'Aino makes a ladder, and fixes it to #i9.', code: "w.make('ladder') // a — dash in code stays" }])
+    expect(plan.steps[0]!.action).toBe('ladder-to-treehouse')
+    expect('scripts' in tidyPlan(MESSY, 'fi')).toBe(false)
+  })
+
+  it('guards the code for the page, or says why it is refused, and leaves no code to the designer', () => {
+    const [ok] = guardScripts(tidyPlan(withScript("const l = w.make('ladder')\nl.attachTo(w.find('treehouse'), 'front')"), 'fi')).scripts!
+    expect(ok!.guarded).toBe((guard('action', ok!.code) as { guarded: string }).guarded)
+    const [bad] = guardScripts(tidyPlan(withScript('window.open()'), 'fi')).scripts!
+    expect(bad).toMatchObject({ guarded: null, refused: expect.stringContaining('window') })
+    const [none] = guardScripts(tidyPlan(withScript(''), 'fi')).scripts!
+    expect(none).toMatchObject({ code: '', guarded: null })
+  })
+
+  it("lists a kind a script makes and nobody listed, and meets the room's water in a script's args", () => {
+    const plan = listLostKinds(tidyPlan(withScript("const l = w.make('ladder')\nconst p = w.make(\"pinecone\")"), 'fi'), context)
+    expect(plan.newItems.map((i) => i.id)).toEqual(['ladder'])
+    const pond = meetRoomWater(tidyPlan(withScript('yield* me.walkTo(args.where)', [{ name: 'where', value: 'pond' }]), 'fi'), context)
+    expect(pond.steps[0]!.args).toEqual([{ name: 'where', value: '6.5,-6.5' }])
+  })
+})
+
+describe('meetRoomWater', () => {
+  const library = new Library({ items: BUILTIN_ITEMS, actions: BUILTIN_ACTIONS })
+  const contextIn = (room: RoomId) => interpreterContext(createWorld({ room, actors: makeCast('fi'), layouts: LAYOUTS, seed: 7, lang: 'fi' }), library, { addressee: null, lastMade: null, said: [], did: new Map(), newNames: NEW_NAMES.fi })
+  const POND: NewItem = { ...BIKE, id: 'pond', name: 'pond', nameFi: 'lampi', calls: ['lampi', 'lampeen', 'pond'], meta: { carry: 'no' } }
+  const THROW_AT: NewAction = { ...THROW, id: 'throw', params: [{ name: 'thing', kind: 'item', about: 'what', optional: false }, { name: 'target', kind: 'thing', about: 'where', optional: true }] }
+  const plan = (steps: Plan['steps'], more: Partial<Plan> = {}): Plan => ({ heard: 'x', heardFi: 'x', who: ['alice'], steps, newActions: [], newItems: [], say: 'Okay!', sayFi: 'Okei!', ...more })
+
+  it('"heitä se lampeen" in the forest throws toward the forest\'s own pond, and makes no new one', () => {
+    // The plan logged live: throw(pinecone, target=pond) and a new pond 2.2 m across.
+    const live = plan([{ who: 'alice', action: 'throw', args: [{ name: 'thing', value: 'pinecone' }, { name: 'target', value: 'pond' }] }], { newActions: [THROW_AT], newItems: [POND] })
+    const met = meetRoomWater(live, contextIn('forest'))
+    expect(met.newItems).toEqual([])
+    expect(met.steps[0]!.args).toEqual([{ name: 'thing', value: 'pinecone' }, { name: 'target', value: '6.5,-6.5' }])
+    // Going there takes the spot as a place too.
+    expect(meetRoomWater(plan([{ who: 'noora', action: 'walk', args: [{ name: 'to', value: 'pond' }] }]), contextIn('forest')).steps[0]!.args[0]!.value).toBe('6.5,-6.5')
+    expect(meetRoomWater(plan([{ who: 'noora', action: 'run', args: [{ name: 'to', value: 'water' }] }]), contextIn('pool')).steps[0]!.args[0]!.value).toBe('0,-2.5')
+  })
+
+  it('leaves a pond to make, and a room without water, alone', () => {
+    const make = plan([{ who: 'alice', action: 'make', args: [{ name: 'thing', value: 'pond' }] }], { newItems: [POND] })
+    expect(meetRoomWater(make, contextIn('forest'))).toEqual(make)
+    const playground = plan([{ who: 'alice', action: 'walk', args: [{ name: 'to', value: 'pond' }] }], { newItems: [POND] })
+    expect(meetRoomWater(playground, contextIn('playground'))).toBe(playground)
   })
 })
 
@@ -668,21 +799,30 @@ describe('leakedMarkup', () => {
 describe('tidyPlan', () => {
   it('leaves a tidy plan as it is', () => {
     const tidy: Plan = { heard: 'Mikko dances with the cat', heardFi: 'Mikko tanssii kissan kanssa', who: ['mike'], steps: [{ who: 'mike', action: 'dance', args: [{ name: 'partner', value: 'mirri' }] }], newActions: [{ ...THROW, id: 'dance', nameFi: 'tanssi', calls: ['tanssi', 'dance'] }], newItems: [], say: 'Dance!', sayFi: 'Tanssitaan!' }
-    expect(tidyPlan(tidy)).toEqual(tidy)
+    expect(tidyPlan(tidy, 'fi')).toEqual(tidy)
   })
 
   it('gives a new action or thing without a Finnish name its first Finnish call, and a plan without a Finnish line its Finnish answer', () => {
-    const plan = tidyPlan({ ...MESSY, heardFi: '', newActions: [{ ...THROW, id: 'Ride Over', name: 'ride', nameFi: ' ', calls: ['ride', 'Aja'] }], newItems: [{ ...BIKE, id: 'Bicycle!', nameFi: undefined as unknown as string }] })
+    const plan = tidyPlan({ ...MESSY, heardFi: '', newActions: [{ ...THROW, id: 'Ride Over', name: 'ride', nameFi: ' ', calls: ['ride', 'Aja'] }], newItems: [{ ...BIKE, id: 'Bicycle!', nameFi: undefined as unknown as string }] }, 'fi')
     expect([plan.heardFi, plan.newActions[0]!.nameFi, plan.newItems[0]!.nameFi]).toEqual([MESSY.sayFi, 'aja', 'pyörä'])
   })
 
   it('takes the dashes out of every line and arg for the child, and keeps the hyphens', () => {
-    const plan = tidyPlan({ ...MESSY, heard: 'Steve rides — fast', heardFi: 'Eetu ajaa – lujaa', say: 'Wheee — bike!', sayFi: '— Jee–pyörä! —', steps: [{ who: 'steve', action: 'say', args: [{ name: 'words', value: 'Hei — moi!' }, { name: 'thing', value: 'christmas-tree' }] }] })
+    const plan = tidyPlan({ ...MESSY, heard: 'Steve rides — fast', heardFi: 'Eetu ajaa – lujaa', say: 'Wheee — bike!', sayFi: '— Jee–pyörä! —', steps: [{ who: 'steve', action: 'say', args: [{ name: 'words', value: 'Hei — moi!' }, { name: 'thing', value: 'christmas-tree' }] }] }, 'fi')
     expect([plan.heard, plan.heardFi, plan.say, plan.sayFi, ...plan.steps[0]!.args.map((a) => a.value)]).toEqual(['Steve rides, fast', 'Eetu ajaa, lujaa', 'Wheee, bike!', 'Jee, pyörä!', 'Hei, moi!', 'christmas-tree'])
   })
 
+  it("says an arg that is the plan's answer in the other language in the game's: Eetu was made to say 'Okay, I stop!' in Finnish", () => {
+    const stop: Plan = { ...MESSY, heard: 'No! Eetu stops', heardFi: 'Ei! Eetu lopettaa', say: 'Okay, I stop!', sayFi: 'Okei, lopetan!', steps: [{ who: 'steve', action: 'say', args: [{ name: 'words', value: 'Okay, I stop!' }] }] }
+    expect(tidyPlan(stop, 'fi').steps[0]!.args[0]!.value).toBe('Okei, lopetan!')
+    expect(tidyPlan({ ...stop, steps: [{ who: 'steve', action: 'say', args: [{ name: 'words', value: 'okei lopetan' }] }] }, 'en').steps[0]!.args[0]!.value).toBe('Okay, I stop!')
+    // Words in the game's language, kinds and words the answer does not say stay as they are.
+    expect(tidyPlan({ ...stop, steps: [{ who: 'steve', action: 'say', args: [{ name: 'words', value: 'Okay, I stop!' }, { name: 'thing', value: 'ball' }] }] }, 'en').steps[0]!.args.map((a) => a.value)).toEqual(['Okay, I stop!', 'ball'])
+    expect(tidyPlan({ ...stop, say: 'Hei!', sayFi: 'Hei!', steps: [{ who: 'steve', action: 'say', args: [{ name: 'words', value: 'Hei!' }] }] }, 'fi').steps[0]!.args[0]!.value).toBe('Hei!')
+  })
+
   it('names a new avatar in lowercase ascii everywhere', () => {
-    const plan = tidyPlan({ ...MESSY, who: ['Äijä'], steps: [{ who: 'Äijä', action: 'wear', args: [] }], newActions: [], newItems: [], create: { id: 'Äijä', name: 'Äijä', calls: ['Äijä'], pronoun: 'he', look: {} } })
+    const plan = tidyPlan({ ...MESSY, who: ['Äijä'], steps: [{ who: 'Äijä', action: 'wear', args: [] }], newActions: [], newItems: [], create: { id: 'Äijä', name: 'Äijä', calls: ['Äijä'], pronoun: 'he', look: {} } }, 'fi')
     expect([plan.create!.id, plan.create!.calls, plan.who, plan.steps[0]!.who]).toEqual(['aija', ['äijä'], ['aija'], 'aija'])
   })
 })

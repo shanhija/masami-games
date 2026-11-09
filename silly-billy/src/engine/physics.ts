@@ -1,14 +1,16 @@
 /**
- * Loose things: they fall, bounce, roll, float on water, bump off solid things and off people
- * (a `hit` the first time after they were let go), and settle. Things code left hanging in
- * the air fall after a moment. Puffs drift and fade.
+ * Loose things: they fall, bounce, roll, float on the water as high as it is now, bump off solid
+ * things and off people (a `hit` the first time after they were let go), and settle. Things code
+ * left hanging in the air fall after a moment; things fixed to another stay with it. Puffs drift
+ * (light ones with the wind) and fade.
  */
 
 import { pointIn, proportions, rootFrame } from './body'
 import type { Library } from './library'
-import { inWater, ROOM_GEO, WATER_Y } from './rooms'
+import { inWater, ROOM_GEO } from './rooms'
+import { skyOf, terrainOf } from './sky'
 import { ROOM_HALF, STEP, type Item, type World } from './types'
-import { addPuffs, bottomOf, GRAVITY, hash01, PLACED_HOLD, solidsOf, supportAt, TAU, type Side, type Solid } from './world'
+import { addPuffs, bottomOf, GRAVITY, hash01, infoFor, PLACED_HOLD, solidsOf, supportAt, TAU, waterTop, wetAt, type Side, type Solid } from './world'
 
 /** An actor's body as a capsule: from p to q, radius r. */
 interface Capsule {
@@ -40,21 +42,29 @@ export function stepPhysics(w: World, library: Library, side: Side): void {
     if (w.t - at < PLACED_HOLD) continue
     side.placed.delete(id)
     const it = side.items.get(id)
-    if (it === undefined || it.loose || it.holder !== null || it.fixed) continue
-    const low = bottomOf(it, library.info(it.kind))
+    if (it === undefined || it.loose || it.holder !== null || it.fixed || (it.attached ?? null) !== null) continue
+    const low = bottomOf(it, infoFor(library, it))
     const bottom = it.y + low
-    if (inWater(w.room, it.x, it.z)) {
-      if (Math.abs(bottom - WATER_Y) > 0.04) it.loose = true
+    if (wetAt(w, it.x, it.z)) {
+      if (Math.abs(bottom - waterTop(w)) > 0.04) it.loose = true
       continue
     }
     const ground = supportAt(w, solids, it.x, it.z, bottom, it)
     if (bottom > ground + 0.03) it.loose = true
     else if (bottom < ground - 0.03) it.y = ground - low
   }
+  // Water rising over things lying on the pool's floor lifts them: they float up.
+  if (ROOM_GEO[w.room].water.length > 0 && terrainOf(w, w.room).water > 0.02) {
+    const surface = waterTop(w)
+    for (const it of w.items) {
+      if (it.loose || it.holder !== null || it.fixed || (it.attached ?? null) !== null || side.placed.has(it.id) || !inWater(w.room, it.x, it.z)) continue
+      if (it.y + bottomOf(it, infoFor(library, it)) < surface - 0.04) it.loose = true
+    }
+  }
   let bodies: Capsule[] | null = null
   for (const it of w.items) {
     if (!it.loose) continue
-    if (it.holder !== null || it.fixed) {
+    if (it.holder !== null || it.fixed || (it.attached ?? null) !== null) {
       it.loose = false
       continue
     }
@@ -65,17 +75,18 @@ export function stepPhysics(w: World, library: Library, side: Side): void {
 
 function stepLoose(w: World, library: Library, side: Side, it: Item, solids: Solid[], bodies: Capsule[]) {
   const dt = STEP
-  const info = library.info(it.kind)
+  const info = infoFor(library, it)
   const r = info.radius * it.scale
   const low = bottomOf(it, info)
   const mid = ((info.recipe.bounds.min[1] + info.recipe.bounds.max[1]) / 2) * it.scale
   const bouncy = info.recipe.meta.bouncy
   const e = 0.2 + 0.65 * bouncy
-  const wet = inWater(w.room, it.x, it.z)
+  const wet = wetAt(w, it.x, it.z)
+  const surface = waterTop(w)
   const before = it.y + low
-  const floating = wet && before < WATER_Y + 0.05
+  const floating = wet && before < surface + 0.05
   if (floating) {
-    const rest = WATER_Y - low + 0.025 * Math.sin(w.t * 2.3 + hash01(it.id, 0) * TAU)
+    const rest = surface - low + 0.025 * Math.sin(w.t * 2.3 + hash01(it.id, 0) * TAU)
     it.vy += ((rest - it.y) * 30 - it.vy * 5) * dt
     const drag = 1 - 1.5 * dt
     it.vx *= drag
@@ -86,17 +97,17 @@ function stepLoose(w: World, library: Library, side: Side, it: Item, solids: Sol
     it.y += it.vy * dt - 0.5 * GRAVITY * dt * dt
     it.vy -= GRAVITY * dt
   }
-  if (wet && before >= WATER_Y && it.y + low < WATER_Y && it.vy < -2) {
-    addPuffs(w, { kind: 'drop', x: it.x, y: WATER_Y + 0.05, z: it.z, color: null, count: 10, size: 0.08, speed: 1.5, up: 2.5, life: 0.8, gravity: null })
+  if (wet && before >= surface && it.y + low < surface && it.vy < -2) {
+    addPuffs(w, { kind: 'drop', x: it.x, y: surface + 0.05, z: it.z, color: null, count: 10, size: 0.08, speed: 1.5, up: 2.5, life: 0.8, gravity: null })
     if (side.sounds < 8) {
       w.sounds.push('splash')
       side.sounds++
     }
   }
-  // Across the ground; something in the water below the edge stays in the pool.
+  // Across the ground; something in the pool below its edge (in the water or on an emptied floor) stays in it.
   let nx = it.x + it.vx * dt
   let nz = it.z + it.vz * dt
-  if (wet && it.y + low < -0.02) {
+  if (inWater(w.room, it.x, it.z) && it.y + low < -0.02) {
     if (!inWater(w.room, nx, it.z)) {
       nx = it.x
       it.vx = -it.vx * 0.5
@@ -230,14 +241,19 @@ function bump(w: World, side: Side, it: Item, r: number, mid: number, bodies: Ca
   }
 }
 
-/** Puffs move, fall or rise by their own pull, slow down, and go when their life is over. */
+/** How fast the wind at its strongest pushes light puffs along, m/s (along +x, the way the rain leans in the scene). */
+export const WIND_SPEED = 2.5
+
+/** Puffs move, fall or rise by their own pull, slow down, drift with the wind when they are light, and go when their life is over. */
 export function stepPuffs(w: World): void {
   const dt = STEP
   const drag = 1 - 1.2 * dt
+  const wind = skyOf(w).wind * WIND_SPEED
   let n = 0
   for (const p of w.puffs) {
     if (w.t - p.born > p.life) continue
     p.vy -= p.gravity * dt
+    if (wind !== 0 && p.gravity < 3) p.x += wind * dt
     p.x += p.vx * dt
     p.y += p.vy * dt
     p.z += p.vz * dt

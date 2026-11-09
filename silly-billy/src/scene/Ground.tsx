@@ -22,6 +22,7 @@ import {
   ShapeGeometry,
   SphereGeometry,
   type Mesh,
+  type MeshStandardMaterial,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
@@ -29,9 +30,11 @@ import { mulberry32 } from '../../../castle-builder/src/game/random'
 import { CAMERA_YAW, Flat } from '../../../castle-builder/src/scene/look'
 import { LAYOUTS } from '../content/layouts'
 import { ROOM_GEO, WATER_Y, type Water } from '../engine/rooms'
-import { ROOM_HALF, type RoomId } from '../engine/types'
+import { terrainOf } from '../engine/sky'
+import { ROOM_HALF, type RoomId, type World } from '../engine/types'
+import { waterTop } from '../engine/world'
 import { useLive } from './live'
-import { palette, type Clock } from './look'
+import { colorOf, palette, type Clock } from './look'
 import type { SceneSource } from './Stage'
 
 /**
@@ -39,8 +42,10 @@ import type { SceneSource } from './Stage'
  * light tiles, moss and a dirt path) with holes where the water is, a coloured band and
  * dirt (or stone) down its sides, and the room's own furniture that never moves: the
  * playground's low white fence, the pool's coping and basin, the forest's pond and the ring
- * of trees beyond the edge. The water is a sheet of facets that rocks gently at WATER_Y
- * over a floor at the room's floor depth. Each room's painted top is made once and kept.
+ * of trees beyond the edge. The water is a sheet of facets that rocks gently at its surface,
+ * as high as the room's water is now (engine/sky.ts's terrain: full at WATER_Y, gone when the
+ * pool is emptied) and in its colour, over a floor at the room's floor depth; a colour code
+ * washed over the ground lies over the painted top. Each room's painted top is made once and kept.
  */
 
 const TAU = Math.PI * 2
@@ -400,22 +405,38 @@ const pick = <T,>(list: readonly T[], rand: () => number) => list[Math.floor(ran
 
 // ------------------------------------------------------------------------------ the water
 
-/** A sheet of facets over the water's shape that rocks gently: its corners bob on crossing waves. */
-function Surface({ water, colour, clock }: { water: Water; colour: string; clock: Clock }) {
+/** The water's top now, for the room the world is in, and how full it is. */
+const surfaceOf = (w: World) => ({ top: waterTop(w), full: terrainOf(w, w.room).water })
+
+/** A sheet of facets over the water's shape that rocks gently: its corners bob on crossing waves at the water's height now, in its colour (eased), gone when the water is. */
+function Surface({ water, colour, clock, world }: { water: Water; colour: string; clock: Clock; world: () => World }) {
   const mesh = useRef<Mesh>(null!)
+  const shown = useMemo(() => new Color(colour), [colour])
+  const want = useMemo(() => new Color(), [])
   const { geometry, base } = useMemo(() => {
     const g = water.kind === 'rect' ? new PlaneGeometry(water.x1 - water.x0, water.z1 - water.z0, Math.round((water.x1 - water.x0) * 2), Math.round((water.z1 - water.z0) * 2)).rotateX(-Math.PI / 2).translate((water.x0 + water.x1) / 2, 0, (water.z0 + water.z1) / 2) : new RingGeometry(0.001, water.r, ROUND, 6).rotateX(-Math.PI / 2).translate(water.x, 0, water.z)
     return { geometry: g, base: Float32Array.from(g.getAttribute('position').array) }
   }, [water])
-  useFrame(() => {
-    const pos = geometry.getAttribute('position')
+  useFrame((_, delta) => {
+    const w = world()
+    const { top, full } = surfaceOf(w)
+    const m = mesh.current
+    m.visible = full > 0.02
+    if (!m.visible) return
     const t = clock.t
+    // A low puddle barely rocks.
+    const rock = 0.035 * Math.min(1, full * 3)
+    const pos = geometry.getAttribute('position')
     for (let i = 0; i < pos.count; i++) {
       const x = base[i * 3]!
       const z = base[i * 3 + 2]!
-      pos.setY(i, WATER_Y + 0.035 * (Math.sin(x * 1.4 + t * 1.5) + Math.sin(z * 1.9 - t * 1.1) + Math.sin((x - z) * 0.8 + t * 2)) / 3)
+      pos.setY(i, top + (rock * (Math.sin(x * 1.4 + t * 1.5) + Math.sin(z * 1.9 - t * 1.1) + Math.sin((x - z) * 0.8 + t * 2))) / 3)
     }
     pos.needsUpdate = true
+    const own = terrainOf(w, w.room).waterColor
+    want.set(own === null ? colour : colorOf(own))
+    shown.lerp(want, 1 - Math.exp(-4 * Math.min(delta, 0.1)))
+    ;(m.material as MeshStandardMaterial).color.copy(shown)
   })
   return (
     <mesh ref={mesh} geometry={geometry} receiveShadow>
@@ -455,7 +476,7 @@ function poolFloorTexture(w: number, d: number): CanvasTexture {
 }
 
 /** A basin cut into the slab: its walls down to the floor, the floor, and the water's surface over it. */
-function Basin({ water, floor, room, clock }: { water: Water; floor: number; room: RoomId; clock: Clock }) {
+function Basin({ water, floor, room, clock, world }: { water: Water; floor: number; room: RoomId; clock: Clock; world: () => World }) {
   const pool = room === 'pool'
   const wall = pool ? palette.basinDark : palette.pondWall
   const floorMap = useMemo(() => (pool && water.kind === 'rect' ? poolFloorTexture(water.x1 - water.x0, water.z1 - water.z0) : null), [pool, water])
@@ -494,7 +515,7 @@ function Basin({ water, floor, room, clock }: { water: Water; floor: number; roo
             <Flat color={palette.coping} />
           </mesh>
         ))}
-        <Surface water={water} colour={palette.water} clock={clock} />
+        <Surface water={water} colour={palette.water} clock={clock} world={world} />
       </group>
     )
   }
@@ -508,15 +529,16 @@ function Basin({ water, floor, room, clock }: { water: Water; floor: number; roo
         <circleGeometry args={[water.r, ROUND]} />
         <Flat color={palette.pondFloor} />
       </mesh>
-      <Surface water={water} colour={palette.pond} clock={clock} />
-      <Pondside water={water} clock={clock} />
+      <Surface water={water} colour={palette.pond} clock={clock} world={world} />
+      <Pondside water={water} clock={clock} world={world} />
     </group>
   )
 }
 
-/** Lily pads that bob on the pond, one with a flower, reeds at the back and stones round the edge. */
-function Pondside({ water, clock }: { water: Water & { kind: 'circle' }; clock: Clock }) {
+/** Lily pads that bob on the pond (sinking with it, gone when it is), one with a flower, reeds at the back and stones round the edge. */
+function Pondside({ water, clock, world }: { water: Water & { kind: 'circle' }; clock: Clock; world: () => World }) {
   const pads = useRef<Mesh[]>([])
+  const flower = useRef<Mesh>(null!)
   const spots = useMemo(() => {
     const rand = mulberry32(77)
     return Array.from({ length: 4 }, (_, i) => {
@@ -548,11 +570,15 @@ function Pondside({ water, clock }: { water: Water & { kind: 'circle' }; clock: 
   }, [water])
   useFrame(() => {
     const t = clock.t
+    const { top, full } = surfaceOf(world())
     pads.current.forEach((m, i) => {
       const s = spots[i]!
-      m.position.y = WATER_Y + 0.02 + 0.02 * Math.sin(t * 1.3 + i * 1.7)
+      m.visible = full > 0.02
+      m.position.y = top + 0.02 + 0.02 * Math.sin(t * 1.3 + i * 1.7)
       m.rotation.z = s.yaw + 0.1 * Math.sin(t * 0.4 + i)
     })
+    flower.current.visible = full > 0.02
+    flower.current.position.y = top + 0.1
   })
   return (
     <>
@@ -562,7 +588,7 @@ function Pondside({ water, clock }: { water: Water & { kind: 'circle' }; clock: 
           <meshStandardMaterial color={palette.lily} flatShading roughness={0.8} side={DoubleSide} />
         </mesh>
       ))}
-      <mesh position={[spots[0]!.x, WATER_Y + 0.1, spots[0]!.z]} castShadow>
+      <mesh ref={flower} position={[spots[0]!.x, WATER_Y + 0.1, spots[0]!.z]} castShadow>
         <sphereGeometry args={[0.12, 6, 4]} />
         <Flat color="#ff9ccf" />
       </mesh>
@@ -649,13 +675,13 @@ function TreeRing({ half }: { half: number }) {
   )
 }
 
-/** Grass tufts and little flowers over the playground's lawn, off the sandpit. */
+/** Grass tufts and little flowers over the playground's lawn, off the sandpit: a few, so the lawn reads as open (Sami, 2026-11-09: a fifth of what there was). */
 function Lawn({ half }: { half: number }) {
   const { tufts, blooms } = useMemo(() => {
     const off = (x: number, z: number) => onSand(x, z, 0.4) || Math.max(Math.abs(x), Math.abs(z)) > half - 0.6
     return {
-      tufts: scatter(21, 700, half, off, (x, z, r) => ({ x, y: 0, z, s: 0.9 + r() * 0.6, h: 0.25 + r() * 0.2, yaw: r() * TAU, color: pick([palette.grass[2], palette.grassDark, '#93d66a'], r) })),
-      blooms: scatter(22, 180, half, off, (x, z, r) => ({ x, y: 0, z, s: 0.16 + r() * 0.06, h: 0.16 + r() * 0.06, yaw: 0, color: pick(palette.blooms, r) })),
+      tufts: scatter(21, 140, half, off, (x, z, r) => ({ x, y: 0, z, s: 0.9 + r() * 0.6, h: 0.25 + r() * 0.2, yaw: r() * TAU, color: pick([palette.grass[2], palette.grassDark, '#93d66a'], r) })),
+      blooms: scatter(22, 36, half, off, (x, z, r) => ({ x, y: 0, z, s: 0.16 + r() * 0.06, h: 0.16 + r() * 0.06, yaw: 0, color: pick(palette.blooms, r) })),
     }
   }, [half])
   return (
@@ -670,7 +696,30 @@ function Lawn({ half }: { half: number }) {
 
 const tops = new Map<RoomId, { geometry: BufferGeometry; map: CanvasTexture }>()
 
-function RoomGround({ room, clock }: { room: RoomId; clock: Clock }) {
+/** A colour washed over the room's ground, easing in and out (white snow, a blue lawn), over the painted top with the water's holes. */
+function Wash({ geometry, world }: { geometry: BufferGeometry; world: () => World }) {
+  const mesh = useRef<Mesh>(null!)
+  const shown = useMemo(() => ({ color: new Color('#ffffff'), want: new Color(), amount: 0 }), [])
+  useFrame((_, delta) => {
+    const w = world()
+    const want = terrainOf(w, w.room).ground
+    const k = 1 - Math.exp(-3 * Math.min(delta, 0.1))
+    if (want !== null) shown.color.lerp(shown.want.set(colorOf(want)), shown.amount < 0.01 ? 1 : k)
+    shown.amount += ((want === null ? 0 : 1) - shown.amount) * k
+    const m = mesh.current
+    m.visible = shown.amount > 0.01
+    const mat = m.material as MeshStandardMaterial
+    mat.color.copy(shown.color)
+    mat.opacity = 0.72 * shown.amount
+  })
+  return (
+    <mesh ref={mesh} geometry={geometry} position={[0, 0.012, 0]} receiveShadow visible={false}>
+      <meshStandardMaterial transparent opacity={0} roughness={0.95} depthWrite={false} />
+    </mesh>
+  )
+}
+
+function RoomGround({ room, clock, world }: { room: RoomId; clock: Clock; world: () => World }) {
   const slab = SLABS[room]
   const geo = ROOM_GEO[room]
   let top = tops.get(room)
@@ -684,6 +733,7 @@ function RoomGround({ room, clock }: { room: RoomId; clock: Clock }) {
       <mesh geometry={top.geometry} receiveShadow>
         <meshStandardMaterial map={top.map} roughness={0.95} />
       </mesh>
+      <Wash geometry={top.geometry} world={world} />
       {/* The slab's sides: an open square tube, a band of the top's colour over dirt or stone. */}
       <mesh position={[0, -BAND / 2, 0]} rotation={[0, Math.PI / 4, 0]} receiveShadow>
         <cylinderGeometry args={[...tube(slab.half), BAND, 4, 1, true]} />
@@ -694,7 +744,7 @@ function RoomGround({ room, clock }: { room: RoomId; clock: Clock }) {
         <Flat color={slab.side} />
       </mesh>
       {geo.water.map((w, i) => (
-        <Basin key={i} water={w} floor={geo.floor} room={room} clock={clock} />
+        <Basin key={i} water={w} floor={geo.floor} room={room} clock={clock} world={world} />
       ))}
       {room === 'playground' && (
         <>
@@ -710,5 +760,6 @@ function RoomGround({ room, clock }: { room: RoomId; clock: Clock }) {
 /** The ground of whichever room everybody is in. */
 export function Ground({ source, clock }: { source: SceneSource; clock: Clock }) {
   const room = useLive(() => source.world.room)
-  return <RoomGround key={room} room={room} clock={clock} />
+  const world = useMemo(() => () => source.world, [source])
+  return <RoomGround key={room} room={room} clock={clock} world={world} />
 }

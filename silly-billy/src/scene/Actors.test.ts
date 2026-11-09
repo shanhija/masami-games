@@ -17,7 +17,7 @@ const gown = buildRecipe((m) => {
   m.torus(0.15, 0.022, { at: [0, 0.5, 0], rot: [Math.PI / 2, 0, 0], color: '#e4789f' })
   for (const x of [-0.11, 0.11]) m.capsule(0.02, 0.1, { at: [x, 0.71, 0], color: '#e4789f' })
   return { carry: 'hand', wear: 'body' }
-}).recipe
+}, []).recipe
 
 /** A wand with a star that its process spins. */
 const wand = buildRecipe((m) => {
@@ -25,17 +25,17 @@ const wand = buildRecipe((m) => {
   m.part('star', { at: [0, 0.42, 0] }, () => m.box(0.12, 0.12, 0.03, { color: '#f5d33b' }))
   m.anchor('hand', [0, 0.05, 0])
   return { carry: 'hand', wear: 'hand' }
-}).recipe
+}, []).recipe
 
 /** Gowns drawn as one lathe from hem to neckline: from Opus tonight, and a floor-length one. */
 const oneLathe = buildRecipe((m) => {
   m.lathe([[0.3, 0.28], [0.27, 0.34], [0.17, 0.42], [0.14, 0.5], [0.16, 0.6], [0.17, 0.67], [0.1, 0.71], [0.08, 0.72]], { color: '#f7a1c4' })
   return { carry: 'hand', wear: 'body' }
-}).recipe
+}, []).recipe
 const longDress = buildRecipe((m) => {
   m.lathe([[0.34, 0.03], [0.3, 0.2], [0.2, 0.4], [0.15, 0.5], [0.16, 0.62], [0.12, 0.69], [0, 0.69]], { color: '#7fb3ff' })
   return { carry: 'hand', wear: 'body' }
-}).recipe
+}, []).recipe
 
 const RECIPES: Record<string, Recipe> = { gown, wand, oneLathe, longDress }
 const source = { libraryVersion: 1, info: (kind: string): ItemInfo => ({ kind, name: kind, nameFi: kind, recipe: RECIPES[kind]!, size: [1, 1, 1], radius: 0.5, rough: false }) }

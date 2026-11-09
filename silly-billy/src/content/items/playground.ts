@@ -320,7 +320,7 @@ export const PLAYGROUND_ITEMS: BuiltinItem[] = [
       })
       for (const s of [-1, 1]) m.sphere(0.07, { at: [s * 0.07, 0.1, 0], scale: [1.6, 0.35, 0.8], rot: [0, 0, s * 0.5], color: palette.stem })
       m.anchor('hand', [0, 0.15, 0])
-      return { carry: 'hand', bouncy: 0.1, solid: false }
+      return { carry: 'hand', bouncy: 0.1, solid: false, food: 'yucky' }
     },
   }),
   item({

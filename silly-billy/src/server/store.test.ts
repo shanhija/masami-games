@@ -290,6 +290,20 @@ describe('store', () => {
     expect((JSON.parse(fs.readFileSync(path.join(dir, 'phrases.json'), 'utf8')) as PhraseEntry[]).map((p) => p.words)).toEqual(['mike hyppää'])
   })
 
+  it("keeps only the phrases the interpreter prompt of today made, stamping each it saves: words an older prompt got wrong are understood afresh", () => {
+    // "mikko pudotaan rennassa" was kept as a jump to the pond, "noora rakenna liukumäki kuumajasta" as a rebuilt slide: a better prompt never met them again.
+    fs.writeFileSync(path.join(dir, 'phrases.json'), JSON.stringify([phrase('steve hyppää', plan('jump', '', 'steve')), { ...phrase('mike hyppää', plan('jump', '', 'mike')), prompt: 'old' }]))
+    const today = new Store(dir, (m) => warnings.push(m), 'new')
+    expect(today.read().phrases).toEqual([])
+    expect(JSON.parse(fs.readFileSync(path.join(dir, 'phrases.json'), 'utf8'))).toEqual([])
+    today.save({ phrase: phrase('alis hyppää', plan('jump', '', 'alice')) })
+    expect(today.read().phrases.map((p) => [p.words, p.prompt])).toEqual([['alis hyppää', 'new']])
+    // The next prompt understands them afresh; a store with no stamp (the tests of the shipped library) keeps them all.
+    expect(new Store(dir, () => {}, 'newer').read().phrases).toEqual([])
+    fs.writeFileSync(path.join(dir, 'phrases.json'), JSON.stringify([phrase('steve hyppää', plan('jump', '', 'steve'))]))
+    expect(new Store(dir, () => {}).read().phrases.map((p) => p.words)).toEqual(['steve hyppää'])
+  })
+
   it('appends stamped lines to the log', () => {
     store.log({ kind: 'hear', text: 'alis hyppää' })
     store.log({ kind: 'interpret', ms: 2900 })

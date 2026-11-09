@@ -1,0 +1,27 @@
+{
+  "type": "action",
+  "id": "human-pyramid",
+  "name": "build a human pyramid",
+  "nameFi": "tehkää ihmispyramidi",
+  "calls": [
+    "ihmispyramidi",
+    "ihmispyramidin",
+    "pyramidi",
+    "pyramidin",
+    "pyramid"
+  ],
+  "about": "The avatar calls the others together; the biggest kneel side by side at the bottom, the others climb onto their backs in rows, the smallest on top waves, then all wobble and tumble down softly laughing.",
+  "by": "opus",
+  "asked": "Tehkää ihmispyramidi!",
+  "made": "2026-11-09T12:07:27.339Z",
+  "params": [
+    {
+      "name": "players",
+      "kind": "text",
+      "about": "who joins, or everybody",
+      "optional": true
+    }
+  ],
+  "code": "const s = (args.players || '').toLowerCase()\nlet all = w.actors.filter(a => a === me || !a.busy)\nconst named = all.filter(a => a !== me && s.includes(a.name.toLowerCase()))\nif (named.length) all = [me, ...named]\nall.forEach(a => { if (a !== me) w.join(a) })\nme.say({ en: 'Pyramid time!', fi: 'Pyramidi!' }); w.sound('bell')\nall.sort((a, b) => b.height - a.height)\nlet b = 1; while (b * (b + 1) / 2 < all.length) b++\nconst c = me.ahead(1.5), slots = []\nlet i = 0, y = 0\nfor (let r = b; r > 0 && i < all.length; r--) {\n  const n = Math.min(r, all.length - i), row = all.slice(i, i + n); i += n\n  let top = 0\n  row.forEach((a, j) => { slots.push({ a, x: c.x + (j - (n - 1) / 2) * 0.7, z: c.z, y, top: r > 1 && i < all.length }); top = Math.max(top, a.height * 0.5) })\n  y += top\n}\nyield* w.together(...slots.map(s => s.a.walkTo({ x: s.x, z: s.z + 1 }, { run: true, near: 0.1 })))\nfor (const s of slots) {\n  const a = s.a, y0 = a.y, x0 = a.x, z0 = a.z\n  a.yaw = Math.PI\n  w.sound('step')\n  yield* w.during(0.4, k => { a.x = w.lerp(x0, s.x, k); a.z = w.lerp(z0, s.z, k); a.y = w.lerp(y0, s.y, k) + Math.sin(k * Math.PI) * 0.4 })\n  if (s.top) yield* a.poseTo({ lean: 1.2, legL: { swing: 1.5, bend: 1.5 }, legR: { swing: 1.5, bend: 1.5 }, armL: { swing: 1.2 }, armR: { swing: 1.2 }, bob: -a.height * 0.3 }, 0.2)\n}\nconst top = slots[slots.length - 1].a\ntop.feel('happy'); top.say({ en: 'Ta-da!', fi: 'Tadaa!' }); w.sound('yay')\nyield* top.poseTo({ armR: { swing: 3, raise: 0.5 }, armL: { raise: 2.5 } }, 0.3)\nyield* w.during(1.5, k => slots.forEach((s, j) => { s.a.roll = Math.sin(w.t * 9 + j) * 0.12 * k }))\nw.sound('crash'); w.sound('giggle')\nyield* w.together(...slots.map(s => (function* () { s.a.roll = 0; s.a.y = 0; s.a.x += (w.random() - 0.5) * 1.5; yield* s.a.tumble(); s.a.feel('silly'); yield* s.a.rest() })()))\nme.say({ en: 'Again!', fi: 'Uudestaan!' })",
+  "guarded": "function* __action(me, args, w) {__g();const __k = (k, l) => { if (typeof k === 'object' && k !== null || typeof k === 'function' || typeof k === 'string' && (k[0] === '_' && k[1] === '_' || k === 'constructor' || k === 'prototype' || k === 'getPrototypeOf' || k === 'setPrototypeOf' || k === 'getOwnPropertyDescriptor' || k === 'getOwnPropertyDescriptors' || k === 'getOwnPropertyNames' || k === 'defineProperty' || k === 'defineProperties' || k === 'eval' || k === 'Function')) throw new TypeError((typeof k === 'string' ? 'made code cannot use the key ' + k : 'made code cannot use a thing as a key') + ' (line ' + l + ')'); return k };\nconst s = (args.players || '').toLowerCase()\nlet all = w.actors.filter(a => (__g(), (a === me || !a.busy)))\nconst named = all.filter(a => (__g(), (a !== me && s.includes(a.name.toLowerCase()))))\nif (named.length) all = [me, ...named]\nall.forEach(a => {__g(); if (a !== me) w.join(a) })\nme.say({ en: 'Pyramid time!', fi: 'Pyramidi!' }); w.sound('bell')\nall.sort((a, b) => (__g(), (b.height - a.height)))\nlet b = 1; while (b * (b + 1) / 2 < all.length) {__g();b++}\nconst c = me.ahead(1.5), slots = []\nlet i = 0, y = 0\nfor (let r = b; r > 0 && i < all.length; r--) {__g();\n  const n = Math.min(r, all.length - i), row = all.slice(i, i + n); i += n\n  let top = 0\n  row.forEach((a, j) => {__g(); slots.push({ a, x: c.x + (j - (n - 1) / 2) * 0.7, z: c.z, y, top: r > 1 && i < all.length }); top = Math.max(top, a.height * 0.5) })\n  y += top\n}\nyield* w.together(...slots.map(s => (__g(), (s.a.walkTo({ x: s.x, z: s.z + 1 }, { run: true, near: 0.1 })))))\nfor (const s of slots) {__g();\n  const a = s.a, y0 = a.y, x0 = a.x, z0 = a.z\n  a.yaw = Math.PI\n  w.sound('step')\n  yield* w.during(0.4, k => {__g(); a.x = w.lerp(x0, s.x, k); a.z = w.lerp(z0, s.z, k); a.y = w.lerp(y0, s.y, k) + Math.sin(k * Math.PI) * 0.4 })\n  if (s.top) yield* a.poseTo({ lean: 1.2, legL: { swing: 1.5, bend: 1.5 }, legR: { swing: 1.5, bend: 1.5 }, armL: { swing: 1.2 }, armR: { swing: 1.2 }, bob: -a.height * 0.3 }, 0.2)\n}\nconst top = slots[__k((slots.length - 1), 25)].a\ntop.feel('happy'); top.say({ en: 'Ta-da!', fi: 'Tadaa!' }); w.sound('yay')\nyield* top.poseTo({ armR: { swing: 3, raise: 0.5 }, armL: { raise: 2.5 } }, 0.3)\nyield* w.during(1.5, k => (__g(), (slots.forEach((s, j) => {__g(); s.a.roll = Math.sin(w.t * 9 + j) * 0.12 * k }))))\nw.sound('crash'); w.sound('giggle')\nyield* w.together(...slots.map(s => (__g(), ((function* () {__g(); s.a.roll = 0; s.a.y = 0; s.a.x += (w.random() - 0.5) * 1.5; yield* s.a.tumble(); s.a.feel('silly'); yield* s.a.rest() })()))))\nme.say({ en: 'Again!', fi: 'Uudestaan!' })\n}"
+}

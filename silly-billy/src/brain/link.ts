@@ -45,10 +45,11 @@ export function createLink(base = './api/'): Link {
       }
     },
 
-    async hear(wav, lang, partial, prime) {
+    async hear(wav, lang, partial, prime, mic) {
       const query = new URLSearchParams({ lang })
       if (partial) query.set('partial', '1')
       if (prime !== undefined && prime.trim() !== '') query.set('prime', prime)
+      if (mic !== undefined) query.set('mic', JSON.stringify(mic))
       const res = await ask(`hear?${query}`, { method: 'POST', headers: { 'content-type': 'audio/wav' }, body: wav })
       return (await res.json()) as HearReply
     },

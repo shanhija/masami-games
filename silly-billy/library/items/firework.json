@@ -1,0 +1,69 @@
+{
+  "type": "item",
+  "id": "firework",
+  "name": "firework rocket",
+  "nameFi": "raketti",
+  "calls": [
+    "raketti",
+    "raketin",
+    "raketteja",
+    "ilotulite",
+    "ilotulitus",
+    "firework"
+  ],
+  "about": "A red paper rocket 0.4 m tall with a gold cone tip on a thin stick.",
+  "by": "opus",
+  "asked": "Ampukaa ilotulituksia!",
+  "made": "2026-11-09T12:10:09.681Z",
+  "code": "m.cylinder(0.012, 0.012, 0.45, { at: [0, 0.225, 0], color: '#8a5a34' })\nm.cylinder(0.09, 0.09, 0.36, { at: [0, 0.6, 0], color: '#e8503f' })\nm.cylinder(0.092, 0.092, 0.05, { at: [0, 0.68, 0], color: '#ffffff' })\nm.cylinder(0.092, 0.092, 0.05, { at: [0, 0.52, 0], color: '#ffffff' })\nm.cone(0.11, 0.18, { at: [0, 0.87, 0], color: '#f2c230' })\nm.cylinder(0.05, 0.07, 0.06, { at: [0, 0.39, 0], color: '#3a3a40' })\nm.part('flame', { at: [0, 0.33, 0] }, () => {\n  m.cone(0.04, 0.08, { rot: [Math.PI, 0, 0], color: '#ffb030', glow: true })\n})\nm.anchor('hand', [0, 0.2, 0])\nm.anchor('top', [0, 0.96, 0])\nreturn { carry: 'hand', ride: false, sit: false, wear: null, bouncy: 0.2, solid: false, food: null, temp: null, soft: false }",
+  "guarded": "function __model(m) {__g();\nm.cylinder(0.012, 0.012, 0.45, { at: [0, 0.225, 0], color: '#8a5a34' })\nm.cylinder(0.09, 0.09, 0.36, { at: [0, 0.6, 0], color: '#e8503f' })\nm.cylinder(0.092, 0.092, 0.05, { at: [0, 0.68, 0], color: '#ffffff' })\nm.cylinder(0.092, 0.092, 0.05, { at: [0, 0.52, 0], color: '#ffffff' })\nm.cone(0.11, 0.18, { at: [0, 0.87, 0], color: '#f2c230' })\nm.cylinder(0.05, 0.07, 0.06, { at: [0, 0.39, 0], color: '#3a3a40' })\nm.part('flame', { at: [0, 0.33, 0] }, () => {__g();\n  m.cone(0.04, 0.08, { rot: [Math.PI, 0, 0], color: '#ffb030', glow: true })\n})\nm.anchor('hand', [0, 0.2, 0])\nm.anchor('top', [0, 0.96, 0])\nreturn { carry: 'hand', ride: false, sit: false, wear: null, bouncy: 0.2, solid: false, food: null, temp: null, soft: false }\n}",
+  "tick": "const f = it.part('flame')\nf.s = 0.8 + 0.4 * Math.abs(Math.sin(w.t * 20 + it.id.length))",
+  "tickGuarded": "function __tick(it, w, dt) {__g();\nconst f = it.part('flame')\nf.s = 0.8 + 0.4 * Math.abs(Math.sin(w.t * 20 + it.id.length))\n}",
+  "rough": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.3,
+        0.08
+      ],
+      "at": [
+        0,
+        0.35,
+        0
+      ],
+      "color": "red"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.1,
+        0.1,
+        0.1
+      ],
+      "at": [
+        0,
+        0.55,
+        0
+      ],
+      "color": "gold"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.01,
+        0.2,
+        0.01
+      ],
+      "at": [
+        0,
+        0.1,
+        0
+      ],
+      "color": "#8a5a34"
+    }
+  ],
+  "roughMeta": {
+    "carry": "hand"
+  }
+}

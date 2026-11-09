@@ -27,8 +27,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
 import { KID_HEIGHT, apply, eulerXYZ, mul, proportions } from '../engine/body'
 import { boundsOf, partTransform } from '../engine/kit'
-import type { ItemInfo, PartDef, PartPose, Recipe, Shape } from '../engine/types'
-import { MODEL, colorOf } from './look'
+import type { Added, ItemInfo, PartDef, PartPose, Recipe, Shape, Vec3 } from '../engine/types'
+import { withAdded } from '../engine/world'
+import { MODEL, colorOf, flat, glow } from './look'
 
 /**
  * A model's recipe as three.js: every shape becomes its geometry (low-poly: spheres 12 x 8,
@@ -49,6 +50,8 @@ export interface Model {
   /** Still the interpreter's draft: drawn see-through and pulsing. */
   readonly rough: boolean
   readonly parts: Map<string | null, PartGeometry>
+  /** Where its glowing shapes are (their middle at rest, in its own frame), their colour and how far they reach; null without any. Lamps and fires shine from here at night. */
+  readonly lights: { at: Vec3; color: string; size: number } | null
 }
 
 const matrix = new Matrix4()
@@ -251,7 +254,17 @@ export function buildModel(recipe: Recipe, rough: boolean, tint: string | null, 
   })
   const parts = new Map<string | null, PartGeometry>()
   for (const [part, list] of lists) parts.set(part, { solid: list.solid.length ? mergeAll(list.solid) : null, glow: list.glow.length ? mergeAll(list.glow) : null })
-  return { recipe, rough, parts }
+  const glowing = recipe.shapes.map((s, i) => ({ s, c: colors[i]! })).filter(({ s }) => s.glow)
+  let lights: Model['lights'] = null
+  if (glowing.length > 0) {
+    const { min, max } = boundsOf(
+      glowing.map(({ s }) => s),
+      recipe.parts,
+    )
+    const mean = glowing.reduce((sum, { c }) => sum.add(c), new Color(0, 0, 0)).multiplyScalar(1 / glowing.length)
+    lights = { at: [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2], color: `#${mean.getHexString()}`, size: Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2]) }
+  }
+  return { recipe, rough, parts, lights }
 }
 
 export function disposeModel(model: Model) {
@@ -287,14 +300,15 @@ export class Models {
 
   constructor(private readonly source: ModelSource) {}
 
-  get(kind: string, tint: string | null, half: Half | null): Model {
-    const group = `${kind}|${half ?? ''}`
+  /** The model of a kind in a tint (one half of it, for a body thing on a person), with one thing's own added shapes when it has some. */
+  get(kind: string, tint: string | null, half: Half | null, added: Added | null): Model {
+    const group = `${kind}|${half ?? ''}|${added?.key ?? ''}`
     const key = `${group}|${tint ?? ''}`
     const version = this.source.libraryVersion
     const known = this.cache.get(key)
     if (known !== undefined) known.used = this.frame
     if (known !== undefined && known.version === version) return known.model
-    const info = this.source.info(kind)
+    const info = withAdded(this.source.info(kind), added)
     if (known !== undefined && known.model.recipe === info.recipe && known.model.rough === info.rough) {
       known.version = version
       return known.model
@@ -341,6 +355,20 @@ interface Joint {
   pivot: Group
 }
 
+/** How the whole of one thing is drawn, beside its parts' own: its lights on, off or as built (`glow`), and their colour. */
+export interface Own {
+  glow: boolean | null
+  glowColor: string | null
+}
+export const AS_BUILT: Own = { glow: null, glowColor: null }
+
+/** A part's meshes: its lit shapes and its glowing ones, and the name its pose goes by. */
+interface PartMeshes {
+  pose: string | null
+  solid: Mesh | null
+  glow: Mesh | null
+}
+
 /**
  * One drawn copy of a model: a group per part nested as the recipe nests them, each holding
  * that part's meshes and its child parts, so turning a wheel's part turns everything on it.
@@ -350,19 +378,22 @@ export class ModelView {
   readonly root = new Group()
   readonly meshes: Mesh[] = []
   private readonly joints: Joint[] = []
+  private readonly byPart: PartMeshes[] = []
 
   constructor(readonly model: Model) {
     const pivots = new Map<string | null, Group>([[null, this.root]])
+    const poseOf = new Map<string, string>()
     for (const def of model.recipe.parts) {
       const pivot = new Group()
       pivots.get(def.parent)!.add(pivot)
       pivots.set(def.name, pivot)
+      poseOf.set(def.name, def.pose ?? def.name)
       this.joints.push({ def, pivot })
     }
-    this.pose({})
     const solid: Material = model.rough ? MODEL.draftSolid : MODEL.solid
     const glow: Material = model.rough ? MODEL.draftGlow : MODEL.glow
     for (const [part, g] of model.parts) {
+      const meshes: PartMeshes = { pose: part === null ? null : poseOf.get(part)!, solid: null, glow: null }
       for (const [geometry, material] of [
         [g.solid, solid],
         [g.glow, glow],
@@ -374,26 +405,49 @@ export class ModelView {
         mesh.receiveShadow = !model.rough
         pivots.get(part)!.add(mesh)
         this.meshes.push(mesh)
+        meshes[material === solid ? 'solid' : 'glow'] = mesh
       }
+      this.byPart.push(meshes)
     }
+    this.pose({}, AS_BUILT)
   }
 
   /**
    * Puts every part where the pose says, as the engine reckons it (world.ts's partFrame): the
    * shift added to the pivot, the angles added to the rest angles, the size times the pose's.
-   * A part the pose does not name rests; a copy of a part (a name made twice) moves with the name the designer gave it.
+   * A part the pose does not name rests; a copy of a part (a name made twice) moves with the name
+   * the designer gave it. Then how each part is drawn on this one thing: hidden, one colour,
+   * glowing all over, or its lights switched off or recoloured (a part's own say first, then the
+   * thing's). A draft only moves and hides its parts.
    */
-  pose(parts: Record<string, PartPose>) {
+  pose(parts: Record<string, PartPose>, own: Own) {
     for (const { def, pivot } of this.joints) {
       const p = parts[def.pose ?? def.name]
       if (p === undefined) {
         pivot.position.set(def.at[0], def.at[1], def.at[2])
         pivot.rotation.set(def.rot[0], def.rot[1], def.rot[2], 'XYZ')
         pivot.scale.setScalar(1)
+        pivot.visible = true
       } else {
         pivot.position.set(def.at[0] + p.x, def.at[1] + p.y, def.at[2] + p.z)
         pivot.rotation.set(def.rot[0] + p.rx, def.rot[1] + p.ry, def.rot[2] + p.rz, 'XYZ')
         pivot.scale.setScalar(p.s)
+        pivot.visible = p.show !== false
+      }
+    }
+    if (this.model.rough) return
+    const anyLights = this.model.lights !== null
+    for (const m of this.byPart) {
+      const p = m.pose === null ? undefined : parts[m.pose]
+      const color = p?.color ?? null
+      const partGlow = p?.glow ?? null
+      // On without lights of its own, the part (or the whole thing) glows all over.
+      const allOver = (partGlow === true && m.glow === null) || (partGlow === null && own.glow === true && !anyLights)
+      if (m.solid !== null) m.solid.material = allOver ? (color !== null ? glow(color) : MODEL.glow) : color !== null ? flat(color) : MODEL.solid
+      if (m.glow !== null) {
+        const off = (partGlow ?? own.glow) === false
+        const tint = color ?? own.glowColor
+        m.glow.material = off ? MODEL.dim : tint !== null ? glow(tint) : MODEL.glow
       }
     }
   }

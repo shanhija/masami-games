@@ -111,7 +111,7 @@ function tubeGap(s: Shape, p: Vec3): number {
 describe('the built-in things', () => {
   it('build with the kit, with nothing to correct', () => {
     for (const b of BUILTIN_ITEMS) {
-      const { recipe, notes } = buildRecipe(b.build)
+      const { recipe, notes } = buildRecipe(b.build, [])
       expect(notes, b.id).toEqual([])
       expect(recipe.shapes.length, b.id).toBeLessThanOrEqual(60)
     }
@@ -290,7 +290,7 @@ describe('the basic verbs', () => {
 
   it('take a new thing to make or wear as words, and a colour', () => {
     const kinds = (id: string) => BASIC_VERBS.find((a) => a.id === id)!.params.map((p) => `${p.name}:${p.kind}${p.optional ? '?' : ''}`)
-    expect(kinds('make')).toEqual(['thing:text', 'color:text?'])
+    expect(kinds('make')).toEqual(['thing:text', 'color:text?', 'at:thing?', 'side:text?', 'reach:text?'])
     expect(kinds('wear')).toEqual(['thing:text', 'color:text?'])
     expect(kinds('paint')).toEqual(['color:text', 'thing:thing?', 'part:text?'])
     expect(kinds('rename')).toEqual(['name:text', 'who:actor?'])

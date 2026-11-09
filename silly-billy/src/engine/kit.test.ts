@@ -20,7 +20,7 @@ describe('the kit', () => {
         m.part('light' + (i % 2), { at: [Math.sin(a), 1, Math.cos(a)] }, () => m.sphere(0.1, { color: i % 2 ? 'red' : 'gold' }))
       }
       return { carry: 'no' }
-    })
+    }, [])
     expect(notes).toEqual([])
     expect(recipe.parts.map((p) => [p.name, p.pose ?? null])).toEqual([
       ['light0', null],
@@ -47,7 +47,7 @@ describe('the kit', () => {
       m.box(0.6, 0.4, 0.4, { at: [0, 0.2, 0], color: 'brown' })
       ;(m.part as (name: string, fn: () => void) => void)('lid', () => m.box(0.62, 0.05, 0.42, { at: [0, 0.42, 0], color: 'tan' }))
       return { carry: 'hug' }
-    })
+    }, [])
     expect(notes).toEqual([])
     expect(recipe.parts).toEqual([{ name: 'lid', at: [0, 0, 0], rot: [0, 0, 0], parent: null }])
     expect(recipe.shapes.map((s) => s.part)).toEqual([null, 'lid'])
@@ -56,7 +56,7 @@ describe('the kit', () => {
   it('stops making parts past a hundred and twenty, keeping their shapes', () => {
     const { recipe, notes } = buildRecipe((m) => {
       for (let i = 0; i < 200; i++) m.part('bit', { at: [i * 0.01, 0, 0] }, () => m.box(0.01, 0.01, 0.01))
-    })
+    }, [])
     expect(recipe.parts.length).toBe(120)
     expect(recipe.shapes.length).toBe(200)
     expect(notes).toEqual(['too many parts'])
@@ -73,11 +73,11 @@ describe('the kit', () => {
         })
       })
     }
-    const alone = buildRecipe((m) => branch(m))
+    const alone = buildRecipe((m) => branch(m), [])
     const late = buildRecipe((m) => {
       for (let i = 0; i < 120; i++) m.part('bit' + i, { at: [5, 5, 5] }, () => m.box(0.01, 0.01, 0.01))
       branch(m)
-    })
+    }, [])
     expect(late.notes).toEqual(['too many parts'])
     expect(late.recipe.parts.length).toBe(120)
     const mine = late.recipe.shapes.slice(120)
@@ -130,7 +130,7 @@ describe('colours', () => {
 
   it("takes no colour from an object's own fields: a look or a shape keeps a string", () => {
     for (const name of ['constructor', 'Constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf', 'isPrototypeOf']) expect(parseColor(name), name).toBeNull()
-    const { recipe, notes } = buildRecipe((m) => m.box(1, 1, 1, { color: 'Constructor' }))
+    const { recipe, notes } = buildRecipe((m) => m.box(1, 1, 1, { color: 'Constructor' }), [])
     expect(recipe.shapes[0]!.color).toBe('#9aa3ad')
     expect(notes).toEqual(['unknown colour "Constructor"'])
   })

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Link } from '../brain/contract'
-import { Mic, RATE, cleanWords, wav } from './mic'
+import { Mic, RATE, cleanWords, isTouchDevice, processingFor, wav, type DeviceSigns, type MicInfo } from './mic'
 import { hearingPrime } from './prime'
 
 const ascii = (v: DataView, at: number, n: number) => String.fromCharCode(...Array.from({ length: n }, (_, i) => v.getUint8(at + i)))
@@ -82,6 +82,30 @@ describe('cleanWords', () => {
   })
 })
 
+describe('processingFor', () => {
+  const LINUX = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36'
+  const laptop: DeviceSigns = { userAgent: LINUX, platform: 'Linux', maxTouchPoints: 0, fingerOnly: false }
+  const ON = { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+  const OFF = { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+
+  it("keeps the laptop's processing as it heard well, a touch screen laptop's too", () => {
+    expect(processingFor(laptop)).toEqual(ON)
+    expect(processingFor({ ...laptop, maxTouchPoints: 10 })).toEqual(ON)
+  })
+
+  it('turns all processing off on Android, also when Chrome on a big tablet says it is desktop Linux', () => {
+    expect(processingFor({ userAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/142.0.0.0 Safari/537.36', platform: 'Android', maxTouchPoints: 5, fingerOnly: true })).toEqual(OFF)
+    // Desktop mode: the user agent says Linux on x86, the pointer is a finger.
+    expect(processingFor({ userAgent: LINUX, platform: 'Linux', maxTouchPoints: 10, fingerOnly: true })).toEqual(OFF)
+    expect(processingFor({ userAgent: LINUX, platform: 'Linux armv81', maxTouchPoints: 10, fingerOnly: false })).toEqual(OFF)
+  })
+
+  it('treats any device whose only pointer is a finger as a tablet', () => {
+    expect(isTouchDevice({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Version/18.0 Safari/605.1.15', platform: 'MacIntel', maxTouchPoints: 5, fingerOnly: true })).toBe(true)
+    expect(isTouchDevice(laptop)).toBe(false)
+  })
+})
+
 // ------------------------------------------------------------------ push-to-talk, with the browser's parts faked
 
 type Heard = [string, string?]
@@ -137,23 +161,30 @@ class FakeContext {
   async close() {}
 }
 
+/** What the fake microphone track says it does: an Android tablet's, which leaves out latency. */
+const SETTINGS = { sampleRate: 48000, channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false, deviceId: 'default' }
+
+/** The fake device: the laptop, unless a test makes it a tablet. */
+const device = { userAgent: 'Mozilla/5.0 (X11; Linux x86_64) Chrome/142.0.0.0', platform: 'Linux x86_64', maxTouchPoints: 0, fine: true }
+
 function rig(whisper: boolean, recognizer: boolean) {
   const heard: Heard[] = []
-  const asks: { samples: number; lang: string; partial: boolean; prime?: string }[] = []
+  const asks: { samples: number; lang: string; partial: boolean; prime?: string; mic?: MicInfo }[] = []
   /** What the game would prime Whisper with now: the test changes it between clips. */
   const now = { lang: 'fi' as 'fi' | 'en', prime: 'Aino, Eetu, Mikko, Noora ja Mirri leikkivät.' }
-  const getUserMedia = vi.fn(async () => ({}))
+  const getUserMedia = vi.fn(async (_: MediaStreamConstraints) => ({ getAudioTracks: () => [{ label: 'Built-in mic', getSettings: () => SETTINGS }] }))
   vi.stubGlobal('window', {
     setInterval: (fn: () => void, ms: number) => setInterval(fn, ms),
     clearInterval: (id: number) => clearInterval(id),
     ...(recognizer ? { webkitSpeechRecognition: FakeRecognizer } : {}),
   })
-  vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
+  vi.stubGlobal('navigator', { mediaDevices: { getUserMedia }, userAgent: device.userAgent, platform: device.platform, maxTouchPoints: device.maxTouchPoints })
+  vi.stubGlobal('matchMedia', (q: string) => ({ matches: q === '(any-pointer: fine)' && device.fine }))
   vi.stubGlobal('AudioContext', FakeContext)
   vi.stubGlobal('AudioWorkletNode', FakeNode)
   const link = {
-    hear: async (wav: ArrayBuffer, lang: 'fi' | 'en', partial: boolean, prime?: string) => {
-      asks.push({ samples: (wav.byteLength - 44) / 2, lang, partial, prime })
+    hear: async (wav: ArrayBuffer, lang: 'fi' | 'en', partial: boolean, prime?: string, mic?: MicInfo) => {
+      asks.push({ samples: (wav.byteLength - 44) / 2, lang, partial, prime, ...(mic ? { mic } : {}) })
       return { text: partial ? 'alice' : '[BLANK_AUDIO] alice hyppää', ms: 5 }
     },
   } as unknown as Link
@@ -252,7 +283,7 @@ describe('Mic', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(heard).toEqual([['partial', 'alice'], ['final', 'alice hyppää']])
     const prime = 'Aino, Eetu, Mikko, Noora ja Mirri leikkivät.'
-    expect(asks).toEqual([
+    expect(asks.map(({ mic: _, ...a }) => a)).toEqual([
       { samples: RATE * 0.6, lang: 'fi', partial: true, prime },
       { samples: RATE * 0.6, lang: 'fi', partial: false, prime },
     ])
@@ -261,6 +292,43 @@ describe('Mic', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(getUserMedia).toHaveBeenCalledTimes(1)
     mic.release()
+  })
+
+  it("sends what the browser gave for the microphone with the whole clip, and the laptop's processing on", async () => {
+    const { mic, asks, getUserMedia } = rig(true, false)
+    mic.press()
+    await vi.advanceTimersByTimeAsync(40)
+    FakeNode.last.port.onmessage!({ data: new Float32Array(RATE * 0.6) })
+    await vi.advanceTimersByTimeAsync(1200)
+    mic.release()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(getUserMedia).toHaveBeenCalledWith({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+    expect(asks.filter((a) => a.partial).every((a) => a.mic === undefined)).toBe(true)
+    expect(asks.at(-1)!.mic).toEqual({
+      device: { userAgent: device.userAgent, platform: 'Linux x86_64', maxTouchPoints: 0, fingerOnly: false },
+      asked: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      got: { sampleRate: 48000, channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false, latency: null },
+      label: 'Built-in mic',
+      contextRate: RATE,
+      heldMs: 1240,
+      startMs: 40,
+    })
+  })
+
+  it('asks a tablet for its microphone without the call processing', async () => {
+    Object.assign(device, { maxTouchPoints: 10, fine: false })
+    try {
+      const { mic, asks, getUserMedia } = rig(true, false)
+      mic.press()
+      await vi.advanceTimersByTimeAsync(0)
+      FakeNode.last.port.onmessage!({ data: new Float32Array(RATE * 0.6) })
+      mic.release()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(getUserMedia).toHaveBeenCalledWith({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false } })
+      expect(asks.at(-1)!.mic!.device).toEqual({ userAgent: device.userAgent, platform: 'Linux x86_64', maxTouchPoints: 10, fingerOnly: true })
+    } finally {
+      Object.assign(device, { maxTouchPoints: 0, fine: true })
+    }
   })
 
   it('asks Whisper in the language of the setting with the prime of the moment, for every clip', async () => {

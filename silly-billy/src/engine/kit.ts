@@ -10,7 +10,7 @@
  */
 
 import { anglesXYZ, eulerXYZ, apply, mul, IDENTITY, type Mat3 } from './body'
-import { SLOTS, type ItemMeta, type PartDef, type Recipe, type Shape, type ShapeKind, type Slot, type Vec3 } from './types'
+import { FOODS, SLOTS, TEMPS, type Food, type ItemMeta, type ItemTraits, type PartDef, type Recipe, type Shape, type ShapeKind, type Slot, type Temp, type Vec3 } from './types'
 
 export const MAX_SHAPES = 400
 export const MAX_POINTS = 64
@@ -352,6 +352,39 @@ export function metaOf(returned: unknown, bounds: Recipe['bounds'], notes: strin
   }
 }
 
+/** Words that name food, whole: short ones a longer word must not be mistaken for ('pear' is no 'pearl'). */
+const FOOD_WORDS = new Set(['bun', 'pie', 'egg', 'eggs', 'corn', 'rice', 'peas', 'pear', 'plum', 'fig', 'jam', 'taco', 'cake', 'food', 'meal', 'snack', 'treat', 'fruit', 'pulla', 'nakki', 'lettu', 'riisi', 'herne', 'ruoka', 'eväs', 'muna'])
+/** Beginnings of words that name food, in English and Finnish (the Finnish with their endings: 'makkaran', 'kakun'). */
+const FOOD_STEMS = [
+  'apple', 'banana', 'cupcake', 'muffin', 'cookie', 'biscuit', 'bread', 'sandwich', 'pizza', 'sausage', 'hotdog', 'burger', 'fries', 'candy', 'sweets', 'lollipop',
+  'chocolate', 'icecream', 'carrot', 'cucumber', 'tomato', 'cherr', 'strawberr', 'berry', 'berries', 'grape', 'melon', 'donut', 'doughnut', 'pancake', 'waffle',
+  'cheese', 'soup', 'porridge', 'cereal', 'popcorn', 'pretzel', 'noodle', 'spaghetti', 'pasta', 'meatball', 'marshmallow', 'jelly', 'pudding', 'yogurt', 'yoghurt', 'snacks',
+  'vegetable', 'potato', 'lemon', 'peach', 'mango', 'pineapple', 'kiwi', 'omena', 'omppu', 'banaani', 'kakku', 'kakun', 'kakkua', 'keksi', 'keksin', 'leipä',
+  'leivä', 'voileip', 'makkara', 'hampurilai', 'ranskal', 'karkki', 'karki', 'tikkari', 'suklaa', 'jäätelö', 'porkkan', 'kurkku', 'tomaat', 'päärynä',
+  'luumu', 'kirsik', 'mansik', 'marja', 'mustik', 'puoluk', 'vadelm', 'rypäle', 'meloni', 'piirak', 'piiras', 'munkki', 'donitsi', 'pannukak', 'vohvel',
+  'juusto', 'keitto', 'puuro', 'nuudel', 'spaget', 'lihapull', 'hattara', 'vaahtokark', 'hyytelö', 'vanuka', 'jogurt', 'herkku', 'hedelm', 'vihann', 'maissi',
+  'peruna', 'sitruun', 'persik', 'ananas', 'eväät',
+]
+const POISON_STEMS = ['poison', 'toadstool', 'myrkky', 'myrkyl', 'kärpässien']
+
+/** Food guessed from a thing's names when its builder did not say: a poison apple is poison, a cake or a sausage yummy, anything else none. */
+export function guessFood(names: readonly string[]): Food | null {
+  const words = names.flatMap((n) => [n.toLowerCase().replace(/[\s_-]+/g, ''), ...n.toLowerCase().split(/[^a-zäöå]+/)]).filter((w) => w !== '')
+  const starts = (stems: readonly string[]) => words.some((w) => stems.some((s) => w.startsWith(s)))
+  if (starts(POISON_STEMS)) return 'poison'
+  return words.some((w) => FOOD_WORDS.has(w)) || starts(FOOD_STEMS) ? 'yummy' : null
+}
+
+/** What a thing is for, from what its builder returned: food (guessed from its names when not given), hot or cold, soft. */
+export function traitsOf(returned: unknown, names: readonly string[], notes: string[]): ItemTraits {
+  const r = (returned && typeof returned === 'object' ? returned : {}) as Record<string, unknown>
+  const food = FOODS.includes(r.food as Food) ? (r.food as Food) : guessFood(names)
+  if (r.food !== undefined && r.food !== null && !FOODS.includes(r.food as Food)) notes.push(`food ${JSON.stringify(r.food)} is not yummy, yucky or poison`)
+  const temp = TEMPS.includes(r.temp as Temp) ? (r.temp as Temp) : null
+  if (r.temp !== undefined && r.temp !== null && temp === null) notes.push(`temp ${JSON.stringify(r.temp)} is not hot or cold`)
+  return { food, temp, soft: r.soft === true }
+}
+
 /** Anchors every thing has, where its builder did not say: 'top', 'seat' and 'hand'. */
 function defaultAnchors(anchors: Recipe['anchors'], bounds: Recipe['bounds'], meta: ItemMeta) {
   const cx = (bounds.min[0] + bounds.max[0]) / 2
@@ -364,18 +397,23 @@ function defaultAnchors(anchors: Recipe['anchors'], bounds: Recipe['bounds'], me
   return out
 }
 
-/** Runs a builder in a fresh kit. Throws whatever the builder throws; everything else is forgiven and noted. */
-export function buildRecipe(build: (m: Kit) => unknown): { recipe: Recipe; notes: string[] } {
+/**
+ * Runs a builder in a fresh kit. Throws whatever the builder throws; everything else is forgiven
+ * and noted. `names` are what the thing is called (its id, names and calls), for a guess at
+ * whether it is food when the builder did not say.
+ */
+export function buildRecipe(build: (m: Kit) => unknown, names: readonly string[]): { recipe: Recipe; notes: string[] } {
   const kit = new Kit()
   const returned = build(kit)
   if (kit.shapes.length === 0) throw new Error('the model has no shapes')
   const bounds = boundsOf(kit.shapes, kit.parts)
   const meta = metaOf(returned, bounds, kit.notes)
-  return { recipe: { shapes: kit.shapes, parts: kit.parts, anchors: defaultAnchors(kit.anchors, bounds, meta), meta, bounds }, notes: kit.notes }
+  const traits = traitsOf(returned, names, kit.notes)
+  return { recipe: { shapes: kit.shapes, parts: kit.parts, anchors: defaultAnchors(kit.anchors, bounds, meta), meta, traits, bounds }, notes: kit.notes }
 }
 
 /** A recipe from the interpreter's quick draft, so the thing can appear before its real model is designed. */
-export function roughRecipe(shapes: RoughShape[], meta: Partial<ItemMeta>): Recipe {
+export function roughRecipe(shapes: RoughShape[], meta: Partial<ItemMeta & ItemTraits>, names: readonly string[]): Recipe {
   const { recipe } = buildRecipe((m) => {
     for (const s of shapes.slice(0, 12)) {
       const [x = 0.3, y = 0.3, z = 0.3] = (Array.isArray(s.size) ? s.size : []).map((v) => dim(v, 0.3))
@@ -387,6 +425,6 @@ export function roughRecipe(shapes: RoughShape[], meta: Partial<ItemMeta>): Reci
     }
     if (shapes.length === 0) m.box(0.4, 0.4, 0.4, { at: [0, 0.2, 0], color: '#c9b3f2' })
     return meta
-  })
+  }, names)
   return recipe
 }

@@ -99,10 +99,12 @@ export function glow(color: string): MeshBasicMaterial {
   return m
 }
 
-/** The four materials every model is drawn with: its solid and glowing shapes, and the same see-through while it is still a draft. */
+/** The materials every model is drawn with: its solid and glowing shapes, its glowing shapes switched off, and the same see-through while it is still a draft. */
 export const MODEL = {
   solid: new MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 }),
   glow: new MeshBasicMaterial({ vertexColors: true }),
+  /** A lamp turned off, a fire put out: its own colours, lit by the sun but darker. */
+  dim: new MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, color: '#6a6a6a' }),
   draftSolid: new MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, transparent: true, opacity: 0.6, depthWrite: false, emissive: '#ffffff', emissiveIntensity: 0.2 }),
   draftGlow: new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6, depthWrite: false }),
 }

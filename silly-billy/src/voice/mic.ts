@@ -3,10 +3,11 @@
  * game's language: by Whisper on the dev server when it is ready, else by the browser's own
  * recognizer, else not at all (the button gives way to typing). Whisper gets 16 kHz mono WAV
  * recorded through an AudioWorklet (belay-that's way): the clip so far every half second for the
- * live words, the whole clip on letting go, each with the language and the prime. The
- * microphone is asked for on the first press, never before; when there is none, or the browser
- * will not let the page use it, the press ends at once and the mic is `blocked` until a press
- * gets one.
+ * live words, the whole clip on letting go, each with the language and the prime; the whole clip
+ * also carries what the browser gave for the microphone (MicInfo), which the dev server keeps
+ * beside it. The microphone is asked for on the first press, never before, with the processing
+ * `processingFor` picks for the device; when there is none, or the browser will not let the page
+ * use it, the press ends at once and the mic is `blocked` until a press gets one.
  */
 
 import type { Link } from '../brain/contract'
@@ -19,6 +20,73 @@ export const RATE = 16000
 const MIN_SECONDS = 0.3
 /** How often the clip so far is heard again while the button is held. */
 const PARTIAL_MS = 500
+
+/** The browser's own processing of the microphone, as asked for in getUserMedia. */
+export interface Processing {
+  echoCancellation: boolean
+  noiseSuppression: boolean
+  autoGainControl: boolean
+}
+
+/** What tells a tablet or a phone from the laptop, as the page sees it. */
+export interface DeviceSigns {
+  userAgent: string
+  /** navigator.userAgentData.platform where there is one, else navigator.platform. */
+  platform: string
+  maxTouchPoints: number
+  /** The only pointer is a finger: no mouse or touchpad (`(any-pointer: fine)` does not match). */
+  fingerOnly: boolean
+}
+
+/**
+ * A tablet or a phone: Android by its user agent or platform, or a device whose only pointer is a
+ * finger. Chrome on a big Android tablet asks for desktop sites by default and then says it is
+ * Linux on x86 in the user agent, so the pointer is what tells it from the laptop.
+ */
+export const isTouchDevice = (d: DeviceSigns) => /android/i.test(d.userAgent) || /android|arm|aarch/i.test(d.platform) || d.fingerOnly
+
+/**
+ * The processing to ask for. On a tablet or a phone, none: with echoCancellation on, Chrome on
+ * Android records through the phone-call path (the audio mode MODE_IN_COMMUNICATION and the
+ * VOICE_COMMUNICATION input preset, with the device's own echo canceller, noise suppressor and
+ * gain, tuned for an adult on a call: Chromium's AAudio input and AudioManagerAndroid), and its
+ * noise suppression and gain control squash a child's high, quiet voice; with all three off it
+ * uses the generic microphone preset, which keeps the device's normal gain. Nothing plays while
+ * the button is held (the game hushes the voices and ducks the sounds), so there is no echo to
+ * cancel. On the laptop, all three on, as it heard well on 2026-11-08.
+ */
+export function processingFor(d: DeviceSigns): Processing {
+  const on = !isTouchDevice(d)
+  return { echoCancellation: on, noiseSuppression: on, autoGainControl: on }
+}
+
+/** The device as this page sees it. */
+function deviceSigns(): DeviceSigns {
+  // userAgentData is Chromium's only.
+  const nav = navigator as Navigator & { userAgentData?: { platform: string } }
+  return { userAgent: nav.userAgent, platform: nav.userAgentData?.platform ?? nav.platform, maxTouchPoints: nav.maxTouchPoints, fingerOnly: nav.maxTouchPoints > 0 && !matchMedia('(any-pointer: fine)').matches }
+}
+
+/**
+ * What the browser gave for the microphone, sent with each whole clip and kept beside it on the
+ * dev server, so the tablet's clips can be told from the laptop's and compared: the processing
+ * asked for and what the track says it does, its rate, the context's rate the clip was recorded
+ * at, and how long the button was held and how long recording took to start after the press.
+ */
+export interface MicInfo {
+  device: DeviceSigns
+  asked: Processing
+  /** The track's own settings (MediaTrackSettings); what a browser leaves out is null. */
+  got: { sampleRate: number | null; channelCount: number | null; echoCancellation: boolean | null; noiseSuppression: boolean | null; autoGainControl: boolean | null; latency: number | null }
+  /** The microphone's name ('' when the browser hides it). */
+  label: string
+  /** The AudioContext's rate: 16000, or the device's own where the browser would not record at 16 kHz (then wav() resamples). */
+  contextRate: number
+  /** From the press to letting go. */
+  heldMs: number
+  /** From the press to the first block recorded: opening the microphone (on the first press, the browser's question too) and waking the context. */
+  startMs: number
+}
 
 export interface MicDeps {
   link: Link
@@ -62,13 +130,29 @@ interface Capture {
   ac: AudioContext
   chunks: Float32Array[]
   recording: boolean
+  /** When the first block of this press came (performance.now()), or null before it. */
+  firstAt: number | null
+  /** What MicInfo says of the microphone, the same for every press. */
+  mic: Omit<MicInfo, 'heldMs' | 'startMs'>
 }
 
 const seconds = (cap: Capture) => cap.chunks.reduce((n, c) => n + c.length, 0) / cap.ac.sampleRate
 
 /** The microphone into a muted AudioWorklet that hands its blocks to `chunks` while `recording`. */
 async function openCapture(): Promise<Capture> {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+  const device = deviceSigns()
+  const asked = processingFor(device)
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, ...asked } })
+  const track = stream.getAudioTracks()[0]!
+  const s = track.getSettings() as MediaTrackSettings & { latency?: number }
+  const got = {
+    sampleRate: s.sampleRate ?? null,
+    channelCount: s.channelCount ?? null,
+    echoCancellation: typeof s.echoCancellation === 'boolean' ? s.echoCancellation : null,
+    noiseSuppression: s.noiseSuppression ?? null,
+    autoGainControl: s.autoGainControl ?? null,
+    latency: s.latency ?? null,
+  }
   let ac = new AudioContext({ sampleRate: RATE })
   let source: MediaStreamAudioSourceNode
   try {
@@ -84,9 +168,11 @@ async function openCapture(): Promise<Capture> {
   const mute = ac.createGain()
   mute.gain.value = 0
   source.connect(node).connect(mute).connect(ac.destination)
-  const cap: Capture = { ac, chunks: [], recording: false }
+  const cap: Capture = { ac, chunks: [], recording: false, firstAt: null, mic: { device, asked, got, label: track.label, contextRate: ac.sampleRate } }
   node.port.onmessage = (e: MessageEvent<Float32Array>) => {
-    if (cap.recording) cap.chunks.push(e.data)
+    if (!cap.recording) return
+    cap.firstAt ??= performance.now()
+    cap.chunks.push(e.data)
   }
   return cap
 }
@@ -151,6 +237,9 @@ export class Mic {
   private timer = 0
   private asking = false
   private rec: Recognizer | null = null
+  /** When the button went down and up (performance.now()), for MicInfo. */
+  private pressedAt = 0
+  private releasedAt = 0
 
   constructor(deps: MicDeps) {
     this.deps = deps
@@ -167,6 +256,7 @@ export class Mic {
     this.held = true
     this.using = listener
     this.presses += 1
+    this.pressedAt = performance.now()
     if (listener === 'whisper') void this.record(this.presses)
     else this.listenInBrowser(this.presses)
   }
@@ -174,6 +264,7 @@ export class Mic {
   release() {
     if (!this.held) return
     this.held = false
+    this.releasedAt = performance.now()
     if (this.using === 'whisper') void this.letGo()
     else if (this.rec !== null) this.rec.stop()
   }
@@ -196,6 +287,7 @@ export class Mic {
     // Let go while the browser was still asking for the microphone: this press only opened it.
     if (press !== this.presses || !this.held) return
     cap.chunks = []
+    cap.firstAt = null
     cap.recording = true
     this.timer = window.setInterval(() => void this.hearSoFar(cap, press), PARTIAL_MS)
   }
@@ -221,8 +313,9 @@ export class Mic {
     if (cap === null || !cap.recording) return
     cap.recording = false
     if (seconds(cap) < MIN_SECONDS) return this.deps.missed()
+    const mic: MicInfo = { ...cap.mic, heldMs: Math.round(this.releasedAt - this.pressedAt), startMs: Math.round((cap.firstAt ?? this.releasedAt) - this.pressedAt) }
     try {
-      const reply = await this.deps.link.hear(wav(cap.chunks, cap.ac.sampleRate), this.deps.lang(), false, this.deps.prime())
+      const reply = await this.deps.link.hear(wav(cap.chunks, cap.ac.sampleRate), this.deps.lang(), false, this.deps.prime(), mic)
       const words = cleanWords(reply.text)
       if (words === '') this.deps.missed()
       else this.deps.final(words)

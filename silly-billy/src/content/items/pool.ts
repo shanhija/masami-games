@@ -47,7 +47,7 @@ export const POOL_ITEMS: BuiltinItem[] = [
       m.box(0.62, 0.06, 0.72, { at: [0, h + 0.23, -0.6], rot: [0.6, 0, 0], color: 'white' })
       m.box(0.58, 0.05, 0.66, { at: [0, h + 0.27, -0.58], rot: [0.6, 0, 0], color: 'skyblue' })
       m.anchor('seat', [0, h + 0.08, 0.15])
-      return { carry: 'no', sit: true, solid: true }
+      return { carry: 'no', sit: true, solid: true, soft: true }
     },
   }),
   item({
@@ -87,7 +87,7 @@ export const POOL_ITEMS: BuiltinItem[] = [
         })
         m.tube(points, tube, { color: i % 2 === 0 ? 'red' : 'white' })
       }
-      return { carry: 'hug', bouncy: 0.6, solid: false }
+      return { carry: 'hug', bouncy: 0.6, solid: false, soft: true }
     },
   }),
   item({
@@ -101,7 +101,7 @@ export const POOL_ITEMS: BuiltinItem[] = [
       m.sphere(r, { at: [0, r, 0], color: 'white' })
       // Each stretched ball shows through the white one in two stripes, on opposite sides.
       ;(['red', 'yellow', 'blue'] as const).forEach((color, i) => m.sphere(r * 1.02, { at: [0, r, 0], rot: [0, (i * Math.PI) / 3, 0], scale: [0.9, 0.95, 1], color }))
-      return { carry: 'hand', bouncy: 0.8, solid: false }
+      return { carry: 'hand', bouncy: 0.8, solid: false, soft: true }
     },
   }),
   item({
@@ -131,7 +131,7 @@ export const POOL_ITEMS: BuiltinItem[] = [
       stripes.forEach((color, i) => m.box(0.75, 0.025, l / stripes.length, { at: [0, 0.0125, -l / 2 + l / 10 + (i * l) / stripes.length], color }))
       m.cylinder(0.07, 0.07, 0.75, { at: [0, 0.07, -l / 2 + 0.07], rot: [0, 0, Math.PI / 2], color: 'hotpink' })
       m.anchor('seat', [0, 0.03, 0.1])
-      return { carry: 'hug', sit: true, solid: false }
+      return { carry: 'hug', sit: true, solid: false, soft: true }
     },
   }),
   item({

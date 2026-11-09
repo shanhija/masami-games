@@ -6,7 +6,7 @@
 
 import type { Lang } from '../engine/lang'
 import type { ActionEntry, ItemEntry, Param, ParamKind } from '../engine/protocol'
-import { restPose, type Actor, type BodyKind, type Item, type ItemMeta, type Pronoun, type Slot, type World } from '../engine/types'
+import { restPose, type Actor, type BodyKind, type Item, type ItemMeta, type Pronoun, type Recipe, type Slot, type World } from '../engine/types'
 import { matchWord } from '../engine/words'
 import type { Vocabulary } from './parse'
 
@@ -127,12 +127,34 @@ export const TEST_ITEMS: { id: string; calls: string[]; carry: ItemMeta['carry']
   { id: 'hair-short', calls: ['tukka', 'tukan', 'hiukset', 'short hair'], carry: 'hand', wear: 'hair' },
 ]
 
+const anchorsOf = (id: string): Recipe['anchors'] => (id === 'slide' ? { top: { at: [0, 2, 0], part: null } } : id === 'swing' ? { seat: { at: [0, 0.5, 0], part: 'seat1' } } : {})
+
 export function testVocabulary(actions = TEST_ACTIONS, items = TEST_ITEMS): Vocabulary {
   const words = (list: { id: string; calls: string[] }[]) => list.map((e) => ({ id: e.id, words: [e.id, ...e.calls] }))
   return {
     // The Finnish names are the first calls, as the content's are.
     actions: new Map(actions.map((a) => [a.id, { id: a.id, name: a.id, nameFi: a.calls[0] ?? a.id, about: `does ${a.id}`, params: a.params }])),
-    items: new Map(items.map((i) => [i.id, { id: i.id, name: i.id.replace(/-/g, ' '), nameFi: i.calls[0] ?? i.id, info: { recipe: { meta: { wear: i.wear ?? null, carry: i.carry } } } }])),
+    // Big things stand 2 m high and are solid; the slide has its steps' top as an anchor, the swing its seat.
+    items: new Map(
+      items.map((i) => [
+        i.id,
+        {
+          id: i.id,
+          name: i.id.replace(/-/g, ' '),
+          nameFi: i.calls[0] ?? i.id,
+          info: {
+            size: i.carry === 'no' ? [2, 2, 2] : [0.3, 0.3, 0.3],
+            rough: false,
+            recipe: {
+              parts: i.id === 'swing' ? [{ name: 'seat1', at: [0, 0.5, 0], rot: [0, 0, 0], parent: null }] : [],
+              anchors: anchorsOf(i.id),
+              meta: { wear: i.wear ?? null, carry: i.carry, ride: false, sit: i.id === 'swing' || i.id === 'bench', bouncy: 0.3, solid: i.carry === 'no' },
+              traits: { food: null, temp: null, soft: i.id === 'bench' },
+            },
+          },
+        },
+      ]),
+    ),
     actionFor: (word, opts) => matchWord(word, words(actions), opts),
     itemKindFor: (word, opts) => matchWord(word, words(items), opts),
   }

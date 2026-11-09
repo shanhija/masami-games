@@ -86,8 +86,13 @@ const FULL: Plan = {
 
 const SMALL: Plan = { heard: 'Eetu jumps', heardFi: 'Eetu hyppää', who: ['steve'], steps: [{ who: 'steve', action: 'jump', args: [] }], newActions: [], newItems: [], say: 'Hop!', sayFi: 'Hyppy!' }
 
-/** The interpreter's prompt and schema: Haiku reads both for every command, so they grow only for a rule that earns it (the last: something done with a thing is one action). */
-const INTERPRETER_SIZE = 18_100
+/**
+ * The interpreter's prompt and schema: the interpreter reads both for every command, so they grow only for a rule that earns it. Since the
+ * second play of 2026-11-09 they state principles, not the cases that taught them (the game is meant to meet requests nobody
+ * foresaw): the size came down from 21,405 to 21,240 with the new engine calls in it, and stayed there when one principle of
+ * world knowledge ("can it be done") took the place of the role lists (Sami: "that list would grow uncontrollably").
+ */
+const INTERPRETER_SIZE = 21_240
 
 describe('schemas', () => {
   it('are strict, typed and described all the way down', () => {
@@ -98,7 +103,8 @@ describe('schemas', () => {
 
   it('need exactly the fields the Plan type needs', () => {
     expect(PLAN_SCHEMA.required).toEqual(['heard', 'heardFi', 'who', 'steps', 'newActions', 'newItems', 'say', 'sayFi'])
-    expect(Object.keys(PLAN_SCHEMA.properties as object)).toEqual(['heard', 'heardFi', 'who', 'steps', 'newActions', 'newItems', 'create', 'room', 'say', 'sayFi'])
+    expect(Object.keys(PLAN_SCHEMA.properties as object)).toEqual(['heard', 'heardFi', 'who', 'steps', 'newActions', 'newItems', 'create', 'room', 'scripts', 'say', 'sayFi'])
+    expect(((PLAN_SCHEMA.properties as Record<string, Schema>).scripts!.items as Schema).required).toEqual(['id', 'about', 'code'])
     const props = PLAN_SCHEMA.properties as Record<string, Schema>
     expect((props.newActions!.items as Schema).required).toEqual(['id', 'name', 'nameFi', 'calls', 'about', 'params'])
     expect((props.newItems!.items as Schema).required).toEqual(['id', 'name', 'nameFi', 'calls', 'about', 'rough', 'meta'])
@@ -149,8 +155,8 @@ describe('the interpreter', () => {
       'always all four',
       "Words to say and names in text args are short and in the game's language: 'sano hei' is words 'Hei!', 'say hi' is 'Hi!'",
       'Kinds, colours and parts stay English',
-      "nameFi: the Finnish verb as said to someone ('heitä')",
-      "nameFi: the Finnish word in the nominative ('polkupyörä')",
+      "nameFi the Finnish verb as said to someone ('heitä')",
+      "nameFi in the nominative ('polkupyörä')",
       'No dashes',
     ])
       expect(INTERPRET_SYSTEM).toContain(rule)
@@ -166,21 +172,94 @@ describe('the interpreter', () => {
     for (const name of ['Alice', 'Steve', 'Stevelle', 'Eetu', 'Luna']) expect(INTERPRET_SYSTEM, name).not.toMatch(new RegExp(`\\b${name}\\b`))
   })
 
-  it('is no longer than before the plan had two languages', () => {
+  it('grows only for a rule that earns it', () => {
     expect(INTERPRET_SYSTEM.length + JSON.stringify(PLAN_SCHEMA).length).toBeLessThanOrEqual(INTERPRETER_SIZE)
   })
 
-  it('is told what went wrong in the live tries', () => {
+  it('is told what went wrong in the live tries, as principles', () => {
     // 'rakenna lumiukko' made a snowman-only build; 'tee kärrynpyörä' a wheelbarrow; 'laula laulu' a bubble saying 'laulu'; 'ui' a dive; the skateboard lay along x.
     for (const rule of [
       'never the names or the kinds in this command',
       "A param's about is general too",
-      "'tee kärrynpyörä' is a cartwheel",
-      "'laula laulu' needs no song",
-      "The id is the English of the verb the child said: 'ui' is swim",
-      'a skateboard, a sled, a scooter) lies along z',
+      "'tee' is also do: with a move it is that move ('tee kärrynpyörä' a cartwheel",
+      'Leave out a text arg that only repeats the verb',
+      'The id is the English of the verb the child said, never a different action that comes to mind with it',
+      'so a long thing lies along z',
       'nor what they are made of',
-      "a swim never takes 'sukella'",
+      "never another action's words",
+    ])
+      expect(INTERPRET_SYSTEM).toContain(rule)
+  })
+
+  it('writes a script for this moment when no known action does exactly what was asked, with the few calls it may use', () => {
+    for (const rule of [
+      "SCRIPTS: this moment's own code, when no known action does exactly what was asked",
+      'A script does it with these very things, from the whole scene, using the known actions as helpers',
+      'A move the child may ask for again is a new action instead, and a known action that fits needs no script',
+      "code: the body of function* (me, args, w), at most 10 lines, else '' (the designer writes it from about while the avatar thinks)",
+      "yield* me.do('bounce', { thing: args.thing })",
+      "yield* me.flip('backflip')",
+      'yield* me.climbOnto(it) (up onto its top and stays: a jump or a flip there lands on it)',
+      "yield* me.moveThing(it, to, 'top') (any size: carried, pushed or by magic",
+      "yield* me.moveThing(it, [t.point(0, 1, -1), t.point(0, 1, 1)], null, { speed: 2 }) (a route along t's top, as t lies",
+      "t.point: its box -1..1",
+      'whoever is aboard goes along',
+      'yield* me.walkTo([p, q], { speed: 2 })',
+      "it.attachTo(other, 'front', { up: 'top' })",
+      'w.sky.fade({ time: 22 }, 3)',
+      'food, temp and soft for what is eaten, hot or cold, or soft',
+    ])
+      expect(INTERPRET_SYSTEM).toContain(rule)
+  })
+
+  it('states principles, not the cases that taught them (the second play of 2026-11-09)', () => {
+    // "pudota uimarengas" with the ring on became a jump to the pond; the answer said what was misheard; a water slide too big to
+    // carry went to put-on; a train track was driven like a car; a slide from the treehouse rebuilt the playground's own slide; a
+    // hula hoop action was called 'käytä'; a misheard word became a thing's Finnish name.
+    for (const rule of [
+      'Read the words by how they sound against the scene: a garbled word most likely names someone or something here, or what an avatar holds, wears or just did',
+      'never about the words or how they were heard',
+      'A known action fits only when its about is the very thing asked, covering all of it (the move, the things, where each ends up)',
+      'write a script (SCRIPTS) rather than bend one',
+      'Picture it happening with these very things and use what you know of the world: what each thing is, what it can do, what moves and what carries whom',
+      'Silly is welcome whenever it could be done at all; when what was literally asked cannot be done (the thing cannot do what the verb needs), do the reading that can',
+      'What a thing is comes from its kind and its look, never from a name that may be misheard',
+      "only what a step makes or builds is 'new:kind', a new one made for it",
+      "Whatever takes part is a param, also what comes out of the thing used or is made by it, which a step fills from what you know of those things ('new:kind' if made)",
+      'Never a verb that could mean many moves, never another action\'s words, never a word as the recognizer misheard it',
+      'nameFi and calls are the proper Finnish words for what it is, never the word as misheard',
+    ])
+      expect(INTERPRET_SYSTEM).toContain(rule)
+    // No case from that play, nor this morning's, is in the prompt: the principles meet requests nobody foresaw.
+    for (const gone of ['uimarengas', 'tiejyrä', 'junarata', 'vesiliukumäki', 'puumaja', 'käytä', 'siirrä', 'trampoliin', 'kuperkeikka', 'ryhmähali', 'tammenterho', 'udota', 'keiluun', 'sukella'])
+      expect(INTERPRET_SYSTEM, gone).not.toContain(gone)
+    // Nor a list of roles or Sami's own examples of the principle ("you really can't drive a train track, since it doesn't move. but you can ride a chicken"), in either prompt.
+    for (const gone of ['train track', 'train-track', 'junarata', 'chicken', 'kana', 'ridden, sat on', 'too big to carry, or food'])
+      for (const prompt of [INTERPRET_SYSTEM, ACTION_SYSTEM]) expect(prompt, gone).not.toContain(gone)
+    // Nor what a made action hard-coded: the net cannon that fired a ball (Sami: "the net cannon isn't a net. it's a ball").
+    for (const prompt of [INTERPRET_SYSTEM, ACTION_SYSTEM, ITEM_SYSTEM]) {
+      expect(prompt).not.toMatch(/(?<!\p{L})nets?(?!\p{L})/iu)
+      for (const gone of ['verkko', 'cannon']) expect(prompt.toLowerCase(), gone).not.toContain(gone)
+    }
+  })
+
+  it('is told what went wrong in the play of 2026-11-09, as principles', () => {
+    // bounce then flip played the flip on the grass; 'kuperkeikka' became the flip, 'ryhmähali' a hula hoop, 'tammenterho' a pinecone,
+    // "heitä se lampeen" a new pond beside the forest's, 'sammuta valot' a new lamp post, a door and stairs lay loose beside the house;
+    // 'udota' (pudota) became a swim and 'keiluun' (keinuun, with a swing there) bowling.
+    for (const rule of [
+      'each whole to its own end, and the next starts where that one ended',
+      "A thing's id ('#i3') is that very thing",
+      "The room's water is no thing: to go or throw there, use its spot",
+      'A known action fits only when its about is the very thing asked',
+      'A word for doing is an action, never a thing\'s name',
+      'A thing with a name of its own is a new kind even when a related kind exists',
+      "Never a new thing for what is here (the room's water, the lamps) or for the sky",
+      'is new and fixed to it, never left loose: make with at, side and reach, or a script',
+      'The recognizer drops, joins and splits letters and mishears whole words',
+      'puts it down when done, unless keeping it is the point (carry, give, wear)',
+      // "Aino, joo se uuderaa!" (tee se uudelleen) after everyone danced had her jump rope like Noora
+      "'Uudestaan', 'taas', 'again': that avatar's last step (did) once more.",
     ])
       expect(INTERPRET_SYSTEM).toContain(rule)
   })
@@ -206,7 +285,7 @@ describe('the designer', () => {
     // From the first review: the only length targets it gets (a long answer took 5 to 7 s more), the snowman-only build, avatars hidden in a tree crown, sizes scaled twice, walkTo misread, tiny held things.
     for (const rule of [
       'at most 30 lines (about 1000 characters)',
-      "Never write names or kinds from the child's words",
+      'Name no kind and no name in its code',
       'End on top of a thing',
       'never inside it',
       'It never backs away',
@@ -214,6 +293,45 @@ describe('the designer', () => {
     ])
       expect(ACTION_SYSTEM).toContain(rule)
     for (const rule of ['8 to 25 shapes', 'twice their real size', 'already include .scale']) expect(ITEM_SYSTEM).toContain(rule)
+  })
+
+  it('is told what went wrong in the made code of 2026-11-09', () => {
+    // eat looked for a sausage when given nothing; scoop and fill tipped the excavator over like a bucket; a poisonous mushroom was
+    // eaten up happily; the rope, the kite, the bucket, the stick and the paper stayed in the hand after.
+    for (const rule of [
+      'whatever takes part, what it uses and what comes out of or is made by what it uses, arrives by a param (a step may give a new one) or is what me holds, and is never looked up or made by its kind',
+      'An arg that is null is done without, or with what me holds',
+      'Picture it happening with the real things and use what you know of the world: what each thing is (its kind, look and meta, not a name that may be misheard), what it can do, what moves and what carries whom',
+      'Silly is welcome whenever it could be done at all; what cannot be done as asked is done the way it can',
+      'getting up onto a thing is yield* me.climbOnto(it); moving a thing, whatever its size and along whatever route, is yield* me.moveThing',
+      'me.keep(it) only when keeping it is the point (carry, give, wear)',
+    ])
+      expect(ACTION_SYSTEM).toContain(rule)
+    expect(ACTION_SYSTEM).not.toContain('is found (w.find) or made (w.make) by kind')
+  })
+
+  it("uses the engine's own ways, never a look-alike: the part-one guesses are gone", () => {
+    // The made change faked night with puffs; the poisonous mushroom was a guess by its looks; a door lay loose by the house.
+    for (const rule of [
+      'eating is yield* me.eat(it), which shows how it tastes (yummy, yucky, poison makes one sick), so add no cheer of your own after it',
+      'flips and cartwheels are yield* me.flip',
+      'what happens to a body is me.effect',
+      'day and night, rain and snow are w.sky.fade and the water w.pool.fade, never puffs',
+      'lamps on and off are it.glow',
+      'is it.putAt or it.attachTo',
+      'yield* .do(action, args)',
+    ])
+      expect(ACTION_SYSTEM).toContain(rule)
+    for (const gone of ['the red one with white dots', 'me.drop()']) expect(ACTION_SYSTEM).not.toContain(gone)
+  })
+
+  it('writes a script for this moment, which may name the things here', () => {
+    const message = inventMessage({ kind: 'script', spec: { ...THROW, id: 'moment-7-backflip-on-trampoline', calls: [], about: 'Aino bounces on #i5 and does a backflip up there.' }, words: 'aino hyppää trampoliinilla ja tee voltti', context: 'Room: forest' })
+    expect(message).toContain('Write a script for this moment, as an action\'s code: Aino bounces on #i5 and does a backflip up there.')
+    expect(message).toContain('it may name them by id and kind')
+    expect(message).toContain("yield* me.do('bounce', { thing })")
+    expect(message).toContain('- args.thing: an item: what to throw')
+    expect(message).toContain('Room: forest')
   })
 
   it('gets the spec, the words and the context', () => {
@@ -235,14 +353,14 @@ describe('the designer', () => {
     expect(item).toContain(JSON.stringify(BICYCLE.rough))
     // The draft is a sketch the designer copied as it was, a skateboard lying along x included.
     expect(item).toMatch(/only a rough sketch: where it breaks the rules above, follow the rules \(a long thing lies along z/)
-    expect(ACTION_SYSTEM).toContain('write it for every thing its args can hold (build: a snowman today, a sand castle or a house tomorrow)')
+    expect(ACTION_SYSTEM).toContain('write it for every thing its args can hold')
   })
 
   it('is asked for the Finnish name of a thing that has only its English one', () => {
     // A kind the interpreter used and did not list comes with its English name in both (api.ts's listLostKinds).
     const lost: NewItem = { ...BICYCLE, id: 'christmas-tree', name: 'christmas tree', nameFi: 'christmas tree', calls: ['christmas-tree'], rough: [] }
     expect([lacksFinnishName(lost), lacksFinnishName({ ...lost, nameFi: ' ' }), lacksFinnishName(BICYCLE)]).toEqual([true, true, false])
-    expect(inventMessage({ kind: 'item', spec: lost, words: 'eetu aja joulukuusen yli', context: 'Room: forest' })).toContain("give nameFi too, the thing's name in Finnish, nominative")
+    expect(inventMessage({ kind: 'item', spec: lost, words: 'eetu aja joulukuusen yli', context: 'Room: forest' })).toContain('give nameFi too, the proper Finnish word for what it is, nominative')
   })
 
   it('gets the failed code and its error for a fix', () => {

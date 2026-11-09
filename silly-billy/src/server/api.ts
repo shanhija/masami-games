@@ -6,11 +6,16 @@
  * server. Generated code is guarded here as text and never run here.
  */
 
+import { createHash } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import os from 'node:os'
 import path from 'node:path'
 
+import type { Lang } from '../engine/lang'
 import {
+  isNewThing,
+  kindOfArg,
+  NEW_THING,
   slugOf,
   type ActionEntry,
   type ForgetRequest,
@@ -28,10 +33,12 @@ import {
   type Status,
 } from '../engine/protocol'
 import { SLOTS, type Slot } from '../engine/types'
+import type { MicInfo } from '../voice/mic'
 import { Claude, Pool, findClaude, once, type Spec } from './claude'
 import { guard } from './guard'
 import { ACTION_SCHEMA, ACTION_SYSTEM, INTERPRET_SYSTEM, ITEM_SCHEMA, ITEM_SYSTEM, PLAN_SCHEMA, interpretMessage, inventMessage, lacksFinnishName, type ActionDesign, type ItemDesign } from './prompts'
 import { Store, finnishName, safeId } from './store'
+import { VOICE_CAP, VoiceStore, listen, voiceless } from './voice'
 import { Whisper, defaultPrime, whisperSetup } from './whisper'
 
 /** How long words wait for a Whisper that is still starting (after the server's code reloaded) before they are refused. */
@@ -51,20 +58,27 @@ export interface Deps {
   claude: Claude | null
   whisper: Whisper
   store: Store
+  /** The whole clips heard, kept for measuring hearing (voice.ts). */
+  voice: VoiceStore
   models: Status['models']
   log: (message: string) => void
 }
+
+/** Which interpreter prompt this is: a phrase another prompt made is understood afresh (store.ts). */
+export const promptStamp = (): string => createHash('sha256').update(INTERPRET_SYSTEM).update(JSON.stringify(PLAN_SCHEMA)).digest('hex').slice(0, 12)
 
 /** The real things, found from the environment and the home folder: called on the first request, never at import. */
 export function depsFromEnv(root: string, log: (message: string) => void): Deps {
   const home = os.homedir()
   const bin = findClaude(process.env, home)
   log(bin ? `Claude: ${bin}` : 'Claude: no CLI found, so nothing new can be made (set CLAUDE_BIN)')
+  const library = process.env.SILLY_LIBRARY ?? path.join(root, 'silly-billy', 'library')
   return {
     claude: bin ? new Claude(bin, log) : null,
     whisper: new Whisper(whisperSetup(process.env, home), log),
-    store: new Store(process.env.SILLY_LIBRARY ?? path.join(root, 'silly-billy', 'library'), log),
-    models: { interpret: process.env.SILLY_INTERPRET_MODEL ?? 'haiku', invent: process.env.SILLY_INVENT_MODEL ?? 'opus' },
+    store: new Store(library, log, promptStamp()),
+    voice: new VoiceStore(path.join(library, 'voice'), VOICE_CAP),
+    models: { interpret: process.env.SILLY_INTERPRET_MODEL ?? 'opus', invent: process.env.SILLY_INVENT_MODEL ?? 'opus' },
     log,
   }
 }
@@ -127,6 +141,19 @@ const isText = (max: number) => (v: unknown) => typeof v === 'string' && v.trim(
 const isObject = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v)
 const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} s`
 
+/** The page's `mic` (voice/mic.ts's MicInfo, as JSON), kept with the clip as it came; null when it sent none, a 400 when it is not a JSON object. */
+function micOf(text: string | null): MicInfo | null {
+  if (text === null) return null
+  let mic: unknown
+  try {
+    mic = JSON.parse(text)
+  } catch {
+    throw new HttpError(400, 'mic is not JSON')
+  }
+  if (!isObject(mic)) throw new HttpError(400, 'mic is not a JSON object')
+  return mic as MicInfo
+}
+
 /** A store error from bad input is the page's (400); a file system error is ours (500). */
 const asBadInput = (err: unknown) => ((err as NodeJS.ErrnoException).code ? err : new HttpError(400, (err as Error).message))
 
@@ -165,14 +192,19 @@ function tidyId(id: unknown, name: unknown): string | null {
 /** Words without the dashes no line for the child may have ('Wheee — slide!' → 'Wheee, slide!'); a kind's hyphens stay. */
 const undashed = (s: string) => s.replace(/\s*[—–]\s*/g, ', ').replace(/^, |, $/g, '')
 
+/** Words compared for what they say: case, spaces and punctuation aside. */
+const said = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+
 /**
  * The plan with every new thing's id in kebab-case wherever it is used, and avatar ids in
  * lowercase. A new action, thing or avatar with neither an id nor a name is left out: its
  * steps then name nothing the page knows, and the page drops them. A new action or thing with
  * no Finnish name takes its first Finnish call, a plan with no Finnish line its Finnish answer,
- * and the lines and args lose their dashes.
+ * and the lines and args lose their dashes. An arg that is the plan's answer or line in the
+ * other language is said in the game's (`lang`): played in Finnish, Eetu was made to say
+ * 'Okay, I stop!', the English of the plan's 'Okei, lopetan!'.
  */
-export function tidyPlan(plan: Plan): Plan {
+export function tidyPlan(plan: Plan, lang: Lang): Plan {
   const firstOfEach = <T extends { id: string }>(list: T[]) => list.filter((x, i) => list.findIndex((y) => y.id === x.id) === i)
   const lower = (calls: string[]) => [...new Set(calls.map((c) => c.toLowerCase().trim()).filter((c) => c !== ''))]
   /** Renamed actions are fixed in the steps' actions; renamed things and avatars in args and who. */
@@ -185,20 +217,38 @@ export function tidyPlan(plan: Plan): Plan {
   }
   const named = <T extends NewAction | NewItem>(x: T): T => ({ ...x, nameFi: finnishName(x) })
   const newActions = firstOfEach(plan.newActions.flatMap((a) => tidied(a, 'action'))).map(named)
+  const scripts = firstOfEach(
+    (plan.scripts ?? []).flatMap((sc) => {
+      const id = tidyId(sc.id, sc.about)
+      if (id === null) return []
+      renamed.action.set(sc.id, id)
+      return [{ id, about: undashed(String(sc.about ?? '')), code: typeof sc.code === 'string' ? sc.code : '' }]
+    }),
+  )
   const newItems = firstOfEach(plan.newItems.flatMap((i) => tidied(i, 'thing'))).map(named)
   const [create] = plan.create ? tidied(plan.create, 'thing') : []
-  const fix = (v: string) => renamed.thing.get(v) ?? v
+  // A new thing's id as tidied, also where a step asks for a new one ('new:Water Slide' → 'new:water-slide').
+  const fix = (v: string) => (isNewThing(v) ? `${NEW_THING}${renamed.thing.get(kindOfArg(v)) ?? kindOfArg(v)}` : (renamed.thing.get(v) ?? v))
   const actor = (id: string) => fix(id).toLowerCase()
   const heardFi = typeof plan.heardFi === 'string' && plan.heardFi.trim() !== '' ? plan.heardFi : plan.sayFi
+  const lines: [string, string][] = [
+    [plan.say, plan.sayFi],
+    [plan.heard, heardFi],
+  ]
+  const translated = new Map(lines.map(([en, fi]): [string, string] => (lang === 'fi' ? [said(en), fi] : [said(fi), en])).filter(([other, own]) => other !== '' && other !== said(own)))
+  const inGame = (v: string) => translated.get(said(v)) ?? v
+  const rest = { ...plan }
+  delete rest.scripts
   return {
-    ...plan,
+    ...rest,
     heard: undashed(plan.heard),
     heardFi: undashed(heardFi),
     who: [...new Set(plan.who.map(actor))],
-    steps: plan.steps.map((s) => ({ ...s, who: actor(s.who), action: renamed.action.get(s.action) ?? s.action, args: s.args.map((a) => ({ ...a, value: undashed(fix(a.value)) })) })),
+    steps: plan.steps.map((s) => ({ ...s, who: actor(s.who), action: renamed.action.get(s.action) ?? s.action, args: s.args.map((a) => ({ ...a, value: undashed(inGame(fix(a.value))) })) })),
     newActions,
     newItems,
     ...(create ? { create } : {}),
+    ...(scripts.length > 0 ? { scripts } : {}),
     say: undashed(plan.say),
     sayFi: undashed(plan.sayFi),
   }
@@ -209,14 +259,21 @@ const unnamed = (plan: Plan) => [...plan.newActions, ...plan.newItems, ...(plan.
 
 /**
  * What the game's context (brain/context.ts) names: each action's params ('wear(thing: text,
- * color?: text): ...'); every item kind and actor id, which are known; and the scene, words that
- * mean the room or an avatar rather than a kind: the rooms with their Finnish names, and each
- * avatar's name and body ('- mirri Mirri cat she': the cat is Mirri).
+ * color?: text): ...'); every item kind and actor id, which are known; the scene, words that
+ * mean the room or an avatar rather than a kind: the rooms with their Finnish names, the room's
+ * water, and each avatar's name and body ('- mirri Mirri cat she': the cat is Mirri); and the
+ * room's water, the words for it ('pond', 'water', 'lake') with the spot in its middle.
  */
-export function contextNames(context: string): { params: Map<string, Array<{ name: string; kind: string }>>; known: Set<string>; scene: Set<string> } {
+export function contextNames(context: string): {
+  params: Map<string, Array<{ name: string; kind: string }>>
+  known: Set<string>
+  scene: Set<string>
+  water: Map<string, string>
+} {
   const params = new Map<string, Array<{ name: string; kind: string }>>()
   const known = new Set<string>()
   const scene = new Set<string>()
+  const water = new Map<string, string>()
   for (const line of context.split('\n')) {
     const action = /^([a-z][a-z0-9-]*)\(([^)]*)\):/.exec(line)
     if (action !== null) {
@@ -227,8 +284,9 @@ export function contextNames(context: string): { params: Map<string, Array<{ nam
       params.set(action[1]!, list)
       continue
     }
+    // 'Item kinds: ball (pallo), slide (liukumäki).': the kind, then its Finnish name in a game played in Finnish.
     const kinds = /^Item kinds: (.*?)\.?$/.exec(line)
-    if (kinds !== null) for (const k of kinds[1]!.split(',')) known.add(k.trim())
+    if (kinds !== null) for (const k of kinds[1]!.split(',')) known.add(k.trim().split(' ')[0]!)
     // '- steve Steve kid he; wears cap': the id, then the name (a renamed avatar's own) and the body.
     const actor = /^- ([a-z0-9-]+) /.exec(line)
     if (actor !== null) known.add(actor[1]!)
@@ -237,12 +295,54 @@ export function contextNames(context: string): { params: Map<string, Array<{ nam
     // 'Room: pool. Rooms: playground (leikkipuisto), pool (uimahalli), forest (metsä).'
     const rooms = /^Room: .*?Rooms: (.*?)\.?$/.exec(line)
     if (rooms !== null) for (const word of rooms[1]!.split(/[\s,()]+/)) if (word !== '') scene.add(word.toLowerCase())
+    // 'Water: the pond, round, its middle at 6.5,-6.5, ...' or 'Water: the pool, from -5.5,-6 to 5.5,1, ...'.
+    const n = '(-?\\d+(?:\\.\\d+)?)'
+    const pool = new RegExp(`^Water: the ([a-z]+), (?:round, its middle at ${n},${n}|from ${n},${n} to ${n},${n})`).exec(line)
+    if (pool !== null) {
+      const [, name, x, z, x0, z0, x1, z1] = pool
+      const spot = x !== undefined ? `${x},${z}` : `${(Number(x0) + Number(x1)) / 2},${(Number(z0) + Number(z1)) / 2}`
+      for (const word of [name!, 'water', 'lake']) water.set(word, spot)
+      scene.add(name!)
+    }
   }
-  return { params, known, scene }
+  return { params, known, scene, water }
 }
 
 /** The built-in verbs whose text param is a kind they make at once (content/actions.ts: wear and make call w.make), where a kind nobody made is a purple mystery box. */
 const MAKES_KIND: Readonly<Record<string, string>> = { wear: 'thing', make: 'thing' }
+
+/**
+ * The room's water is no thing: a step that goes to, throws into or swims in 'pond', 'water' or
+ * 'lake' gets the spot in the middle of the room's water instead, and a new thing that is the
+ * room's water is left out unless a step makes one (seen live: "heitä se lampeen" in the forest
+ * made a new pond beside the forest's own). A place takes the spot; an item or a thing param
+ * takes no spot yet, so the action does without (it throws, but not into a new pond).
+ */
+export function meetRoomWater(plan: Plan, context: string): Plan {
+  const names = contextNames(context)
+  if (names.water.size === 0) return plan
+  // What a step makes: the kind a built-in wear or make is given, and any new one a step asks for ('new:pond').
+  const made = new Set(
+    plan.steps.flatMap((s) => [
+      ...(MAKES_KIND[s.action] === undefined ? [] : s.args.filter((a) => a.name === MAKES_KIND[s.action]).map((a) => kindOfArg(a.value))),
+      ...s.args.filter((a) => isNewThing(a.value)).map((a) => kindOfArg(a.value)),
+    ]),
+  )
+  const where = (action: string, arg: string) => (plan.newActions.find((a) => a.id === action)?.params ?? names.params.get(action) ?? []).find((p) => p.name === arg)?.kind
+  return {
+    ...plan,
+    steps: plan.steps.map((s) => ({
+      ...s,
+      args: s.args.map((a) => {
+        // A script's args have no kinds: any of them may be the water.
+        const kind = plan.scripts?.some((sc) => sc.id === s.action) ? 'thing' : where(s.action, a.name)
+        const spot = names.water.get(a.value)
+        return spot !== undefined && (kind === 'place' || kind === 'thing' || kind === 'item') && !made.has(a.value) ? { ...a, value: spot } : a
+      }),
+    })),
+    newItems: plan.newItems.filter((i) => !names.water.has(i.id) || made.has(i.id)),
+  }
+}
 
 /**
  * Words for what is in every room but is no thing (the ground, the water, the sky) and for whoever
@@ -270,10 +370,12 @@ export function listLostKinds(plan: Plan, context: string): Plan {
   const names = contextNames(context)
   const listed = new Set([...plan.newItems.map((i) => i.id), ...(plan.create ? [plan.create.id] : [])])
   const lost = new Set<string>()
+  // A kind a script makes ("tee puumajaan tikkaat": w.make('ladder')) is one too.
+  for (const sc of plan.scripts ?? []) for (const m of sc.code.matchAll(/w\.make\(\s*['"`]([a-z][a-z0-9-]*)['"`]/g)) if (!listed.has(m[1]!) && !names.known.has(m[1]!)) lost.add(m[1]!)
   for (const step of plan.steps) {
     const params = plan.newActions.find((a) => a.id === step.action)?.params ?? names.params.get(step.action) ?? []
     for (const arg of step.args) {
-      const { value } = arg
+      const value = kindOfArg(arg.value)
       if (!/^[a-z][a-z0-9-]*$/.test(value) || listed.has(value) || names.known.has(value)) continue
       const kind = params.find((p) => p.name === arg.name)?.kind
       const made = kind === 'text' && MAKES_KIND[step.action] === arg.name && !SLOTS.includes(value as Slot)
@@ -286,6 +388,24 @@ export function listLostKinds(plan: Plan, context: string): Plan {
     return { id, name, nameFi: name, calls: [id], about: `A ${name}, the way a six-year-old pictures it: its usual shape and colours, at its real size.`, rough: [], meta: {} }
   }
   return lost.size === 0 ? plan : { ...plan, newItems: [...plan.newItems, ...[...lost].map(spec)] }
+}
+
+/**
+ * A script's code as the guard lets it through, for the page to run (it never runs here); code
+ * the guard refuses keeps its reason, and the page has the designer fix it with the whole scene.
+ */
+export function guardScripts(plan: Plan): Plan {
+  if (plan.scripts === undefined) return plan
+  const unfence = (code: string) => code.replace(/^\s*```[a-z]*\n|\n?```\s*$/g, '')
+  return {
+    ...plan,
+    scripts: plan.scripts.map((sc) => {
+      const code = unfence(sc.code)
+      if (code.trim() === '') return { ...sc, code: '', guarded: null }
+      const g = guard('action', code)
+      return g.ok ? { ...sc, code, guarded: g.guarded } : { ...sc, code, guarded: null, refused: g.error }
+    }),
+  }
 }
 
 /**
@@ -309,7 +429,7 @@ function entryOf(req: InventRequest, design: ActionDesign | ItemDesign): Made {
   const nameFi = given || finnishName(req.spec)
   const calls = given ? [...new Set([...req.spec.calls, given.toLowerCase()])] : req.spec.calls
   const base = { id: safeId(req.spec.id), name: req.spec.name, nameFi, calls, about: req.spec.about, by: 'opus' as const, asked: req.words, made: new Date().toISOString() }
-  if (req.kind === 'action') {
+  if (req.kind === 'action' || req.kind === 'script') {
     const g = guard('action', code)
     return g.ok ? { entry: { type: 'action', ...base, params: req.spec.params, code, guarded: g.guarded } } : { error: g.error, code }
   }
@@ -384,21 +504,37 @@ export class Api {
    * The words in the clip, in the game's language, primed with the page's sentence (the names of
    * who is here) or the server's own for the language. The page asks only once a status said
    * Whisper is ready, but after the server's code reloaded the fresh Whisper is not up yet: it is
-   * started and waited for rather than the words refused. Partial asks (the live words) are not
-   * logged; a line Whisper wrote in letters the language does not use logs what it wrote too.
+   * started and waited for rather than the words refused. Partial asks (the live words) are
+   * neither logged nor kept. Words from a clip with no voiced sound in it are dropped (voiceless).
+   * A whole clip is kept in the voice folder with what came with it (the page's `mic`, the
+   * User-Agent), how it sounds and what Whisper made of it, and its log line names it; a line
+   * Whisper wrote otherwise than the words that went on logs what it wrote too.
    */
   private async hear(req: IncomingMessage, url: URL): Promise<HearReply> {
     const { whisper } = this.deps
     const lang = url.searchParams.get('lang') === 'en' ? 'en' : 'fi'
     const partial = url.searchParams.get('partial') === '1'
     const prime = (url.searchParams.get('prime') ?? '').replace(/\s+/g, ' ').trim().slice(0, 600) || defaultPrime(lang)
+    const mic = micOf(url.searchParams.get('mic'))
     const wav = await readBody(req, 20_000_000)
     if (!(await whisper.ready(HEAR_WAITS_FOR_WHISPER))) throw new HttpError(503, `whisper is ${whisper.state}`)
-    const { raw, ...reply } = await whisper.transcribe(wav, lang, prime)
-    if (!partial) {
-      this.deps.store.log({ kind: 'hear', lang, bytes: wav.length, text: reply.text, ms: reply.ms, ...(raw !== reply.text ? { raw } : {}) })
-      this.deps.log(`heard in ${seconds(reply.ms)}: ${JSON.stringify(reply.text)}`)
+    const asking = whisper.transcribe(wav, lang, prime)
+    // How the clip sounds: about 10 ms for 3 s of sound, while the request is on its way.
+    const sound = listen(wav)
+    const heard = await asking
+    // Words from a clip with no voice in it were invented on silence or noise ('Kiitos!').
+    const text = voiceless(sound) ? '' : heard.text
+    const reply: HearReply = { text, ms: heard.ms }
+    if (partial) return reply
+    let clip: string | null = null
+    try {
+      const { raw, ms, noSpeech, logprob, extras } = heard
+      clip = this.deps.voice.keep(wav, { at: new Date().toISOString(), lang, prime, raw, text, ms, recognizer: { model: whisper.model, extras }, noSpeech, logprob, userAgent: String(req.headers['user-agent'] ?? ''), mic, sound })
+    } catch (err) {
+      this.deps.log(`could not keep the clip: ${(err as Error).message}`)
     }
+    this.deps.store.log({ kind: 'hear', lang, bytes: wav.length, text, ms: heard.ms, ...(heard.raw !== text ? { raw: heard.raw } : {}), clip })
+    this.deps.log(`heard in ${seconds(heard.ms)}: ${JSON.stringify(text)}`)
     return reply
   }
 
@@ -412,7 +548,7 @@ export class Api {
     const tidy = (answer: Plan): Plan | null => {
       if (leakedMarkup(answer)) return null
       try {
-        return tidyPlan(answer)
+        return tidyPlan(answer, req.lang)
       } catch {
         return null
       }
@@ -434,7 +570,7 @@ export class Api {
     // A new thing left out (no id and no name) still plays the rest; the answer goes in the log, as it was.
     const left = unnamed(answer)
     if (left > 0) this.deps.store.log({ kind: 'interpret-broken', words: req.words, plan: answer, left })
-    const plan = listLostKinds(tidied, req.context)
+    const plan = guardScripts(listLostKinds(meetRoomWater(tidied, req.context), req.context))
     const ms = Date.now() - t0
     this.deps.store.log({ kind: 'interpret', words: req.words, lang: req.lang, plan, ms })
     const made = [...plan.newActions.map((a) => `action ${a.id}`), ...plan.newItems.map((i) => `item ${i.id}`), ...(plan.create ? [`avatar ${plan.create.id}`] : [])]
@@ -448,16 +584,16 @@ export class Api {
    */
   private async invent(body: Record<string, unknown>, res: ServerResponse): Promise<void> {
     const kind = body.kind
-    need(body, { kind: (v) => v === 'action' || v === 'item', spec: isObject, words: isText(500), context: isText(200_000) })
+    need(body, { kind: (v) => v === 'action' || v === 'item' || v === 'script', spec: isObject, words: isText(500), context: isText(200_000) })
     const spec = body.spec as Record<string, unknown>
-    need(spec, { id: isText(80), name: isText(80), nameFi: (v) => v === undefined || typeof v === 'string', about: isText(4000), calls: Array.isArray, ...(kind === 'action' ? { params: Array.isArray } : { rough: Array.isArray, meta: isObject }) })
+    need(spec, { id: isText(80), name: isText(80), nameFi: (v) => v === undefined || typeof v === 'string', about: isText(4000), calls: Array.isArray, ...(kind === 'item' ? { rough: Array.isArray, meta: isObject } : { params: Array.isArray }) })
     if (body.fix !== undefined) need(body.fix as Record<string, unknown>, { code: (v) => typeof v === 'string', error: isText(4000) })
     const req = body as unknown as InventRequest
     const claude = this.needClaude()
     const designer: Spec =
-      req.kind === 'action'
-        ? { model: this.deps.models.invent, system: ACTION_SYSTEM, schema: ACTION_SCHEMA }
-        : { model: this.deps.models.invent, system: ITEM_SYSTEM, schema: ITEM_SCHEMA }
+      req.kind === 'item'
+        ? { model: this.deps.models.invent, system: ITEM_SYSTEM, schema: ITEM_SCHEMA }
+        : { model: this.deps.models.invent, system: ACTION_SYSTEM, schema: ACTION_SCHEMA }
 
     res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' })
     const line = (l: InventLine) => {
@@ -465,7 +601,7 @@ export class Api {
     }
     const signal = stopped(res)
     // The fill follows the reply's length, nearing 1 as the code reaches its usual size; a second try carries on from the first.
-    const usual = req.kind === 'action' ? 900 : 1300
+    const usual = req.kind === 'item' ? 1300 : 900
     let before = 0
     let shown = 0
     let written = 0

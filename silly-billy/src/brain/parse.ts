@@ -20,13 +20,18 @@ import type { Lang } from '../engine/lang'
 import type { LibAction, LibItem } from '../engine/library'
 import type { Arg, ParamKind, Plan } from '../engine/protocol'
 import { ROOM_GEO } from '../engine/rooms'
-import { ROOMS, type Actor, type ItemMeta, type Pronoun, type RoomId, type Slot, type World } from '../engine/types'
+import { ROOMS, type Actor, type ItemInfo, type ItemMeta, type Pronoun, type Recipe, type RoomId, type Slot, type World } from '../engine/types'
 
 /** What the parser and the interpreter's context read from the library. */
 export interface Vocabulary {
   readonly actions: ReadonlyMap<string, Pick<LibAction, 'id' | 'name' | 'nameFi' | 'about' | 'params'>>
-  /** Every kind, with the slot it is worn in (most are worn nowhere) and how it is carried. */
-  readonly items: ReadonlyMap<string, Pick<LibItem, 'id' | 'name' | 'nameFi'> & { readonly info: { readonly recipe: { readonly meta: Pick<ItemMeta, 'wear' | 'carry'> } } }>
+  /** Every kind: how it behaves (the slot it is worn in, how it is carried), and for the context its size, moving parts and anchors, and whether it is still a draft. */
+  readonly items: ReadonlyMap<
+    string,
+    Pick<LibItem, 'id' | 'name' | 'nameFi'> & {
+      readonly info: Pick<ItemInfo, 'size' | 'rough'> & { readonly recipe: Pick<Recipe, 'parts' | 'anchors' | 'traits'> & { readonly meta: ItemMeta } }
+    }
+  >
   /** The kind a word names; `near: false` leaves out a word only one letter off a known one. */
   itemKindFor(word: string, opts?: { near?: boolean }): string | null
   actionFor(word: string, opts?: { near?: boolean }): string | null
@@ -66,6 +71,9 @@ export function phraseKey(words: string): string {
 // ------------------------------------------------------------------------------ words
 
 const STOP = new Set(['seis', 'stop', 'stoppi', 'stoppaa', 'lopeta', 'lopettakaa', 'lopetetaan', 'älä', 'älkää', 'pysähdy', 'pysähtykää', 'riittää', 'halt', 'freeze', 'dont'])
+/** A child's "no!" to one ("Ei!", "ei ei ei", "älä!"): said with nothing else but names, it stops whoever was just told something. 'no' is "well" in Finnish ("no niin"): a no only in a game played in English. */
+const NO = new Set(['ei', 'älä', 'nope'])
+const isNo = (word: string, lang: Lang) => NO.has(word) || (lang === 'en' && word === 'no')
 const EVERYONE = new Set(['kaikki', 'kaikkien', 'everyone', 'everybody', 'all'])
 /** Words for playing: with a game or another action named they say nothing more ("pelataan hippaa", "Aino, pelaa hippaa"); alone they are a word nobody knows. */
 const PLAY = new Set(['pelataan', 'pelaa', 'pelatkaa', 'pelata', 'pelaamaan', 'pelaillaan', 'leikitään', 'leiki', 'leikkikää', 'leikkiä', 'leikkimään', 'mennään', 'play', 'playing', 'lets'])
@@ -91,6 +99,9 @@ const SMALL = new Set([
   'sitä', 'ne', 'niitä', 'nää', 'noi', 'kun', 'että', 'jos', 'oikein', 'ihan', 'tosi', 'vähän', 'äkkiä', 'takaisin', 'uudelleen',
   'kerta', 'kertaa', 'kerran', 'itse', 'itsesi', 'itseäsi', 'itsensä', 'itseään', 'itseni', 'itsenne', 'kaikille', 'kaikkia', 'kaikilta',
   'yhdessä', 'kättä', 'käsiä', 'kädet', 'monta', 'kovaa', 'lujaa', 'hiljaa', 'nopeasti', 'hitaasti', 'varovasti', 'korkealle', 'kauas', 'ylös', 'alas', 'paljon',
+  // Everyday words before a thing ("ota iso pallo", "mene ison puun luo"): with them the thing is still the thing.
+  'iso', 'ison', 'isoa', 'isolle', 'isoon', 'pieni', 'pienen', 'pientä', 'pienelle', 'pieneen', 'pikku', 'uusi', 'uuden', 'uutta', 'vanha', 'vanhan', 'kiva', 'kivan',
+  'hieno', 'hienon', 'toinen', 'toisen', 'toista', 'big', 'small', 'little', 'new', 'old', 'other',
   'the', 'a', 'an', 'to', 'at', 'with', 'please', 'and', 'then', 'now', 'on', 'in', 'over', 'under', 'into', 'onto', 'around', 'of', 'my', 'your', 'it',
   'its', 'this', 'that', 'up', 'down', 'some', 'too', 'again', 'also', 'hey', 'hi', 'okay', 'can', 'you', 'could', 'times', 'once', 'twice', 'back',
   'yourself', 'itself', 'himself', 'herself', 'me', 'us', 'high', 'fast', 'slowly', 'quickly', 'together', 'far', 'very', 'really',
@@ -219,6 +230,15 @@ function verbStems(word: string): string[] {
   // istuu → istu, juoksee → juokse; istua → istu
   if (/([aeiouyäö])\1$/.test(word) || (/[aä]$/.test(word) && word.length > 3)) out.push(word.slice(0, -1))
   return out
+}
+
+/** The action a word is surely for, itself or by a Finnish verb ending ('hyppikää' is the jump's 'hyppii' said to many). */
+export function verbFor(word: string, vocab: Vocabulary): string | null {
+  for (const w of [word, ...verbStems(word)]) {
+    const id = vocab.actionFor(w, SURE)
+    if (id !== null) return id
+  }
+  return null
 }
 
 function nounStems(word: string): string[] {
@@ -482,11 +502,13 @@ const ANSWERS: readonly [string, string][] = [['Okay!', 'Okei!'], ['Yes!', 'Joo!
 const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
 
 /**
- * The words as a plan. Confident when it is clear who (a name, "hän" for the one spoken to,
+ * The words as a plan, or a stop ("seis"; a bare "ei" or "älä" stops the one spoken to).
+ * Confident when it is clear who (a name, "hän" for the one spoken to,
  * "kaikki", or nobody named and someone spoken to before), exactly one known action matched,
  * every param it needs is filled, no text param holds a word nobody knows or two kinds, and at
- * most one word is left over, which names nobody and nothing ("juokse nopeasti").
- * A room change alone, or just a name ("Alice!": she says hi), is confident too.
+ * most one word is left over, which names nobody and nothing ("juokse nopeasti") and stands
+ * beside no thing ("tammen terho" is an acorn, not the oak).
+ * A change to another room alone, or just a name ("Alice!": she says hi), is confident too.
  * Never confident of a word read only as one letter off a known action or thing, or of a name
  * one letter off where the verb goes ("Noora naura"): a new verb or thing may hide there, and
  * the interpreter can have it made.
@@ -497,7 +519,9 @@ export function understand(words: string, vocab: Vocabulary, world: World, addre
   const pronounFor = (fits: readonly Pronoun[] | null) => (listener !== null && (fits === null || fits.includes(listener.pronoun)) ? listener.id : null)
   const raw = read(words, vocab, world)
 
-  if (raw.some((r) => r.kind === 'stop')) {
+  // "Ei!", "ei ei ei", "älä!" with nothing but names: no to what the one spoken to was just told.
+  const no = raw.some((r) => isNo(r.word, world.lang)) && raw.every((r) => isNo(r.word, world.lang) || (r.kind === 'actor' && r.bare) || r.kind === 'all')
+  if (no || raw.some((r) => r.kind === 'stop')) {
     const who = new Set<string>()
     for (const r of raw) {
       if (r.kind === 'all') for (const id of everybody) who.add(id)
@@ -507,7 +531,7 @@ export function understand(words: string, vocab: Vocabulary, world: World, addre
         if (id !== null) who.add(id)
       }
     }
-    return { kind: 'stop', who: who.size > 0 ? [...who] : everybody }
+    return { kind: 'stop', who: who.size > 0 ? [...who] : no && listener !== null ? [listener.id] : everybody }
   }
 
   const rooms = [...new Set(raw.flatMap((r) => (r.kind === 'room' ? [r.room] : [])))]
@@ -577,6 +601,8 @@ export function understand(words: string, vocab: Vocabulary, world: World, addre
   }
   const filled = actionIds.map((id) => fill(vocab.actions.get(id)!, candidates, readings, verbAt, partOf, fiOf))
   const leftover = readings.filter((r) => r.kind === 'unknown').length + candidates.length
+  // A word nobody knows beside a thing may be the thing meant: the oak's acorn ("tammen terho"), or one name the recognizer split ("puu maja", "joulu kuusi").
+  const split = readings.some((r, i) => r.kind === 'unknown' && [readings[i - 1], readings[i + 1]].some((q) => q?.kind === 'item'))
   const near = readings.some((r) => (r.kind === 'action' || r.kind === 'item') && r.near)
   const nearName = readings.some((r) => r.kind === 'actor' && r.near && readings.some((q) => q.kind === 'actor' && !q.near && q.at < r.at))
   const who = [...doers]
@@ -587,12 +613,14 @@ export function understand(words: string, vocab: Vocabulary, world: World, addre
     const carried = main.args.some((a) => (vocab.items.get(a.value)?.info.recipe.meta.carry ?? 'no') !== 'no')
     // A thing in the hand said with -lla is what it is done with ("hyppää hyppynarulla" jumps rope), which no basic verb does: the interpreter decides.
     const using = readings.some((r) => r.kind === 'item' && /ll[aä]$/.test(r.word) && (vocab.items.get(r.item)?.info.recipe.meta.carry ?? 'no') !== 'no')
-    confident = !unclear && !near && !using && !main.missing && !main.guessed && !main.named && main.left <= 1 && !main.actors.some((id) => doers.has(id)) && (!lowers || carried)
+    confident =
+      !unclear && !near && !using && !split && !main.missing && !main.guessed && !main.named && main.left <= 1 && !main.actors.some((id) => doers.has(id)) && (!lowers || carried)
   } else if (filled.length === 0) {
-    // A room and a word more ("mennään metsään nopeasti"), but no second command after it ("mennään metsään ja alice tanssii").
+    // A room and a word more ("mennään metsään nopeasti"), but no second command after it ("mennään metsään ja alice tanssii"). The room
+    // everyone is in already is something to do there ("Mikko, käy uimassa" in the pool is a swim), which the interpreter works out.
     const roomAt = readings.find((r) => r.kind === 'room')?.at ?? Infinity
     const more = readings.some((r) => AND.has(r.word)) || bare.some((r) => r.at > roomAt)
-    confident = !near && (room !== undefined ? leftover === 0 || (leftover === 1 && !more) : named && !unclear && !nearName && leftover === 0)
+    confident = !near && (room !== undefined ? room !== world.room && (leftover === 0 || (leftover === 1 && !more)) : named && !unclear && !nearName && leftover === 0)
   } else confident = false
 
   const [say, sayFi] = filled.length > 0 ? ANSWERS[hash(words) % ANSWERS.length]! : room !== undefined ? ["Let's go!", 'Mennään!'] : ['Hi!', 'Moi!']

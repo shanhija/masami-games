@@ -130,6 +130,7 @@ const FORGOT = {
   nothing: { en: 'Nothing new to forget.', fi: 'Ei mitään uutta unohdettavaa.' },
   failed: { en: 'Could not forget it.', fi: 'Unohtaminen ei onnistunut.' },
   gone: (name: Words): Words => ({ en: `${capital(inLang(name, 'en'))} is gone.`, fi: `${capital(inLang(name, 'fi'))} on poissa.` }),
+  all: (n: number): Words => ({ en: `Everything made is gone (${n}).`, fi: `Kaikki tehty on poissa (${n}).` }),
 }
 
 /**
@@ -342,6 +343,17 @@ export class Game implements SceneSource {
     try {
       const name = await this.brain.forgetNewest()
       this.forgot = name === null ? FORGOT.nothing : FORGOT.gone(name)
+    } catch (e) {
+      console.warn('forgetting failed:', e)
+      this.forgot = FORGOT.failed
+    }
+    this.bump()
+  }
+
+  async forgetAll() {
+    try {
+      const n = await this.brain.forgetAll()
+      this.forgot = n === 0 ? FORGOT.nothing : FORGOT.all(n)
     } catch (e) {
       console.warn('forgetting failed:', e)
       this.forgot = FORGOT.failed

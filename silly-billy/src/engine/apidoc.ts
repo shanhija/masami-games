@@ -4,18 +4,20 @@
  * system prompt, and the interpreter gets the short list of what exists instead.
  */
 
-import { MOODS, PUFF_KINDS, SOUND_NAMES } from './types'
+import { EFFECTS, MOODS, PUFF_KINDS, SOUND_NAMES } from './types'
 
 export const ACTION_DOC = `ACTION CODE: the body of  function* (me, args, w) { ... }
 It runs one frame at a time: \`yield\` waits one frame (1/60 s). Helpers that take time are generators: call them with \`yield*\`.
 Plain JavaScript only: no imports, no async, no DOM, no Math.random (use w.random()). Every loop must yield inside, or it is stopped.
+args: each param's value by its kind: an actor, an item, a spot {x, z} for a place (a thing param may be a spot too: the room's water), a string, a number, or null.
 
 me, and every other actor (args and w.actors):
   .isActor (true) .id .name (in the game's language; set it to rename) .kind ('kid' | 'grownup' | 'cat' | 'dog') .height .radius (both already include .scale)
                 .busy (doing something of its own, or told something else since this action took it in)
   .x .y .z      feet position, metres; y is the feet's height: the ground is 0, and w.groundAt(x, z) gives the floor under water. Setting them moves it at once.
   .yaw          facing, radians: 0 looks toward +z, Math.PI/2 toward +x. Forward is (Math.sin(yaw), Math.cos(yaw)).
-  .pitch .roll  tip the whole body: pitch + forward, -Math.PI/2 lies on its back; roll + toward its left (cartwheels)
+  .pitch .roll  tip the whole body: pitch + forward, -Math.PI/2 lies on its back; roll + toward its left
+  .pivot        what pitch and roll turn round: 0 the feet (the default, for lying down), 0.5 its middle (cartwheels, somersaults); back to 0 when the action ends
   .scale        whole size, 1 normal
   .pose         joints in radians; they stay as set until changed:
       .lean (+ forward) .tilt (+ toward its left) .twist (+ turns to its left)   the upper body
@@ -32,34 +34,69 @@ me, and every other actor (args and w.actors):
   .riding                    the item it rides or sits on, or null
   .handAt(hand = 'right')    {x, y, z} of its hand now (an animal's mouth);  .headAt() of its head
   .ahead(dist, side = 0)     {x, z} dist metres in front of it (side: metres to its left)
-  yield* .walkTo(target, {run: false, near: 0.6})  walks round solid things to an actor, item or {x, z}; stops near metres from its edge,
-                             or as near as it can get when something is in the way.
+  yield* .walkTo(target, {run: false, near: 0.6, speed})  walks round solid things to an actor, item or {x, z}, or along a route of them ([p, q, ...]);
+                             stops near metres from its edge, or as near as it can get when something is in the way; speed: metres a second
                              It never backs away: to step back, yield* me.walkTo(me.ahead(-2))
   yield* .turnTo(target)     riding, it turns what it rides; sitting on something, it does not turn
   yield* .pickUp(item, hand = 'right')   walks to it and picks it up; it stays in the hand
   .drop(hand = 'right')      lets go (it falls); returns the item or null
   yield* .jump(height = 0.6, forward = 0)   one jump, forward metres along its facing
+  yield* .climbOnto(thing)   gets up onto any thing's top and stays there: hops up a low one, climbs a high one. Up there, jump and flip land on it again,
+                             and when the thing moves or turns, it goes along; .onTop is the thing it stands on, or null
+  yield* .climbDown(where)   gets down off it, beside it toward where (a thing or a place), else in front; walking somewhere off it gets down by itself
   yield* .poseTo({armR: {swing: 2}, lean: 0.3}, secs = 0.3)   eases only the joints given
   yield* .rest(secs = 0.3)   eases every joint back to standing
-  yield* .ride(item)         walks to a ridable item and gets on its 'seat'. While riding, move the ITEM (its x, z, y, yaw): the rider goes with it; turning the rider turns the item.
+  yield* .ride(item)         walks to any item and gets on its 'seat'. While riding, move the ITEM (its x, z, y, yaw, or moveThing along a route): the rider goes with it; turning the rider turns the item.
   yield* .sitOn(item)        sits on it (null: on the ground);  yield* .getOff()   stands up next to it
   .wear(item, slot)          puts it on and it becomes part of the look: 'hair' 'head' 'face' 'body' 'back' 'hand'; slot defaults to what the thing is for; what was worn there goes in a sparkle.
                              The item stays yours: its tint, parts, state and process go on while it is worn (its size follows the wearer).
                              A 'hand' thing fills the right hand: what that hand held, and what is picked up later, goes in the left.
   .takeOff(slot)             the very thing comes off as a loose item (returned), or null
   yield* .tumble()           falls over and gets up again (a bonk)
+  yield* .flip(how = 'cartwheel', {turns: 1, secs: 0.75, height: 0.45, forward})   turns over round its middle in a hop and lands on its feet:
+                             'cartwheel' (sideways, to its left), 'somersault' (forward), 'backflip'
+  .effect(name, secs = 10)   puts it in a state the body shows: ${EFFECTS.join(' ')}; 0 secs ends it. Sick is green, wobbly and slow,
+                             and when it runs out lies down a moment and gets better. Water and rain make it wet, snow cold, a hot thing near dries and warms it.
+  .effects                   the states it is in now, with the seconds left: { wet: 4.5 }
+  yield* .putDown(item, where)   puts down what it holds (or item) nicely, not dropped: in front of it, or beside a thing or a place where says,
+                             or where = 'back': where it was picked up.  yield* .putBack(item) walks back there and puts it down
+  yield* .moveThing(it, to, where, {speed})   moves a thing of any size to a thing, an actor or a place: carried when it can be, pushed along the ground when too big,
+                             by magic when built into the room or going onto another; where: 'front' 'back' 'left' 'right' 'top' of a thing ('top' fixes it there).
+                             to may be a route ([p, q, ...]), and one point goes the same way with a speed or with someone aboard: it goes along at speed
+                             (metres a second) on what is under it, or at the heights the points give, facing its way; carried along when it can be,
+                             else by itself, and whoever rides it or stands on it goes along
+  yield* .eat(item)          picks it up and eats it bite by bite until it is gone (eats from a bush or anything too big to carry); its meta.food decides:
+                             yummy is happy, yucky is "Yuck!", poison makes it sick a while, not food is a lick and "Not food!"; hot or cold food warms or chills it
+  .keep(item)                keeps it in the hand when the action ends: what an action picks up is put down nicely when it ends otherwise
+  yield* .do(action, args)   does an action of the library as part of this one: yield* me.do('bounce', { thing: args.thing }); args by its params' names,
+                             as things, actors, spots or words ('trampoline', '#i5', 'new:ball' a new one). It does all of that action, its ending too
 
 items (args and w.items):
   .isActor (false) .id .kind ('ball', 'slide'...) .name (in the game's language: 'ball' or 'pallo') .size {w, h, d} .radius (both already include .scale) .fixed (built into the room) .flying
   .x .y .z .yaw .pitch .roll .scale   its base point and turn; while held, pitch and roll tip it in the hand.
+  .point(x, y, z)   a point of its box now, in its own frame, each -1..1: x from its right to its left, y from its bottom to its top, z from its back to its front
                     Setting x, y or z holds it where you put it (left in the air, it falls after half a second).
   .vx .vy .vz       velocity: setting one (not 0) lets it fly, fall, bounce, roll and float on water by itself; 0 keeps a thing you just put somewhere there.
                     To keep a thing in a hand (a catch), yield* me.pickUp(it)
   .holder .rider .wearer   the actor holding it, riding it or wearing it, or null (a worn thing has no holder)
   .tint             a colour that paints all of it ('#ff69b4', 'pink'), or null for its own colours
   .state            your own numbers kept with the item
-  .part(name)       a named part of its model: {x, y, z, rx, ry, rz, s} offsets to animate (wheels, doors, a lid); unknown names do nothing
+  .meta             what it is: { carry, ride, sit, wear, bouncy, solid, food: 'yummy' | 'yucky' | 'poison' | null, temp: 'hot' | 'cold' | null, soft }
+  .parts .anchors   the names of its moving parts and of its points
+  .part(name)       a named part of this one thing, live: {x, y, z, rx, ry, rz, s} offsets to animate (wheels, doors, a lid),
+                    .color (one colour for the part, null its own), .show (false hides it), .glow (as below); unknown names do nothing
   .anchor(name)     {x, y, z} of a named point of its model now: 'seat', 'hand', 'top', or the model's own; missing names give the top middle
+  .glow             true: its lamps and flames shine (a thing without any glows all over); false: switched off; null: as built
+  .glowColor        a colour for its glowing shapes, or null.  Lamps and fires that are on light up what is near at night by themselves
+  .light            a colour: it shines real light on what is near, day and night (a torch, a lantern); null: none
+  .add((m) => { ... }, part)   adds shapes to this one thing only, with the model kit below;
+                    part: on that part, from its pivot. They stay with it
+  .putAt(other, where = 'front', { up })   puts it at another thing or actor: 'front' 'back' 'left' 'right' (beside it on the ground, touching, facing away,
+                    so stairs and ladders lead up to it), 'top' (on it), or one of its anchors or parts (its bottom there);
+                    up: an anchor of the other ('top') or metres: it is sized so its top reaches there (what leads up to a floor)
+  .attachTo(other, where, { up })   fixes it to another thing or an actor (put at where first, if given): it goes and turns with it, and with the part where names,
+                    until .detach(). Picking it up, throwing or launching it takes it off.  .attachedTo  what it is fixed to, or null
+                    w.make(kind, { near: other }).attachTo(other, 'front', { up: 'top' })
 
 w, the world:
   w.t  w.dt   seconds since the start; one frame (1/60)
@@ -72,7 +109,14 @@ w, the world:
   w.throw(item, target, {speed: 8, arc: 0.35})   flings it from where it is to land on the target; returns the seconds it flies
   w.launch(item, vx, vy, vz)        sets it loose with this velocity
   w.touching(a, b)   w.distance(a, b) (on the ground)   w.angleTo(from, to) (the yaw that faces from → to)
-  w.water(x, z)      true over water (the pool, the pond);  w.groundAt(x, z): the ground's height (the floor under water is lower)
+  w.water(x, z)      true over water (the pool, the pond, unless emptied);  w.groundAt(x, z): the ground's height (the floor under water is lower)
+  w.sky              the sky, the light and the weather, the same in every room; it stays until changed:
+      .time (hours 0..24: 0 midnight, 6 sunrise, 12 noon, 18 sunset, 22 night)  .night (0 day .. 1 dark, read only)
+      .rain .snow .fog .wind (0..1)  .color (the sky painted, null for the time's)  .light (the sunlight's colour, null for the time's)
+      w.sky.fade({ time: 22, rain: 0.5 }, secs = 3)   eases them there and goes on by itself after the action; yield* it to wait till it is done
+  w.pool             this room's water (the pool, the pond): .level 0 empty .. 1 full (people wade and swim and things float in what is left)
+                     .y the surface's height  .color (null its own)  .fade({ level: 0 }, secs = 3) as w.sky.fade
+  w.ground           this room's ground: .color washes a colour over it ('white' snow, null its own)  .fade({ color: 'white' }, secs = 3)
   w.puff({x, y, z, at, kind, color, count: 12, size: 0.15, speed: 2, up: 1, life: 1, gravity})
       particles; at puts them at a thing's middle, and x, y or z given too wins (at: it, y: it.anchor('top').y: at its tip). kinds: ${PUFF_KINDS.join(' ')}
   w.sound(name)      ${SOUND_NAMES.join(' ')}
@@ -87,7 +131,7 @@ w, the world:
 
 export const ACTION_RULES = `How to write an action:
 - Plain, short code: at most 30 lines (about 1000 characters); every line keeps the child waiting. It usually lasts 3 to 12 seconds; only something to "keep doing" may last up to 30.
-- Use the args by their names. Any of them can be null: then find one (w.find), make one (w.make), or do something funny.
+- Use the args by their names. Any of them can be null: then do without, use what me holds, or do something funny.
 - Bring the body to life: poses, bounces, spins, faces (feel), puffs and sounds. Big, clear, silly movement reads from far away.
 - Work from the things themselves (size, anchor, radius, positions), never from fixed numbers about them: models change.
 - Keep everything gentle: nobody gets hurt. A hit is a bonk, a tumble and a giggle.
@@ -108,8 +152,8 @@ me.say({ en: 'Hop hop!', fi: 'Hyppy hyppy!' })
 yield* me.rest()`
 
 export const ITEM_DOC = `MODEL CODE: the body of  function (m) { ... }
-Build the thing out of shapes. Metres; y is up; it stands on y = 0 and its front faces +z. Real sizes: a ball 0.25 across, a bike 1.6 long, a tree 4 tall, a kid 1.15 tall.
-Small things a hand holds (food, toys, tools, wands) are made about twice their real size, at least 0.4 m, with the part that says what they are biggest (an ice cream's scoop), even when the description gives the real size; they still return carry: 'hand'.
+Build the thing out of shapes. Metres; y is up; it stands on y = 0 and its front faces +z. Real sizes, a kid being 1.15 tall.
+Small things a hand holds are made about twice their real size, at least 0.4 m, with the part that says what they are biggest, even when the description gives the real size; they still return carry: 'hand'.
 Every shape takes opts { at: [x, y, z] (its centre), rot: [rx, ry, rz] (radians), scale: [sx, sy, sz], color: '#hex' or a colour name, glow: true (lights itself) }.
   m.box(w, h, d, opts)
   m.sphere(r, opts)                       scale stretches it into an egg or a lens
@@ -122,14 +166,16 @@ Every shape takes opts { at: [x, y, z] (its centre), rot: [rx, ry, rz] (radians)
   m.part(name, {at, rot}, () => { ... })  shapes and anchors made inside belong to a named part pivoting at at; their coordinates are from that pivot. Actions animate it with item.part(name).
                                           The same name again makes another copy that moves with it (every other light twinkling as 'light0').
   m.anchor(name, [x, y, z])               a point for actions: 'seat' (where you sit), 'hand' (where it is held), 'top', or your own
-Return how it behaves: { carry: 'hand' | 'hug' | 'no', ride: false, sit: false, wear: null, bouncy: 0.3, solid: true }
+Return how it behaves: { carry: 'hand' | 'hug' | 'no', ride: false, sit: false, wear: null, bouncy: 0.3, solid: true, food: null, temp: null, soft: false }
   carry: picked up in one hand, hugged with both arms, or too big;  ride: ridden (needs a 'seat');  sit: sat on;
-  wear: null or 'hair' 'head' 'face' 'body' 'back' 'hand';  bouncy 0..1;  solid: people walk round it.
+  wear: null or 'hair' 'head' 'face' 'body' 'back' 'hand';  bouncy 0..1;  solid: people walk round it;
+  food: 'yummy', 'yucky' or 'poison', null for no food;  temp: 'hot' or 'cold';  soft: soft to lie or sit on.
+Glowing shapes (lamps, flames, magic) shine by themselves at night and light up what is near; put a lamp's light in a named part to switch it alone.
 Worn things are built around a kid 1.15 m tall: for 'hair', 'head' and 'face' the origin is the middle of the head (a ball of radius 0.23, the face toward +z, the top at y 0.23); for 'body' the origin is between the feet (hips at y 0.4, shoulders at y 0.68, 0.32 wide); for 'back' it is between the shoulder blades (the back faces -z). A 'hand' thing is held at its 'hand' anchor, upright.`
 
 export const ITEM_RULES = `How to build a thing:
 - 8 to 25 shapes. It is seen from far away, high up: make the parts that say what it is big and bold, in clear colours.
-- Make it look like the thing at once: a bicycle has two big wheels, a frame and handlebars; a Christmas tree is a green cone with a star.
+- Make it look like the thing at once, by the parts that make it that thing.
 - Put moving bits (wheels, a lid, a tail, arms) in named parts so actions can move them.
 - A loop to place many shapes is fine (a fence, petals, spokes).`
 

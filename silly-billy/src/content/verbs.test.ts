@@ -221,6 +221,31 @@ describe('every basic verb', () => {
     expect(mirri.pose.legL.bend).toBeGreaterThan(1.2)
   })
 
+  it('makes a new thing even with one in the room, and fixed to a thing at its side, reaching up to its top when asked', () => {
+    // "rakenna liukumäki puumajasta" (a slide from the treehouse) shrank and regrew the playground's own slide where it stood.
+    const sim = new Sim(createWorld({ room: 'playground', actors: makeCast(), layouts: LAYOUTS, seed: 7 }), library)
+    const slides = () => sim.world.items.filter((i) => i.kind === 'slide')
+    const own = slides()[0]!
+    const frame = sim.world.items.find((i) => i.kind === 'climbing-frame')!
+    sim.give('noora', [{ action: 'make', args: { thing: 'slide', at: frame.id, side: 'front', reach: 'top' }, serial: 1 }], true)
+    let done = false
+    for (let f = 0; f < 60 * 20 && !done; f++) {
+      sim.step()
+      done = sim.world.events.some((e) => e.type === 'done' && e.actor === 'noora')
+      sim.world.events.length = 0
+    }
+    expect(done).toBe(true)
+    expect(slides()).toHaveLength(2)
+    const made = slides().find((i) => i !== own)!
+    expect(own.scale).toBe(1)
+    expect(made.attached?.to).toBe(frame.id)
+    // Its top reaches the frame's top, and it stands in front of the frame.
+    const top = (it: typeof made) => it.y + library.info(it.kind).recipe.bounds.max[1] * it.scale
+    const frameTop = library.info('climbing-frame').recipe.anchors.top
+    expect(top(made)).toBeCloseTo(frame.y + (frameTop ? frameTop.at[1] : library.info('climbing-frame').recipe.bounds.max[1]) * frame.scale, 1)
+    expect(Math.hypot(made.x - frame.x, made.z - frame.z)).toBeGreaterThan(1)
+  })
+
   it('says the words aloud as well as in a bubble', () => {
     const sim = new Sim(createWorld({ room: 'playground', actors: makeCast(), layouts: LAYOUTS, seed: 7 }), library)
     sim.give('alice', [{ action: 'say', args: { words: 'hei kaikille' }, serial: 1 }], true)

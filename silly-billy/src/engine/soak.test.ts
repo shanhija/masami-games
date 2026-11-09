@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createWorld, newActor, Sim, type Placement, type Reaction } from './sim'
 import { actionEntry, CAST, kidLook, newLibrary, step } from './testing'
-import { ROOM_HALF, ROOMS, SLOTS, type Look, type World } from './types'
+import { EFFECTS, ROOM_HALF, ROOMS, SLOTS, type Look, type World } from './types'
 
 function rng(seed: number) {
   let a = seed >>> 0
@@ -59,12 +59,36 @@ const MADE = [
     ].join('\n'),
   ),
   actionEntry('yieldy', [], '__g();yield me.jump(0.3)\nyield w.wait(0.2)\nyield me.walkTo(me.ahead(2))\nyield 5'),
+  actionEntry(
+    'world',
+    [{ name: 'thing', kind: 'item', about: '', optional: true }],
+    [
+      "__g();const t = args.thing || w.find('bench')",
+      "const r = w.random()",
+      "if (r < 0.2) w.sky.fade({ time: w.random() * 30 - 3, rain: w.random(), snow: NaN, wind: 2, color: w.pick(['pink', null, 'nonsense', 7]) }, w.random() * 4)",
+      "else if (r < 0.3) { w.sky.time = 'late'; w.sky.fog = w.random(); w.sky.light = w.pick(['orange', null, {}]) }",
+      "else if (r < 0.45) yield* w.pool.fade({ level: w.random() * 1.4 - 0.2, color: w.pick(['green', null, 'x']) }, 1)",
+      "else if (r < 0.5) w.ground.color = w.pick(['white', null, 5, 'blue'])",
+      "if (w.random() < 0.3) me.effect(w.pick(['sick', 'dizzy', 'wet', 'cold', 'sleepy', 'hot', 'glowing', 'ill', 'nope', null]), w.random() * 8 - 1)",
+      "if (w.random() < 0.2) yield* me.flip(w.pick(['cartwheel', 'somersault', 'backflip', 'zzz']), { turns: w.random() * 3, secs: w.random() })",
+      "if (w.random() < 0.15) me.pivot = w.random() * 2 - 0.5",
+      "const b = w.find('ball')",
+      "if (t && b && w.random() < 0.4) { b.attachTo(t, w.pick(['front', 'top', 'seat', 'frame', 'nowhere', null])); yield* w.wait(0.3); t.x += 0.5; t.yaw += 0.4; yield; if (w.random() < 0.5) b.detach() }",
+      "if (t && w.random() < 0.3) t.attachTo(b || me)",
+      "if (b && w.random() < 0.3) b.putAt(me, w.pick(['front', 'head', 'hand', 'top', 'left']))",
+      "if (t && w.random() < 0.3) t.add((m) => { m.box(0.2, NaN, 0.2, { at: [0, 1, 0], color: 'red', glow: true }); m.part('door', { at: [0, 0.5, 0] }, () => m.sphere(0.1)); m.anchor('knob', [0, 1, 0.2]) }, w.pick(['frame', null, 'nope']))",
+      "if (t && w.random() < 0.3) { t.glow = w.pick([true, false, null, 3]); t.glowColor = w.pick(['red', null, 'zz']); t.light = w.pick(['yellow', true, null, 9]); const p = t.part(w.pick(t.parts.concat(['nope']))); p.color = w.pick(['red', 5, null, 'zz']); p.show = w.pick([false, 0, 'yes', true]); p.glow = w.pick([true, 'x', null]) }",
+      "if (b && w.random() < 0.3) yield* me.eat(b)",
+      "if (w.random() < 0.3) { const h = w.find('hat'); if (h) { yield* me.pickUp(h); if (w.random() < 0.5) yield* me.putDown(h, w.pick(['back', me.ahead(2), t, null])); else if (w.random() < 0.5) me.keep(h) } }",
+      'yield',
+    ].join('\n'),
+  ),
 ]
 
 const KINDS = ['ball', 'box', 'bench', 'bike', 'rock', 'hat', 'pallo', 'laatikko', 'hattu', 'zebra', '', '#i3', '#i999']
 const WORDS = ['alice', 'stive', 'mike', 'noora', 'kissa', 'dad', 'nobody', '3,4', '-11,11', '100,-100', 'ball', '', 'x,y']
-const ACTIONS = ['walk', 'pick-up', 'drop', 'throw', 'jump', 'ride', 'sit', 'wear', 'take-off', 'dance', 'boom', 'loop', 'chaos', 'party', 'yieldy', 'mystery-move']
-const REACTIONS: Reaction[] = ['shrug', 'yay', 'huh', 'hello', 'think']
+const ACTIONS = ['walk', 'pick-up', 'drop', 'throw', 'jump', 'ride', 'sit', 'wear', 'take-off', 'dance', 'boom', 'loop', 'chaos', 'party', 'yieldy', 'world', 'world', 'mystery-move']
+const REACTIONS: Reaction[] = ['shrug', 'yay', 'huh', 'hello', 'think', 'better']
 
 function layouts(): Record<'playground' | 'pool' | 'forest', Placement[]> {
   return {
@@ -127,11 +151,44 @@ function check(w: World) {
     if (a.riding !== null && w.items.find((it) => it.id === a.riding)?.rider !== a.id) fail(`${a.id} rides ${a.riding}, which it is not on`)
     for (const k of ['skin', 'eyes', 'top', 'bottom', 'shoes'] as const) if (!/^#[0-9a-f]{6}$/.test(a.look[k])) fail(`${a.id} ${k} is ${a.look[k]}`)
     for (const slot of Object.keys(a.look.worn)) if (!SLOTS.includes(slot as never)) fail(`${a.id} wears something on ${slot}`)
+    const pivot = a.pivot ?? 0
+    if (!(pivot >= 0 && pivot <= 1)) fail(`${a.id} pivot ${pivot}`)
+    for (const [e, until] of Object.entries(a.effects ?? {})) {
+      if (!EFFECTS.includes(e as never)) fail(`${a.id} is ${e}`)
+      finite(`${a.id} ${e} until`, until)
+    }
+    for (const [k, v] of Object.entries(a.sway ?? {})) finite(`${a.id} sway ${k}`, v)
+  }
+  const sky = w.sky!
+  for (const k of ['time', 'rain', 'snow', 'fog', 'wind'] as const) finite(`the sky's ${k}`, sky[k])
+  if (sky.time < 0 || sky.time >= 24 || [sky.rain, sky.snow, sky.fog, sky.wind].some((v) => v < 0 || v > 1)) fail(`the sky ${JSON.stringify(sky)}`)
+  for (const k of ['color', 'light'] as const) if (sky[k] !== null && !/^#[0-9a-f]{6}$/.test(sky[k])) fail(`the sky's ${k} ${sky[k]}`)
+  for (const room of ROOMS) {
+    const t = w.terrain![room]
+    finite(`${room}'s water`, t.water)
+    if (t.water < 0 || t.water > 1) fail(`${room}'s water ${t.water}`)
+    for (const c of [t.waterColor, t.ground]) if (c !== null && !/^#[0-9a-f]{6}$/.test(c)) fail(`${room}'s colour ${c}`)
   }
   for (const it of w.items) {
     inside(it.id, it.x, it.y, it.z)
+    const att = it.attached ?? null
+    if (att !== null) {
+      for (const k of ['x', 'y', 'z', 'yaw', 'pitch', 'roll'] as const) finite(`${it.id} attached ${k}`, att[k])
+      if (!w.items.some((o) => o.id === att.to) && !w.actors.some((a) => a.id === att.to)) fail(`${it.id} is fixed to ${att.to}, which is not here`)
+      if (it.holder !== null || it.loose) fail(`${it.id} is fixed and also held or loose`)
+    }
+    for (const k of ['glowColor', 'light'] as const) {
+      const c = it[k] ?? null
+      if (c !== null && !/^#[0-9a-f]{6}$/.test(c)) fail(`${it.id} ${k} ${c}`)
+    }
+    if ((it.added?.shapes.length ?? 0) > 120) fail(`${it.id} has ${it.added!.shapes.length} added shapes`)
     for (const k of ['yaw', 'pitch', 'roll', 'scale', 'vx', 'vy', 'vz', 'spin'] as const) finite(`${it.id} ${k}`, it[k])
-    for (const [name, p] of Object.entries(it.parts)) for (const v of Object.values(p)) finite(`${it.id} part ${name}`, v)
+    for (const [name, p] of Object.entries(it.parts)) {
+      for (const k of ['x', 'y', 'z', 'rx', 'ry', 'rz', 's'] as const) finite(`${it.id} part ${name} ${k}`, p[k])
+      if (p.color !== undefined && p.color !== null && !/^#[0-9a-f]{6}$/.test(p.color)) fail(`${it.id} part ${name} colour ${p.color}`)
+      if (p.show !== undefined && typeof p.show !== 'boolean') fail(`${it.id} part ${name} show ${String(p.show)}`)
+      if (p.glow !== undefined && p.glow !== null && typeof p.glow !== 'boolean') fail(`${it.id} part ${name} glow ${String(p.glow)}`)
+    }
     for (const [k, v] of Object.entries(it.state)) finite(`${it.id} state ${k}`, v)
   }
   if (w.puffs.length > 600) fail(`${w.puffs.length} puffs`)
@@ -202,7 +259,12 @@ describe('a random child', () => {
       }
       sim.step()
       check(sim.world)
-      for (const e of sim.world.events) counts[e.type] = (counts[e.type] ?? 0) + 1
+      for (const e of sim.world.events) {
+        counts[e.type] = (counts[e.type] ?? 0) + 1
+        // The world's new handles forgive everything: the sky, the water, states, flips, fixing, adding, eating and putting down never fail.
+        if (e.type === 'failed' && e.step.action === 'world') throw new Error(`world failed: ${e.error}`)
+        if (e.type === 'done' && e.step.action === 'world') counts.world = (counts.world ?? 0) + 1
+      }
       sim.world.events.length = 0
       sim.world.sounds.length = 0
       sim.world.speech.length = 0
@@ -210,6 +272,7 @@ describe('a random child', () => {
     expect(counts.started).toBeGreaterThan(200)
     expect(counts.done).toBeGreaterThan(150)
     expect(counts.failed).toBeGreaterThan(10)
+    expect(counts.world).toBeGreaterThan(10)
     expect(structuredClone(sim.world)).toEqual(sim.world)
     expect(JSON.parse(JSON.stringify(sim.world)).actors.length).toBe(sim.world.actors.length)
   }, 60_000)
@@ -222,47 +285,57 @@ describe('speed', () => {
    * SILLY_PERF=1 asks for that and prints the time.
    */
   const strict = Boolean(process.env.SILLY_PERF)
-  it('steps 6 actors and 80 things well within a frame', () => {
-    const r = rng(3)
-    const kinds = ['ball', 'box', 'bench', 'rock', 'bike', 'hat', 'ball', 'box']
-    const things: Placement[] = Array.from({ length: 80 }, (_, i) => ({
-      kind: kinds[i % kinds.length]!,
-      x: -10 + (i % 10) * 2.2,
-      z: -10 + Math.floor(i / 10) * 2,
-      fixed: kinds[i % kinds.length] === 'bench' || kinds[i % kinds.length] === 'rock',
-    }))
-    const actors = CAST.map((c) => newActor({ id: c.id, name: c.name, calls: [c.id], pronoun: 'she', look: kidLook(c.top), x: 0, z: 0 }))
-    const sim = new Sim(createWorld({ room: 'playground', actors, layouts: { playground: things, pool: [], forest: [] }, seed: 5 }), newLibrary())
-    expect(sim.world.items.length).toBe(80)
-    const busy = () => {
-      for (const a of sim.world.actors) {
-        if (a.queue.length > 0 || a.doing !== null) continue
-        const roll = r()
-        const s =
-          roll < 0.5
-            ? step('walk', { target: `${(r() * 22 - 11).toFixed(1)},${(r() * 22 - 11).toFixed(1)}` })
-            : roll < 0.7
-              ? step('jump')
-              : roll < 0.85
-                ? step('pick-up', { thing: 'ball' })
-                : step('throw', { thing: 'ball', target: 'steve' })
-        sim.give(a.id, [s], false)
+  for (const weather of [false, true]) {
+    it(weather ? 'steps them as fast under a fading sky in the rain, every actor in a state and things fixed to things' : 'steps 6 actors and 80 things well within a frame', () => {
+      const r = rng(3)
+      const kinds = ['ball', 'box', 'bench', 'rock', 'bike', 'hat', 'ball', 'box']
+      const things: Placement[] = Array.from({ length: 80 }, (_, i) => ({
+        kind: kinds[i % kinds.length]!,
+        x: -10 + (i % 10) * 2.2,
+        z: -10 + Math.floor(i / 10) * 2,
+        fixed: kinds[i % kinds.length] === 'bench' || kinds[i % kinds.length] === 'rock',
+      }))
+      const actors = CAST.map((c) => newActor({ id: c.id, name: c.name, calls: [c.id], pronoun: 'she', look: kidLook(c.top), x: 0, z: 0 }))
+      const sim = new Sim(createWorld({ room: 'playground', actors, layouts: { playground: things, pool: [], forest: [] }, seed: 5 }), newLibrary())
+      expect(sim.world.items.length).toBe(80)
+      if (weather) {
+        sim.api.sky.rain = 1
+        sim.api.sky.wind = 0.5
+        sim.api.sky.fade({ time: 22, snow: 0.5 }, 30)
+        sim.api.actors.forEach((a, i) => a.effect(['sick', 'dizzy', 'wet', 'cold', 'sleepy', 'glowing'][i]!, 100))
+        const items = sim.api.items
+        for (let i = 0; i < 20; i += 2) items[i + 1]!.attachTo(items[i]!, 'top')
       }
-    }
-    for (let i = 0; i < 300; i++) {
-      busy()
-      sim.step()
-    }
-    const frames = 1200
-    const start = performance.now()
-    for (let i = 0; i < frames; i++) {
-      busy()
-      sim.step()
-      sim.world.events.length = 0
-      sim.world.sounds.length = 0
-    }
-    const ms = (performance.now() - start) / frames
-    if (strict) console.info(`the sim takes ${ms.toFixed(3)} ms a frame`)
-    expect(ms).toBeLessThan(strict ? 1 : 10)
-  })
+      const busy = () => {
+        for (const a of sim.world.actors) {
+          if (a.queue.length > 0 || a.doing !== null) continue
+          const roll = r()
+          const s =
+            roll < 0.5
+              ? step('walk', { target: `${(r() * 22 - 11).toFixed(1)},${(r() * 22 - 11).toFixed(1)}` })
+              : roll < 0.7
+                ? step('jump')
+                : roll < 0.85
+                  ? step('pick-up', { thing: 'ball' })
+                  : step('throw', { thing: 'ball', target: 'steve' })
+          sim.give(a.id, [s], false)
+        }
+      }
+      for (let i = 0; i < 300; i++) {
+        busy()
+        sim.step()
+      }
+      const frames = 1200
+      const start = performance.now()
+      for (let i = 0; i < frames; i++) {
+        busy()
+        sim.step()
+        sim.world.events.length = 0
+        sim.world.sounds.length = 0
+      }
+      const ms = (performance.now() - start) / frames
+      if (strict) console.info(`the sim takes ${ms.toFixed(3)} ms a frame${weather ? ' with the sky, states and fixed things' : ''}`)
+      expect(ms).toBeLessThan(strict ? 1 : 10)
+    })
+  }
 })

@@ -2,9 +2,9 @@ import { BufferGeometry, CapsuleGeometry, ConeGeometry, CylinderGeometry, Euler,
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
-import { KID_HEIGHT, type Proportions } from '../engine/body'
+import { KID_HEIGHT, pivotHeight, type Proportions } from '../engine/body'
 import type { Actor, Hand, Look } from '../engine/types'
-import { flat, palette } from './look'
+import { flat, glow, palette } from './look'
 
 /**
  * The chibi rig: one group per joint, chained, placed and turned exactly as engine/body.ts
@@ -27,8 +27,10 @@ export interface LimbBones {
 }
 
 export interface Bones {
-  /** The feet: position, facing and tip, and the actor's scale. */
+  /** What the body turns round (the feet, unless it has a pivot): position, facing and tip, and the actor's scale. */
   root: Group
+  /** The feet, pivot * height below the root. */
+  base: Group
   /** Squash and stretch from the feet. body.ts has none: a held thing slips a little off the hand while it lasts. */
   squash: Group
   /** People: pivoting at the hips. Animals: the whole body, pivoting at its middle. */
@@ -66,7 +68,8 @@ function limb(parent: Group, x: number, y: number, z: number, upper: number, low
 /** The joints of a body of these proportions, at rest. */
 export function makeBones(pr: Proportions, body: Look['body']): Bones {
   const root = new Group()
-  const squash = joint(root, 0, 0, 0)
+  const base = joint(root, 0, 0, 0)
+  const squash = joint(base, 0, 0, 0)
   const upper = joint(squash, 0, pr.hipY, 0)
   const neck = joint(upper, 0, pr.neckY - pr.hipY, pr.animal ? pr.frontZ + pr.headR * 0.6 : 0)
   const head = joint(neck, 0, pr.headR * 0.85, 0)
@@ -78,7 +81,7 @@ export function makeBones(pr: Proportions, body: Look['body']): Bones {
       legL: limb(squash, pr.hipX, pr.hipY, 0, pr.thigh, pr.shin),
       legR: limb(squash, -pr.hipX, pr.hipY, 0, pr.thigh, pr.shin),
     }
-    return { root, squash, upper, neck, head, limbs, hand: { left: limbs.armL.end, right: limbs.armR.end }, back, tail: [] }
+    return { root, base, squash, upper, neck, head, limbs, hand: { left: limbs.armL.end, right: limbs.armR.end }, back, tail: [] }
   }
   const limbs = {
     armL: limb(squash, pr.legX, pr.legTop, pr.frontZ, pr.thigh, pr.shin),
@@ -95,19 +98,22 @@ export function makeBones(pr: Proportions, body: Look['body']): Bones {
     tail.push(at)
     at = joint(at, 0, spec.len * k, 0)
   }
-  return { root, squash, upper, neck, head, limbs, hand: { left: mouth, right: mouth }, back, tail }
+  return { root, base, squash, upper, neck, head, limbs, hand: { left: mouth, right: mouth }, back, tail }
 }
 
-/** The actor's place and pose on the joints, as body.ts turns them. `sway` adds a little life to a tail that is not wagging. */
-export function poseBones(b: Bones, a: Pick<Actor, 'x' | 'y' | 'z' | 'yaw' | 'pitch' | 'roll' | 'scale' | 'pose' | 'look'>, pr: Proportions, sway: number) {
+/** The actor's place and pose on the joints, as body.ts turns them (round its pivot, with the sway its states add). `sway` adds a little life to a tail that is not wagging. */
+export function poseBones(b: Bones, a: Pick<Actor, 'x' | 'y' | 'z' | 'yaw' | 'pitch' | 'roll' | 'scale' | 'pose' | 'look' | 'pivot' | 'sway'>, pr: Proportions, sway: number) {
   const p = a.pose
-  b.root.position.set(a.x, a.y + p.bob * a.scale, a.z)
+  const h = pivotHeight(a)
+  b.root.position.set(a.x, a.y + p.bob * a.scale + h * a.scale, a.z)
   b.root.rotation.set(a.pitch, a.yaw, -a.roll, 'YXZ')
   b.root.scale.setScalar(a.scale)
+  b.base.position.y = -h
   const wide = 1 / Math.sqrt(p.squash)
   b.squash.scale.set(wide, p.squash, wide)
-  b.upper.rotation.set(p.lean, p.twist, -p.tilt, 'YXZ')
-  b.neck.rotation.set(p.head.nod, p.head.turn, -p.head.tilt, 'YXZ')
+  const sw = a.sway ?? null
+  b.upper.rotation.set(p.lean, p.twist + (sw?.twist ?? 0), -(p.tilt + (sw?.tilt ?? 0)), 'YXZ')
+  b.neck.rotation.set(p.head.nod + (sw?.nod ?? 0), p.head.turn + (sw?.turn ?? 0), -p.head.tilt, 'YXZ')
   for (const name of LIMBS) {
     const l = p[name]
     const side = name.endsWith('L') ? 1 : -1
@@ -185,14 +191,16 @@ const segment = (r: number, len: number) => new CapsuleGeometry(r, Math.max(0.00
 /**
  * Hangs the body's solids on the joints. Returns the geometries made for it, for the
  * caller to let go when the look changes. The face and worn things are added elsewhere.
+ * `lit`: the body lights itself in its own colours (glowing), not lit by the sun.
  */
-export function dressBones(b: Bones, look: Look, pr: Proportions): BufferGeometry[] {
+export function dressBones(b: Bones, look: Look, pr: Proportions, lit: boolean): BufferGeometry[] {
   const d = new Dresser()
   const k = pr.height / (look.body === 'kid' ? KID_HEIGHT : look.body === 'grownup' ? 1.6 : look.body === 'dog' ? 0.6 : 0.5)
-  const skin = flat(look.skin)
-  const top = flat(look.top)
-  const bottom = flat(look.bottom)
-  const shoes = flat(look.shoes)
+  const paint = lit ? glow : flat
+  const skin = paint(look.skin)
+  const top = paint(look.top)
+  const bottom = paint(look.bottom)
+  const shoes = paint(look.shoes)
   const R = pr.headR
   if (!pr.animal) {
     // The torso stops just over the shoulders with round corners, so the chin shows above it from high up.

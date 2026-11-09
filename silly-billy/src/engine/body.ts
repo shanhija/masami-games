@@ -4,7 +4,9 @@
  * bones from the same numbers and rotation orders, so a held ball sits in the drawn hand.
  *
  * The chain, every rotation a three.js Euler (the order named):
- * - root: at (x, y + bob, z), rotation (pitch, yaw, -roll, 'YXZ'), uniform scale `scale`.
+ * - root: at (x, y + bob, z), rotation (pitch, yaw, -roll, 'YXZ'), uniform scale `scale`; with
+ *   a pivot, the rotation turns round the point pivot * height above the feet instead (the
+ *   scene's root group sits there and a base group (0, -pivot * height, 0) in it carries the rest).
  * - upper body: pivot at the hips (0, hipY, 0) in the root, rotation (lean, twist, -tilt, 'YXZ').
  *   People only: an animal's upper body is its whole body, pivoting at its middle.
  * - neck: (0, neckY - hipY, 0) in the upper body; head rotation (nod, turn, -tilt, 'YXZ');
@@ -223,21 +225,32 @@ export function anglesOf(m: Mat3): { yaw: number; pitch: number; roll: number } 
 
 // ------------------------------------------------------------------------------ an actor's frames
 
-type Body = Pick<Actor, 'x' | 'y' | 'z' | 'yaw' | 'pitch' | 'roll' | 'scale' | 'pose' | 'look'>
+type Body = Pick<Actor, 'x' | 'y' | 'z' | 'yaw' | 'pitch' | 'roll' | 'scale' | 'pose' | 'look' | 'pivot' | 'sway'>
 
+/** How far above the feet the body turns, unscaled. */
+export const pivotHeight = (a: Pick<Actor, 'pivot' | 'look'>) => (a.pivot ?? 0) * a.look.height
+
+/** The feet, turned with the body: round the feet, or round the pivot above them (a cartwheel round the middle). */
 export function rootFrame(a: Body): Frame {
-  return { p: [a.x, a.y + a.pose.bob * a.scale, a.z], r: eulerYXZ(a.pitch, a.yaw, -a.roll), s: a.scale }
+  const r = eulerYXZ(a.pitch, a.yaw, -a.roll)
+  const h = pivotHeight(a) * a.scale
+  const y = a.y + a.pose.bob * a.scale
+  if (h === 0) return { p: [a.x, y, a.z], r, s: a.scale }
+  const o = apply(r, [0, -h, 0])
+  return { p: [a.x + o[0], y + h + o[1], a.z + o[2]], r, s: a.scale }
 }
 
-/** The upper body, pivoting at the hips (people) or the middle of the body (animals). */
+/** The upper body, pivoting at the hips (people) or the middle of the body (animals), with the sway its states add. */
 export function upperFrame(a: Body, pr: Proportions = proportions(a.look)): Frame {
-  return child(rootFrame(a), [0, pr.hipY, 0], eulerYXZ(a.pose.lean, a.pose.twist, -a.pose.tilt))
+  const sw = a.sway ?? null
+  return child(rootFrame(a), [0, pr.hipY, 0], eulerYXZ(a.pose.lean, a.pose.twist + (sw?.twist ?? 0), -(a.pose.tilt + (sw?.tilt ?? 0))))
 }
 
 /** The head's centre, turned with the head. */
 export function headFrame(a: Body, pr: Proportions = proportions(a.look)): Frame {
   const upper = upperFrame(a, pr)
-  const neck = child(upper, [0, pr.neckY - pr.hipY, pr.animal ? pr.frontZ + pr.headR * 0.6 : 0], eulerYXZ(a.pose.head.nod, a.pose.head.turn, -a.pose.head.tilt))
+  const sw = a.sway ?? null
+  const neck = child(upper, [0, pr.neckY - pr.hipY, pr.animal ? pr.frontZ + pr.headR * 0.6 : 0], eulerYXZ(a.pose.head.nod + (sw?.nod ?? 0), a.pose.head.turn + (sw?.turn ?? 0), -a.pose.head.tilt))
   return child(neck, [0, pr.headR * 0.85, 0])
 }
 

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ActionEntry, Status } from '../engine/protocol'
 import { createLink } from './link'
+import type { MicInfo } from '../voice/mic'
 
 const STATUS: Status = { claude: true, whisper: 'ready', models: { interpret: 'haiku', invent: 'opus' } }
 const ENTRY: ActionEntry = {
@@ -120,6 +121,13 @@ describe('asking', () => {
     ])
     const sent = new URL(calls[0]!.url, 'http://localhost').searchParams
     expect([sent.get('lang'), sent.get('partial'), sent.get('prime')]).toEqual(['fi', '1', 'Aino ja Eetu leikkivät. Aino, hyppää!'])
+  })
+
+  it('sends what the browser gave for the microphone with a whole clip, as JSON', async () => {
+    const calls = serve(() => json({ text: 'aino hyppää', ms: 400 }))
+    const mic = { label: 'Speakerphone', heldMs: 1500 } as unknown as MicInfo
+    await createLink('/silly-billy/api/').hear(new ArrayBuffer(8), 'fi', false, 'Aino leikkii.', mic)
+    expect(JSON.parse(new URL(calls[0]!.url, 'http://localhost').searchParams.get('mic')!)).toEqual(mic)
   })
 
   it('reads the library from the server in development', async () => {

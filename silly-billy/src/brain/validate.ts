@@ -12,7 +12,7 @@
 
 import { BUILTIN_ACTIONS, BUILTIN_ITEMS } from '../content'
 import { buildRecipe } from '../engine/kit'
-import { Library } from '../engine/library'
+import { Library, namesOf } from '../engine/library'
 import type { ActionEntry, ItemEntry } from '../engine/protocol'
 import { compileModel, compileTick, describeError, resetGuard } from '../engine/sandbox'
 import { PROCESS_BUDGET_MS, Sim, SPARE_MS } from '../engine/sim'
@@ -83,7 +83,7 @@ export function validate(req: ValidateRequest): ValidateResult {
       const sim = new Sim(snapshotOf(req.snapshot), library)
       if (c.entry.guarded === null) return answer('there is no model code')
       stage = 'the model'
-      const { recipe, notes: kit } = buildRecipe(compileModel(c.entry.guarded))
+      const { recipe, notes: kit } = buildRecipe(compileModel(c.entry.guarded), namesOf(c.entry))
       notes.push(...kit)
       forgiven.push(...kit)
       const size = Math.max(...[0, 1, 2].map((k) => recipe.bounds.max[k]! - recipe.bounds.min[k]!))

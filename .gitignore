@@ -29,6 +29,8 @@ temp/
 
 # Silly Billy's log of what was said and made (the library's JSON files are kept)
 silly-billy/library/*.jsonl
+# Silly Billy's voice clips, kept on the laptop for measuring the recognizers
+silly-billy/library/voice/
 
 # Python
 __pycache__/

@@ -10,8 +10,8 @@
 
 import { ACTION_DOC, ACTION_EXAMPLE, ACTION_RULES, ITEM_DOC, ITEM_EXAMPLE, ITEM_RULES, TICK_DOC } from '../engine/apidoc'
 import type { RoughShape } from '../engine/kit'
-import { PARAM_KINDS, type Arg, type InterpretRequest, type InventRequest, type LookChange, type NewAction, type NewAvatar, type NewItem, type Param, type ParamKind, type Plan, type PlanStep } from '../engine/protocol'
-import { BODY_KINDS, ROOMS, SLOTS, type ItemMeta, type Pronoun } from '../engine/types'
+import { PARAM_KINDS, type Arg, type InterpretRequest, type InventRequest, type LookChange, type NewAction, type NewAvatar, type NewItem, type Param, type ParamKind, type Plan, type PlanScript, type PlanStep } from '../engine/protocol'
+import { BODY_KINDS, FOODS, ROOMS, SLOTS, TEMPS, type ItemMeta, type ItemTraits, type Pronoun } from '../engine/types'
 
 // ------------------------------------------------------------------------------ schemas from the types
 
@@ -53,12 +53,12 @@ const CARRY: Record<ItemMeta['carry'], true> = { hand: true, hug: true, no: true
 
 const ARG = object<Arg>('One argument, by the param name.', {
   name: req(text("The action's param name, exactly as listed.")),
-  value: req(text("An avatar id ('steve'), a thing kind ('ball'), a place 'x,z' in metres, plain text, or a number.")),
+  value: req(text("An avatar id ('steve'), a thing's kind ('ball'), id ('#i3') or a new one ('new:ball'), a place 'x,z' in metres, plain text, or a number.")),
 })
 
 const STEP = object<PlanStep>('One avatar doing one action.', {
   who: req(text('The avatar id.')),
-  action: req(text('An action id: a known one, or one from newActions.')),
+  action: req(text("An action id: a known one, one from newActions, or a script's id.")),
   args: req(list('Only the args that were said or are needed; leave out the rest.', ARG)),
 })
 
@@ -72,7 +72,7 @@ const PARAM = object<Param>('One argument the action takes.', {
 const NEW_ACTION = object<NewAction>('An action the game does not know yet; the designer writes it from this.', {
   id: req(text("Short English kebab-case, the verb: 'throw', 'ride', 'dance'.")),
   name: req(text('The English verb.')),
-  nameFi: req(text("The Finnish verb as a child says it to someone: 'heitä', 'aja', 'tanssi'.")),
+  nameFi: req(text("The Finnish verb for this very move as said to someone: 'heitä', 'tanssi'.")),
   calls: req(list('Lowercase: the Finnish forms of the verb, then the English verb.', text('A word.'))),
   about: req(text('What the avatar does from start to end, for any avatar and any thing.')),
   params: req(list('The arguments, general enough to reuse.', PARAM)),
@@ -85,19 +85,22 @@ const ROUGH = object<RoughShape>('One shape of the quick draft.', {
   color: req(text("A colour name or '#rrggbb'.")),
 })
 
-const META = object<Partial<ItemMeta>>('How the thing behaves; give the ones that matter.', {
+const META = object<Partial<ItemMeta & ItemTraits>>('How the thing behaves; give the ones that matter.', {
   carry: opt(choice('hand: small, one hand; hug: big, both arms; no: too big to carry.', Object.keys(CARRY))),
   ride: opt(bool('Can be ridden.')),
   sit: opt(bool('Can be sat on.')),
   wear: opt(choice('Where it goes when worn; leave out for things that are not worn.', SLOTS)),
   bouncy: opt(num('0 a lump, 1 a super ball.')),
   solid: opt(bool('People walk round it.')),
+  food: opt(choice('Only food: yummy, yucky or poison.', FOODS)),
+  temp: opt(choice('Hot or cold.', TEMPS)),
+  soft: opt(bool('A pillow, a bed.')),
 })
 
 const NEW_ITEM = object<NewItem>('A kind of thing the game does not have yet: a quick draft now, the real model a few seconds later.', {
   id: req(text("English kebab-case, singular: 'bicycle', 'christmas-tree', 'magic-wand'.")),
   name: req(text('English words.')),
-  nameFi: req(text("The Finnish word, nominative: 'polkupyörä', 'joulukuusi', 'taikasauva'.")),
+  nameFi: req(text("The proper Finnish word for it, nominative: 'polkupyörä', 'taikasauva'.")),
   calls: req(list("Lowercase: the Finnish word's forms, then the English word.", text('A word.'))),
   about: req(text('What it looks like, in one short sentence.')),
   rough: req(list('The quick draft: 2 to 5 shapes.', ROUGH)),
@@ -124,6 +127,12 @@ const NEW_AVATAR = object<NewAvatar>("Only when the child asks for a new avatar 
   look: req(LOOK),
 })
 
+const SCRIPT = object<Omit<PlanScript, 'guarded' | 'refused'>>('Code for this moment, run once as the steps that name it.', {
+  id: req(text("English kebab-case for what happens: 'backflip-on-trampoline'. Steps that do it name it as their action.")),
+  about: req(text('What happens from start to end, the things by id.')),
+  code: req(text("The body of function* (me, args, w), at most 10 lines; '' when it needs more.")),
+})
+
 export const PLAN_SCHEMA = object<Plan>('Who does what, and what has to be made first.', {
   heard: req(text("The command as understood, in short English: 'The cat jumps onto the bench'.")),
   heardFi: req(text("The same in short simple Finnish: 'Kissa hyppää penkille'.")),
@@ -133,6 +142,7 @@ export const PLAN_SCHEMA = object<Plan>('Who does what, and what has to be made 
   newItems: req(list('Only kinds of things that are not in the list of kinds.', NEW_ITEM)),
   create: opt(NEW_AVATAR),
   room: opt(choice("Only when the child asks to go to another room ('mennään metsään'); leave it out otherwise.", ROOMS)),
+  scripts: opt(list('Only for this moment, when known actions one after another cannot say it.', SCRIPT)),
   say: req(text("The avatar's answer: 1 to 4 simple English words that show what it understood.")),
   sayFi: req(text('The same in simple Finnish for a six-year-old.')),
 })
@@ -191,7 +201,7 @@ const EXAMPLES: { game: string; words: string; plan: Plan }[] = [
           name: 'goal',
           nameFi: 'maali',
           calls: ['maali', 'maalin', 'maalia', 'maaliin', 'goal'],
-          about: 'A white football goal 2 metres wide and 1.2 high, with a grey net at the back.',
+          about: 'A white football goal 2 metres wide and 1.2 high, with a grey mesh at the back.',
           rough: [
             { shape: 'box', size: [0.1, 1.2, 0.1], at: [-1, 0.6, 0], color: 'white' },
             { shape: 'box', size: [0.1, 1.2, 0.1], at: [1, 0.6, 0], color: 'white' },
@@ -226,9 +236,12 @@ const EXAMPLES: { game: string; words: string; plan: Plan }[] = [
 
 export const INTERPRET_SYSTEM = `You are the ears of Silly Billy, a game for six-year-olds: a 3D room (a playground, a swimming pool or a forest) full of avatars (kids, a grown-up, a cat) and things. A child says what an avatar should do; a speech recognizer writes it down, often wrong; you turn the words into a plan the game runs at once. What the game cannot do yet, you name and describe, and a designer writes it as code in a few seconds.
 
-Each message gives the game as it is now (the room, the avatars, the things here, every action with its params, every kind of thing, the rooms, names for new avatars), the language it is played in (the child speaks it and the game shows it) and the child's words.
+Each message gives the whole game now (the room, its water and the sky, every avatar: where, holding, wearing, doing or did, its state; every thing here by id, each kind here with its size and how it is used, every action with its params, every kind, names for new avatars), the language it is played in (the child speaks it and the game shows it) and the child's words.
 
 ALWAYS ANSWER WITH A PLAN. Never refuse, never ask back, never do nothing. Misunderstanding is part of the fun: when the words are unclear, make your best funny guess and do something, and let say show the guess.
+
+HEARING
+- The recognizer drops, joins and splits letters and mishears whole words. Read the words by how they sound against the scene: a garbled word most likely names someone or something here, or what an avatar holds, wears or just did.
 
 WHO
 - A command usually starts with a name. Names are misheard: take the avatar whose name sounds closest; 'kissa', 'kisu' or 'cat' is the cat.
@@ -237,49 +250,61 @@ WHO
 - who and steps use ids exactly as listed, never names: the line 'alice Aino kid she' is Aino, whose id is alice.
 
 STEPS
-- A step is one avatar doing one action: who, action, args by the action's param names.
-- Someone who only takes part in another avatar's action (its partner, its target) gets no step of their own for it.
-- Use the known actions with their exact param names whenever they fit. Prefer one step: one action does the whole job.
-- Words to say and names in text args are short and in the game's language: 'sano hei' is words 'Hei!', 'say hi' is 'Hi!'. Kinds, colours and parts stay English, as listed. Leave out a text arg that only repeats the verb ('laula laulu' needs no song).
+- A step is one avatar doing one action: who, action, args by the action's param names. Someone who only takes part in another avatar's action (its partner, its target) gets no step of their own for it.
+- A known action fits only when its about is the very thing asked, covering all of it (the move, the things, where each ends up), done with things it is made for; prefer one step that does the whole job. An avatar's steps run one after another, each whole to its own end, and the next starts where that one ended. When no known action, nor a chain of them whose ends meet, does exactly what was asked, write a script (SCRIPTS) rather than bend one.
+- Picture it happening with these very things and use what you know of the world: what each thing is, what it can do, what moves and what carries whom. Silly is welcome whenever it could be done at all; when what was literally asked cannot be done (the thing cannot do what the verb needs), do the reading that can, and give a param only a thing that can play its part. What a thing is comes from its kind and its look, never from a name that may be misheard.
+- A thing's id ('#i3') is that very thing and its kind alone the nearest one here; only what a step makes or builds is 'new:kind', a new one made for it. A place is 'x,z'. The room's water is no thing: to go or throw there, use its spot.
+- 'Uudestaan', 'taas', 'again': that avatar's last step (did) once more.
+- Words to say and names in text args are short and in the game's language: 'sano hei' is words 'Hei!', 'say hi' is 'Hi!'. Kinds, colours and parts stay English, as listed. Leave out a text arg that only repeats the verb.
 - Every thing kind in an arg is in the list of kinds or in newItems: a kind you name and do not list is lost.
 
-NEW ACTIONS: only when no known action fits
-- General and reusable, named by the verb: 'throw' with thing and target, never 'throw-ball-at-steve'; 'ride' with vehicle and an optional target; 'dance' with an optional partner; 'swim', 'climb' or 'slide' with a thing; 'kick' with thing and target. A param the action can do without is optional.
-- The id is the English of the verb the child said: 'ui' is swim, 'sukella' dive, 'hyppää' jump. Never a different action that comes to mind with it.
-- Something done with a thing is one new action that does all of it: 'hyppää hyppynarulla' is 'jump-rope' with a thing, never pick-up then jump.
-- Param kinds: actor (an avatar), item (a thing), thing (an avatar or a thing: the action gets the thing itself, its size and place), place (only a spot on the ground), text, number. A target that is a thing is kind thing, not place.
-- nameFi: the Finnish verb as said to someone ('heitä'). calls: 3 to 6 single lowercase words: the Finnish forms of the verb (imperative, infinitive, plural: 'heitä', 'heittää', 'heittäkää', 'viskaa'), then the English verb ('throw'). Never another action's words: a swim never takes 'sukella'.
-- about: for the designer, 1 or 2 short sentences (at most 40 words): what the avatar does from start to end and how it ends. Write it for any avatar and any thing: 'the avatar', 'the thing', 'the target', 'the partner', never the names or the kinds in this command, nor what they are made of ('build': the avatar brings bits and builds the thing up piece by piece, then pats it proudly; never 'snow bits' or 'rolls snowballs into a snowman'). A param's about is general too: 'what to build', never 'here a snowman'. If it needs a thing it does not hold, it fetches it first; someone else who takes part joins in.
-- The plan's steps use the new action like any other.
+NEW ACTIONS: a move the child may ask for again that no known action is
+- General and reusable, named by the verb: 'throw' with thing and target, never 'throw-ball-at-steve'. Whatever takes part is a param, also what comes out of the thing used or is made by it, which a step fills from what you know of those things ('new:kind' if made). A param it can do without is optional; a target that is a thing is kind thing (it gets the thing itself), never place (only a spot on the ground).
+- The id is the English of the verb the child said, never a different action that comes to mind with it. A word for doing is an action, never a thing's name.
+- nameFi and calls name this very move: nameFi the Finnish verb as said to someone ('heitä'); calls 3 to 6 single lowercase words, its Finnish forms (imperative, infinitive, plural: 'heitä', 'heittää', 'heittäkää'), then the English verb ('throw'). Never a verb that could mean many moves, never another action's words, never a word as the recognizer misheard it.
+- about: for the designer, 1 or 2 short sentences (at most 40 words): what the avatar does from start to end and how it ends. Write it for any avatar and any thing, never the names or the kinds in this command, nor what they are made of. A param's about is general too. If it needs a thing it does not hold, it fetches it first and puts it down when done, unless keeping it is the point (carry, give, wear); someone else who takes part joins in.
 
 NEW ITEMS: only for a kind of thing that is not in the list of kinds
-- A thing with a name of its own is a new kind even when a related kind exists: 'joulukuusi' is 'christmas-tree', not 'tree'; 'poni' is 'pony', not 'dog'. The same thing in another colour, or bigger or smaller, is the known kind. A clearly different version gets its own id ('hair-big-curly' for big curly hair, when 'hair-curly' is ordinary curls).
-- Colours are not kinds: a pink gown is the thing 'gown' worn with the colour pink; a red ball is 'ball' painted red. Use a paint step, or the colour arg of a wear step.
-- id: English kebab-case, singular ('bicycle', 'christmas-tree', 'magic-wand'); nameFi: the Finnish word in the nominative ('polkupyörä'). calls: 3 to 6 single lowercase words: the Finnish word's forms a child says ('pyörä', 'pyörän', 'pyörää', 'pyörällä', 'polkupyörä'), then the English word ('bicycle'). Never a word that also means other kinds: 'tukka' alone is any hair, so big curly hair gets 'kiharapää' and 'afro', not 'tukka'.
+- A thing with a name of its own is a new kind even when a related kind exists. The same thing in another colour or size is the known kind (paint, grow, or the colour arg of a wear step); a clearly different version gets its own id ('hair-big-curly').
+- Never a new thing for what is here (the room's water, the lamps) or for the sky. A thing made for a thing here (a part, what leads up to it) is new and fixed to it, never left loose: make with at, side and reach, or a script.
+- id: English kebab-case, singular ('bicycle', 'magic-wand'). nameFi and calls are the proper Finnish words for what it is, never the word as misheard: nameFi in the nominative ('polkupyörä'); calls 3 to 6 single lowercase words, the forms a child says ('pyörä', 'pyörän', 'pyörällä', 'polkupyörä'), then the English word ('bicycle'). Never a word that also means other kinds.
 - about: what it looks like, in one short sentence: shape, parts, colours, real size in metres.
-- rough: a draft of 2 to 5 shapes that reads as the thing from far away. at is a shape's centre in metres: y up from the ground (half the height for a shape standing on the ground), the front toward +z, so a long thing (a bike, a car, a boat, a skateboard, a sled, a scooter) lies along z: its length is the third size number, [0.22, 0.05, 0.8] for a skateboard. Cylinders and cones always stand upright, so a wheel is never a cylinder: it is a flat sphere, size [0.08, 0.6, 0.6], a disc standing up that rolls along z. Real sizes: a ball 0.25 across, a bike 1.6 long and 1 high, a tree 4 tall, a kid 1.15 tall.
+- rough: a draft of 2 to 5 shapes that reads as the thing from far away. at is a shape's centre in metres: y up (half the height for a shape on the ground), the front toward +z, so a long thing lies along z: its length is the third size number. Cylinders and cones stand upright, so a wheel is a flat sphere, size [0.08, 0.6, 0.6]. Real sizes, a kid being 1.15 tall.
 - A worn thing is drafted where it sits on its wearer: hair, hats and glasses around the middle of the head (at [0, 0, 0] is the head's middle, a ball 0.46 across, its top at y 0.23); gowns and costumes from between the feet (hips at y 0.4, shoulders at 0.68); capes and wings from between the shoulder blades; a wand from the hand that holds it.
-- meta: carry ('hand' small, 'hug' big, 'no' too big), ride, sit, wear, bouncy, solid. Worn things: hair on 'hair'; hats and crowns on 'head'; glasses and masks on 'face'; gowns, dresses and costumes on 'body'; capes, wings and backpacks on 'back'; wands and swords on 'hand'. Worn things are carried in a hand.
+- meta: carry ('hand' small, 'hug' big, 'no' too big), ride, sit, wear (the slot it is worn on; a worn thing is carried in a hand), bouncy, solid; food, temp and soft for what is eaten, hot or cold, or soft.
+
+SCRIPTS: this moment's own code, when no known action does exactly what was asked
+- A script does it with these very things, from the whole scene, using the known actions as helpers. A move the child may ask for again is a new action instead, and a known action that fits needs no script.
+- scripts: { id, about, code }. Each step doing it has action: the script's id and args by any names (things by id or kind, places 'x,z'), which the code reads (args.thing). about: what happens from start to end, the things by id.
+- code: the body of function* (me, args, w), at most 10 lines, else '' (the designer writes it from about while the avatar thinks). Only:
+  yield* me.do('bounce', { thing: args.thing }) (a known action, all of it, its end too)  yield* me.walkTo(it)  yield* me.turnTo(it)  yield* me.jump(0.8, 1) (forward metres)
+  yield* me.climbOnto(it) (up onto its top and stays: a jump or a flip there lands on it)  yield* me.climbDown()  yield* me.flip('backflip') ('somersault', 'cartwheel')
+  yield* me.moveThing(it, to, 'top') (any size: carried, pushed or by magic; 'front' 'back' 'left' 'right' 'top' or none)  yield* me.walkTo([p, q], { speed: 2 })
+  yield* me.moveThing(it, [t.point(0, 1, -1), t.point(0, 1, 1)], null, { speed: 2 }) (a route along t's top, as t lies;
+  t.point: its box -1..1, x right..left, y bottom..top, z back..front; whoever is aboard goes along)
+  yield* me.pickUp(it)  yield* me.putDown(it, where)  yield* me.eat(it)  me.say({ en: 'Wow!', fi: 'Vau!' })  me.effect('wet', 10)  yield* w.wait(1)
+  w.find('lamp-post', { near: me })  w.items.filter((i) => i.kind === 'lamp-post')  w.make('ladder', { near: other })  it.glow = false (a lamp off)
+  it.attachTo(other, 'front', { up: 'top' }) (fixed at a side or 'top'; up: sized to reach that point)  w.sky.fade({ time: 22 }, 3) (night; 12 is day)  w.pool.fade({ level: 0 }, 3)
 
 AVATARS
 - 'tee uusi tyttö', 'tee poika', 'tee koira' make a new avatar: create, with the name the child said or the first name from the list for new avatars; look: body (kid, grownup, cat, dog) and cheerful colours unlike the others'. A new avatar has no hair yet: always add a wear step with a hair kind (one the child named, or one that fits). who and steps use its id.
-- Dressing and changing: wear (hair, hats, glasses, gowns, capes, wands), take-off, paint (colours), grow, shrink, rename. 'anna hänelle iso kihara tukka' (give her big curly hair) is a wear step.
+- Dressing and changing are wear, take-off, paint, grow, shrink and rename: 'anna hänelle iso kihara tukka' (give her big curly hair) is a wear step.
 
 ROOMS
 - 'mennään metsään', 'mennään uimaan', 'leikkipuistoon' (let's go to the forest, swimming, the playground): room. Everybody goes; steps only for anything else that was asked.
-- Leave room out unless the child asks to go to another room. Being in a room is no reason to name it: most plans have no room.
+- Leave room out unless the child asks to go to another room: most plans have no room.
 
 WORDS: always all four; the game shows the English or the Finnish pair
 - heard: the command as understood, in short English; heardFi: the same in short simple Finnish ('The cat jumps onto the bench', 'Kissa hyppää penkille'). Names as listed.
-- say: what the avatar answers: 1 to 4 simple English words that show what it understood ('Ball to the cat!', 'Bike time!', 'Hi! I am Ella!'). sayFi: the same in simple Finnish for a six-year-old ('Pallo kissalle!', 'Pyöräillään!', 'Hei! Olen Ella!'). A funny guess asks: 'A bowl? Okay!' and 'Kulho? Okei!'. No dashes.
+- say: what the avatar answers: 1 to 4 simple English words that show what it understood ('Ball to the cat!', 'Hi! I am Ella!'). sayFi: the same in simple Finnish for a six-year-old ('Pallo kissalle!', 'Hei! Olen Ella!'). A funny guess asks: 'A bowl? Okay!' and 'Kulho? Okei!'. The answer is about what happens, never about the words or how they were heard. No dashes.
 
 GENTLE AND SILLY
 - Nobody gets hurt and nothing is scary. Hitting, kicking, biting or shooting someone becomes a soft bonk, a tickle or a pillow fight; anything rude or scary turns into something kind and funny, and say never repeats the rude words.
 
 FINNISH
-- The recognizer drops and joins letters, and children say 'mee' (mene), 'tuu' (tule), 'kato' (katso), 'pistä' (laita). Read the words by how they sound.
+- Children say spoken forms ('mee' mene, 'tuu' tule, 'kato' katso, 'pistä' laita).
 - Endings: -lle to (kissalle: to the cat), -lla/-llä on, by or with (pyörällä: on a bike), -n kanssa with (kissan kanssa: with the cat), -n yli over, -n alle under, -n päälle onto, -an/-ään/-seen into (metsään: into the forest), -sta/-stä from.
-- 'tee' is also do: 'tee kärrynpyörä' is a cartwheel (the move, never a wheelbarrow or a cart's wheel), 'tee kuperkeikka' a somersault, 'tee voltti' a flip, 'tee spagaatti' the splits, 'tee temppu' a trick: an action the avatar does, not a thing to make.
+- 'tee' is also do: with a move it is that move ('tee kärrynpyörä' a cartwheel, 'tee temppu' a trick), not a thing to make.
 
 EXAMPLES, from other games: take the names from your message, never from here.
 ${EXAMPLES.map((e) => `Game: ${e.game}.\nThe child said: ${JSON.stringify(e.words)}\nPlan: ${JSON.stringify(e.plan)}`).join('\n\n')}`
@@ -300,9 +325,12 @@ ${ACTION_DOC}
 
 ${ACTION_RULES}
 - Short is fast, and a child is waiting. One clear idea, done well, beats many small ones.
-- The action is kept and used again and again, by any avatar on any things: work only from me, args and w. The child's words are one example: write it for every thing its args can hold (build: a snowman today, a sand castle or a house tomorrow). Never write names or kinds from the child's words into what it does or says: say and shape things from the args (args.thing.name, its size and anchors). An arg that is null is found (w.find) or made (w.make) by kind, or done without. A thing it uses in the hand is the one me holds, else a free one (w.find(kind, { near: me, free: true })), else a new one (w.make): never one from another's hand.
+- The action is kept and used again and again, by any avatar on any things: work only from me, args and w. The child's words are one example: write it for every thing its args can hold. Name no kind and no name in its code: whatever takes part, what it uses and what comes out of or is made by what it uses, arrives by a param (a step may give a new one) or is what me holds, and is never looked up or made by its kind; say and shape things from the args (args.thing.name, its size and anchors). An arg that is null is done without, or with what me holds; never take a thing from another's hand.
+- Picture it happening with the real things and use what you know of the world: what each thing is (its kind, look and meta, not a name that may be misheard), what it can do, what moves and what carries whom. Silly is welcome whenever it could be done at all; what cannot be done as asked is done the way it can.
+- Use the engine, never a look-alike: eating is yield* me.eat(it), which shows how it tastes (yummy, yucky, poison makes one sick), so add no cheer of your own after it, and never w.remove; flips and cartwheels are yield* me.flip; getting up onto a thing is yield* me.climbOnto(it); moving a thing, whatever its size and along whatever route, is yield* me.moveThing; what happens to a body is me.effect (wet, cold, sick, dizzy); day and night, rain and snow are w.sky.fade and the water w.pool.fade, never puffs; lamps on and off are it.glow; a thing put on or fixed to another is it.putAt or it.attachTo, its own new bits it.add.
+- What it picks up is put down nicely when it ends (or yield* me.putDown(it) or me.putBack(it) sooner); me.keep(it) only when keeping it is the point (carry, give, wear).
 - The game is played in Finnish or English, so every bubble says both, short and simple: me.say({ en: 'Wheee!', fi: 'Jee!' }). A plain string only for a name or a number. A .name is already in the game's language and takes no Finnish ending, so it stands alone: me.say({ en: \`Bye, \${friend.name}!\`, fi: \`Hei hei, \${friend.name}!\` }).
-- Leave a thing's wheels and other parts alone: things are designed at the same time as actions and turn their own wheels. Move the thing itself.
+- Move the thing itself and leave its wheels alone (it turns its own). Move its other parts only by the names the context lists for its kind: a thing designed at the same time as the action has none yet.
 
 An example:
 ${ACTION_EXAMPLE}
@@ -365,21 +393,23 @@ export const lacksFinnishName = (spec: NewItem): boolean => {
 
 /** The designer's message: what to make, from the child's words and the interpreter's spec, and for a fix the code that failed and why. */
 export function inventMessage(req: InventRequest): string {
+  const args = (params: Param[]) =>
+    params.length ? `Its args, each of which may be null:\n${params.map((p) => `- args.${p.name}: ${ARG_IS[p.kind]}${p.optional ? ', optional' : ''}: ${p.about}`).join('\n')}` : 'It takes no args.'
   const spec =
     req.kind === 'action'
-      ? [
-          `Write the action ${JSON.stringify(req.spec.id)} (${req.spec.name}).`,
-          `What it does: ${req.spec.about}`,
-          req.spec.params.length
-            ? `Its args, each of which may be null:\n${req.spec.params.map((p) => `- args.${p.name}: ${ARG_IS[p.kind]}${p.optional ? ', optional' : ''}: ${p.about}`).join('\n')}`
-            : 'It takes no args.',
-        ]
-      : [
+      ? [`Write the action ${JSON.stringify(req.spec.id)} (${req.spec.name}).`, `What it does: ${req.spec.about}`, args(req.spec.params)]
+      : req.kind === 'script'
+        ? [
+            `Write a script for this moment, as an action's code: ${req.spec.about}`,
+            'It runs once, now, as this step, and is not kept: unlike an action it is for these very things, so it may name them by id and kind from the game below (w.items.find((i) => i.id === "#i5")), and it can do the library\'s actions as helpers (yield* me.do(\'bounce\', { thing })).',
+            args(req.spec.params),
+          ]
+        : [
           `Build the thing ${JSON.stringify(req.spec.id)} (${req.spec.name}).`,
           `What it looks like: ${req.spec.about}`,
           `How it behaves: ${JSON.stringify(req.spec.meta)}`,
           `The interpreter's quick draft, on screen until yours is ready, only a rough sketch: where it breaks the rules above, follow the rules (a long thing lies along z, its front toward +z): ${JSON.stringify(req.spec.rough)}`,
-          ...(lacksFinnishName(req.spec) ? ["Its Finnish name is not known yet: give nameFi too, the thing's name in Finnish, nominative ('joulukuusi')."] : []),
+          ...(lacksFinnishName(req.spec) ? ["Its Finnish name is not known yet: give nameFi too, the proper Finnish word for what it is, nominative ('joulukuusi')."] : []),
         ]
   const fix = req.fix
     ? [`Your code failed its test:\n${req.fix.error}\n\nThe code was:\n${req.fix.code}\n\nFix it and answer with the whole corrected code.`]

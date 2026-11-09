@@ -31,8 +31,23 @@ export type BodyKind = 'kid' | 'grownup' | 'cat' | 'dog'
 export const BODY_KINDS: readonly BodyKind[] = ['kid', 'grownup', 'cat', 'dog']
 export type Pronoun = 'she' | 'he' | 'they' | 'it'
 
-/** A little built-in reaction an actor plays for a second or two, before its own steps: a shrug, a cheer, a puzzled tilt, a wave, a think. */
-export type Reaction = 'shrug' | 'yay' | 'huh' | 'hello' | 'think'
+/** A little built-in reaction an actor plays for a second or two, before its own steps: a shrug, a cheer, a puzzled tilt, a wave, a think, getting better after being sick (a lie-down and a happy hop). */
+export type Reaction = 'shrug' | 'yay' | 'huh' | 'hello' | 'think' | 'better'
+
+/**
+ * A state a body is in for a while, shown by it and read by code, the brain and the
+ * interpreter: sick (green, wobbly and slow; when it runs out the actor lies down a moment and
+ * gets better), dizzy (stars round the head, wobbling), wet (drips), cold (shivers), sleepy
+ * (a nodding head, slower), hot (red, sweating), glowing (lights up, and lights what is near).
+ */
+export type Effect = 'sick' | 'dizzy' | 'wet' | 'cold' | 'sleepy' | 'hot' | 'glowing'
+export const EFFECTS: readonly Effect[] = ['sick', 'dizzy', 'wet', 'cold', 'sleepy', 'hot', 'glowing']
+
+/** Whether a thing is food, and what kind: eating decides by this (nobody gets hurt: poison makes one sick for a while). */
+export type Food = 'yummy' | 'yucky' | 'poison'
+export const FOODS: readonly Food[] = ['yummy', 'yucky', 'poison']
+export type Temp = 'hot' | 'cold'
+export const TEMPS: readonly Temp[] = ['hot', 'cold']
 
 /** Particles. Each kind has its own little shape in the scene. */
 export type PuffKind = 'dust' | 'spark' | 'heart' | 'star' | 'drop' | 'note' | 'bubble' | 'leaf' | 'snow' | 'confetti' | 'smoke' | 'fire'
@@ -171,6 +186,8 @@ export interface Actor {
   hands: Record<Hand, string | null>
   /** The item instance it rides or sits on. */
   riding: string | null
+  /** The thing whose top it got up onto (climbOnto) and stands on while its feet are over that top: jumps and flips there land on it again (absent is none). */
+  on?: string | null
   mood: Mood
   moodUntil: number
   bubble: Bubble | null
@@ -189,9 +206,27 @@ export interface Actor {
   speed: number
   /** The walk cycle's phase, radians, advanced by the movement helpers. */
   stride: number
+  /** What pitch and roll turn the body round, as a share of its height: 0 the feet (absent is 0: lying down, falling over), 0.5 its middle (cartwheels, somersaults, flips). */
+  pivot?: number
+  /** The states it is in and the world time each runs out (absent is none). */
+  effects?: Partial<Record<Effect, number>>
+  /** What its states add on top of its pose this frame (sick and dizzy wobble, cold shivers, sleepy nods), set by the sim; absent is none. */
+  sway?: Sway | null
 }
 
-/** Offsets for a named part of an item's model, on top of the part's own pivot and rotation. */
+/** Radians added on top of the pose: the upper body's tilt and twist, the head's nod and turn. */
+export interface Sway {
+  tilt: number
+  twist: number
+  nod: number
+  turn: number
+}
+
+/**
+ * Offsets for a named part of an item's model, on top of the part's own pivot and rotation, and
+ * how it is drawn on this one thing. The last three are absent until code sets them (and in
+ * rooms saved before them): absent is as built.
+ */
 export interface PartPose {
   x: number
   y: number
@@ -200,10 +235,16 @@ export interface PartPose {
   ry: number
   rz: number
   s: number
+  /** One colour for all of the part, or null for its own colours. */
+  color?: string | null
+  /** False hides the part. */
+  show?: boolean
+  /** True: its glowing shapes shine (a part without any glows all over); false: they are switched off; null: as the thing says. */
+  glow?: boolean | null
 }
 
 export function restPart(): PartPose {
-  return { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, s: 1 }
+  return { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, s: 1, color: null, show: true, glow: null }
 }
 
 export interface Item {
@@ -236,7 +277,92 @@ export interface Item {
   born: number
   /** Built into the room (the slide, the pool ladder): physics never moves it, actions still may. */
   fixed: boolean
+  /**
+   * The fields below are absent until something sets them, and in rooms saved before them:
+   * absent is null.
+   *
+   * True: its glowing shapes shine (a thing without any glows all over); false: they are switched
+   * off (a lamp turned off, a fire put out); null: as built.
+   */
+  glow?: boolean | null
+  /** One colour for all its glowing shapes, or null for their own. */
+  glowColor?: string | null
+  /** The colour of a real light it gives off round it (a torch), or null. Lamps and fires light what is near at night by themselves. */
+  light?: string | null
+  /** Fixed to another thing or an actor: it goes and turns with it. */
+  attached?: Attachment | null
+  /** Shapes code added to this one thing (a ladder on this treehouse), kept with it. */
+  added?: Added | null
+  /** Where it was picked up from, so it can be put back. */
+  home?: Home | null
 }
+
+/** Where a thing is fixed: to an item ('#i3') or an actor ('alice'), at one of its anchors or parts (or its own frame), and its place and turn there. */
+export interface Attachment {
+  to: string
+  /** The anchor or part of `to` it is fixed at, or null for its base point. */
+  at: string | null
+  x: number
+  y: number
+  z: number
+  /** Its turn in that frame, as an item's yaw, pitch and roll. */
+  yaw: number
+  pitch: number
+  roll: number
+}
+
+/** Shapes, parts and anchors added to one thing, in its own frame, with the same kit as models. */
+export interface Added {
+  /** New for every addition (an id from the world's count), so the scene builds this thing's model again. */
+  key: number
+  shapes: Shape[]
+  parts: PartDef[]
+  anchors: Recipe['anchors']
+}
+
+export interface Home {
+  x: number
+  y: number
+  z: number
+  yaw: number
+}
+
+/** A number or a colour on its way somewhere: from `from` at world time `start` to `to` over `secs`. */
+export interface Fade {
+  from: number | string
+  to: number | string
+  start: number
+  secs: number
+}
+
+/** The sky, the light and the weather, the same in every room. It stays as code left it. */
+export interface Sky {
+  /** Hours, 0 to 24: 0 midnight, 6 sunrise, 12 noon, 18 sunset. */
+  time: number
+  /** 0 to 1: how hard it rains, snows; how foggy and windy it is. */
+  rain: number
+  snow: number
+  fog: number
+  wind: number
+  /** The sky painted one colour, or null for the time of day's. */
+  color: string | null
+  /** The sunlight's colour, or null for the time of day's. */
+  light: string | null
+  fades: Partial<Record<SkyKey, Fade>>
+}
+export type SkyKey = 'time' | 'rain' | 'snow' | 'fog' | 'wind' | 'color' | 'light'
+
+/** A room's ground and water, kept by each room. */
+export interface Terrain {
+  /** How full its water is: 0 dry, 1 full (the pool's surface at WATER_Y). */
+  water: number
+  /** The water's colour, or null for the room's own. */
+  waterColor: string | null
+  /** A colour washed over the ground ('white' for snow), or null for its own. */
+  ground: string | null
+  fades: Partial<Record<TerrainKey, Fade>>
+}
+export type TerrainKey = 'water' | 'waterColor' | 'ground'
 
 export interface Puff {
   kind: PuffKind
@@ -289,6 +415,9 @@ export interface World {
   rng: number
   /** The actor the camera leans toward, or null. */
   spotlight: string | null
+  /** The sky and the light, and each room's ground and water; absent (a world from before them) is the default, made when the sim takes the world in. */
+  sky?: Sky
+  terrain?: Record<RoomId, Terrain>
 }
 
 // ------------------------------------------------------------------------------ the items' models
@@ -330,6 +459,13 @@ export interface PartDef {
   pose?: string
 }
 
+/** What a thing is for beyond how it is handled: whether it is food, hot or cold, soft. */
+export interface ItemTraits {
+  food: Food | null
+  temp: Temp | null
+  soft: boolean
+}
+
 export interface ItemMeta {
   /** 'hand': one hand; 'hug': both arms; 'no': too big to carry. */
   carry: 'hand' | 'hug' | 'no'
@@ -351,6 +487,7 @@ export interface Recipe {
   parts: PartDef[]
   anchors: Record<string, { at: Vec3; part: string | null }>
   meta: ItemMeta
+  traits: ItemTraits
   bounds: { min: Vec3; max: Vec3 }
 }
 

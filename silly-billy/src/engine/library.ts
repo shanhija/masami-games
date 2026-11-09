@@ -12,7 +12,7 @@ import type { ActionFn, TickFn } from './api'
 import { buildRecipe, roughRecipe, type Kit } from './kit'
 import type { ActionEntry, AvatarEntry, ItemEntry, Param, PhraseEntry } from './protocol'
 import { compileAction, compileModel, compileTick, describeError, resetGuard } from './sandbox'
-import type { ItemInfo, Recipe } from './types'
+import type { ItemInfo, Recipe, Vec3 } from './types'
 import { matchWordForm, type MatchForm } from './words'
 
 /** A thing the game ships with: its model is TypeScript against the same kit. */
@@ -64,19 +64,18 @@ export interface LibAction {
 
 export type AddResult = { ok: true } | { ok: false; error: string }
 
-/** What the sim measures of a kind: its size and how far it reaches from its base point on the ground. */
-function infoOf(kind: string, name: string, nameFi: string, recipe: Recipe, rough: boolean): ItemInfo {
-  const { min, max } = recipe.bounds
-  return {
-    kind,
-    name,
-    nameFi,
-    recipe,
-    size: [max[0] - min[0], max[1] - min[1], max[2] - min[2]],
-    radius: Math.max(0.05, -min[0], max[0], -min[2], max[2]),
-    rough,
-  }
+/** What the sim measures of a model: its size and how far it reaches from its base point on the ground. */
+export function measure(bounds: Recipe['bounds']): { size: Vec3; radius: number } {
+  const { min, max } = bounds
+  return { size: [max[0] - min[0], max[1] - min[1], max[2] - min[2]], radius: Math.max(0.05, -min[0], max[0], -min[2], max[2]) }
 }
+
+function infoOf(kind: string, name: string, nameFi: string, recipe: Recipe, rough: boolean): ItemInfo {
+  return { kind, name, nameFi, recipe, ...measure(recipe.bounds), rough }
+}
+
+/** What a thing is called, for the kit's guess at whether it is food. */
+export const namesOf = (e: { id: string; name: string; nameFi?: unknown; calls: readonly string[] }): string[] => [e.id, e.name, ...(typeof e.nameFi === 'string' ? [e.nameFi] : []), ...e.calls]
 
 /** A stored entry's Finnish name: its own, else its first call (the interpreter lists the Finnish ones first), else its name. */
 function nameFiOf(entry: { name: string; nameFi?: unknown; calls: readonly string[] }): string {
@@ -115,14 +114,14 @@ export class Library {
 
   private readonly builtinItems = new Map<string, LibItem>()
   private readonly builtinActions = new Map<string, LibAction>()
-  private readonly mysteryRecipe = buildRecipe(mysteryBox).recipe
+  private readonly mysteryRecipe = buildRecipe(mysteryBox, []).recipe
   private readonly mystery = new Map<string, ItemInfo>()
   /** Words already matched, for this version. */
   private readonly matched = { items: new Map<string, { id: string; form: MatchForm } | null>(), actions: new Map<string, { id: string; form: MatchForm } | null>(), version: -1 }
 
   constructor(builtins: { items: BuiltinItem[]; actions: BuiltinAction[] }) {
     for (const b of builtins.items) {
-      const item: LibItem = { id: b.id, name: b.name, nameFi: b.nameFi, calls: b.calls, about: b.about, info: infoOf(b.id, b.name, b.nameFi, buildRecipe(b.build).recipe, false), tick: b.tick ?? null, entry: null }
+      const item: LibItem = { id: b.id, name: b.name, nameFi: b.nameFi, calls: b.calls, about: b.about, info: infoOf(b.id, b.name, b.nameFi, buildRecipe(b.build, namesOf(b)).recipe, false), tick: b.tick ?? null, entry: null }
       this.builtinItems.set(b.id, item)
       this.items.set(b.id, item)
     }
@@ -150,12 +149,12 @@ export class Library {
     try {
       let recipe: Recipe
       let tick: TickFn | null = null
-      if (entry.code === null) recipe = roughRecipe(entry.rough ?? [], entry.roughMeta ?? {})
+      if (entry.code === null) recipe = roughRecipe(entry.rough ?? [], entry.roughMeta ?? {}, namesOf(entry))
       else {
         if (entry.guarded === null) throw new Error('the model has no guarded code')
         const build = compileModel(entry.guarded)
         resetGuard()
-        recipe = buildRecipe(build).recipe
+        recipe = buildRecipe(build, namesOf(entry)).recipe
         if (entry.tickGuarded !== null) tick = compileTick(entry.tickGuarded)
       }
       const nameFi = nameFiOf(entry)

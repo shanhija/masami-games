@@ -12,7 +12,7 @@ import { createWorld, newActor, Sim } from './sim'
 import { parseColor } from './kit'
 import type { Param } from './protocol'
 import { actionEntry, itemEntry, kidLook, makeSim, newLibrary, run, runUntil, step } from './testing'
-import { ROOM_HALF, STEP, type Item } from './types'
+import { restPart, ROOM_HALF, STEP, type Item } from './types'
 import { anchorPoint, CAMERA_FACING } from './world'
 
 const actor = (sim: Sim, id: string) => sim.world.actors.find((a) => a.id === id)!
@@ -248,6 +248,29 @@ describe('made code', () => {
     expect(actor(sim, 'alice').bubble?.text).toBe('Hi!')
   })
 
+  it('does a library action inside another with me.do: its args as things or words, by id or a word for it, and three deep at most', () => {
+    const sim = makeSim({ layouts: { playground: [{ kind: 'ball', x: 2, z: 2 }] } })
+    // A script for this moment: pick the ball up by the library's own action, given as a word and as the thing itself.
+    sim.library.addAction(actionEntry('moment', [], "__g();yield* me.do('ota', { thing: 'ball' })\nyield* me.do('drop', {})\nyield* me.do('pick-up', { thing: w.find('ball') })\nme.keep(me.holding())"))
+    sim.give('alice', [step('moment')], true)
+    runUntil(sim, 'done', 'alice', 20)
+    expect(sim.world.items.find((i) => i.kind === 'ball')!.holder).toEqual({ actor: 'alice', hand: 'right' })
+    sim.library.addAction(actionEntry('nothing', [], "__g();yield* me.do('fly-to-the-moon', {})"))
+    sim.give('steve', [step('nothing')], true)
+    expect(runUntil(sim, 'failed', 'steve', 2).find((e) => e.type === 'failed')).toMatchObject({ error: expect.stringContaining('there is no action "fly-to-the-moon"') })
+    sim.library.addAction(actionEntry('deeper', [], "__g();yield* me.do('deeper', {})"))
+    sim.give('steve', [step('deeper')], true)
+    expect(runUntil(sim, 'failed', 'steve', 4).find((e) => e.type === 'failed')).toMatchObject({ error: expect.stringContaining('three deep at most') })
+  })
+
+  it('takes a spot for a thing param: the room\'s water is a place to throw at, not a thing', () => {
+    const sim = makeSim({ layouts: { playground: [{ kind: 'ball', x: 0, z: 2 }] } })
+    sim.library.addAction(actionEntry('toss', [{ name: 'thing', kind: 'item', about: 'what', optional: false }, { name: 'target', kind: 'thing', about: 'where', optional: true }], "__g();me.say(args.target && !args.target.isActor && args.target.id === undefined ? 'spot ' + args.target.x + ',' + args.target.z : 'none')"))
+    sim.give('alice', [step('toss', { thing: 'ball', target: '6.5,-6.5' })], true)
+    runUntil(sim, 'done', 'alice', 2)
+    expect(actor(sim, 'alice').bubble?.text).toBe('spot 6.5,-6.5')
+  })
+
   it('ends a made action that throws with a failed event and a shrug', () => {
     const sim = makeSim()
     sim.library.addAction(actionEntry('oops', [], '__g();yield* w.wait(0.1)\nconst thing = null\nthing.boom()'))
@@ -329,7 +352,7 @@ describe('made code', () => {
     const ball = itemOf(sim, 'ball')
     expect(ball.state).toEqual({ ok: 3 })
     expect(Number.isFinite(ball.y)).toBe(true)
-    expect(itemOf(sim, 'bike').parts).toEqual({ frame: { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, s: 1 }, wheelFront: { x: 0, y: 0, z: 0, rx: 0, ry: 0, rz: 0, s: 20 } })
+    expect(itemOf(sim, 'bike').parts).toEqual({ frame: restPart(), wheelFront: { ...restPart(), s: 20 } })
     expect(alice.bubble).toBe(null)
     sim.step()
     expect(alice.pose.lean).toBe(0.3)

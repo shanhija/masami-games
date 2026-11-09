@@ -1,0 +1,41 @@
+{
+  "type": "avatar",
+  "id": "mirri",
+  "name": "Mirri",
+  "calls": [
+    "mirri",
+    "miri",
+    "mirre",
+    "mirr",
+    "miiri",
+    "kissa",
+    "kisu",
+    "kisuli",
+    "kissi",
+    "katti",
+    "kisse",
+    "miuku",
+    "cat",
+    "kitty"
+  ],
+  "pronoun": "she",
+  "look": {
+    "body": "cat",
+    "height": 0.5,
+    "build": 1.1,
+    "skin": "#f5a13b",
+    "eyes": "#5ec25a",
+    "top": "#f5a13b",
+    "bottom": "#fbf8f2",
+    "shoes": "#fbf8f2",
+    "skirt": false,
+    "worn": {
+      "hand": {
+        "kind": "lasso",
+        "tint": null
+      }
+    }
+  },
+  "asked": "Mirri, heitä lasso kuuhun ja vedä se luoksesi.",
+  "made": "2026-11-09T12:08:23.868Z"
+}
