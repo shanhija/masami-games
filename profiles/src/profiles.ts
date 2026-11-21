@@ -15,7 +15,7 @@ import { parseAvatar, type Avatar } from './avatar'
  */
 
 /** The games that keep saves, by folder, in the gallery's order. Police Chase and Foot Chase keep nothing. */
-export const SAVING_GAMES = ['castle-builder', 'pia-jump', 'rakennustyömaat', 'rocket-factory', 'marienpeli', 'limaukkopeli', 'ruokapeli', 'rakennuspeli', 'silly-billy'] as const
+export const SAVING_GAMES = ['castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'monster-lunch', 'digger-town', 'silly-billy'] as const
 export type SavingGame = (typeof SAVING_GAMES)[number]
 
 /** One child on this device: the name and the avatar they made. */
@@ -48,24 +48,53 @@ const profileScope = (id: string) => `profile/${id}/`
 const gameScope = (id: string, game: SavingGame) => `profile/${id}/${game}/`
 
 /**
- * The keys each game kept its saves under before there were profiles. The first profile made
- * on a device takes them over, under the same names, so a child's castle, factory and town
- * stay theirs. Only these keys: a game's later keys are under a profile from the start.
+ * The keys each game kept its saves under before there were profiles, each with the key it
+ * has under a profile. The first profile made on a device takes them over, so a child's
+ * castle, factory and town stay theirs. Only these keys: a game's later keys are under a
+ * profile from the start.
  */
-const SAVES_BEFORE_PROFILES: Record<SavingGame, readonly string[]> = {
-  'castle-builder': ['castle-builder'],
-  'pia-jump': ['pia-jump'],
-  'rakennustyömaat': ['rakennustyömaat'],
-  'rocket-factory': ['rocket-factory-2', 'rocket-factory-2-old'],
-  marienpeli: ['super-me'],
-  limaukkopeli: ['slime-guy'],
-  ruokapeli: ['ruokapeli'],
-  rakennuspeli: ['digger-town', 'digger-town-old', 'digger-town-broken'],
-  'silly-billy': ['silly-billy-rooms-1', 'silly-billy-settings'],
+const SAVES_BEFORE_PROFILES: Record<SavingGame, Readonly<Record<string, string>>> = {
+  'castle-builder': { 'castle-builder': 'castle-builder' },
+  'pia-jump': { 'pia-jump': 'pia-jump' },
+  'cat-hat-builder': { 'rakennustyömaat': 'cat-hat-builder' },
+  'rocket-factory': { 'rocket-factory-2': 'rocket-factory-2', 'rocket-factory-2-old': 'rocket-factory-2-old' },
+  'super-me': { 'super-me': 'super-me' },
+  'slime-guy': { 'slime-guy': 'slime-guy' },
+  'monster-lunch': { ruokapeli: 'monster-lunch' },
+  'digger-town': { 'digger-town': 'digger-town', 'digger-town-old': 'digger-town-old', 'digger-town-broken': 'digger-town-broken' },
+  'silly-billy': { 'silly-billy-rooms-1': 'silly-billy-rooms-1', 'silly-billy-settings': 'silly-billy-settings' },
 }
 
-/** Every profile on this device, in the order they were made. A stored entry that is not a profile is left out, with a warning. */
+/**
+ * The games whose folders had Finnish names until 2026-11-21, by their old folder: the game
+ * now, and the keys inside that were renamed with it. `moveRenamedGames` moves a profile's
+ * saves of these to the new folder, so nobody loses a house or a lunch. It can go once every
+ * device has opened a page since (plans/finnish-and-english.md, Open).
+ */
+const RENAMED_GAMES: Readonly<Record<string, { game: SavingGame; keys: Readonly<Record<string, string>> }>> = {
+  'rakennustyömaat': { game: 'cat-hat-builder', keys: { 'rakennustyömaat': 'cat-hat-builder' } },
+  marienpeli: { game: 'super-me', keys: {} },
+  limaukkopeli: { game: 'slime-guy', keys: {} },
+  ruokapeli: { game: 'monster-lunch', keys: { ruokapeli: 'monster-lunch' } },
+  rakennuspeli: { game: 'digger-town', keys: {} },
+}
+
+/** Moves every save kept under a game's old Finnish folder name (`RENAMED_GAMES`) to its new one. A key already at the new place is kept and the old one dropped. */
+function moveRenamedGames(): void {
+  for (const key of keysUnder('profile/')) {
+    const [, id, folder, ...rest] = key.split('/')
+    const renamed = RENAMED_GAMES[folder!]
+    if (renamed === undefined) continue
+    const inner = rest.join('/')
+    const to = gameScope(id!, renamed.game) + (renamed.keys[inner] ?? inner)
+    if (localStorage.getItem(to) === null) localStorage.setItem(to, localStorage.getItem(key)!)
+    localStorage.removeItem(key)
+  }
+}
+
+/** Every profile on this device, in the order they were made. A stored entry that is not a profile is left out, with a warning. Saves under a game's old folder name move to its new one first. */
 export function loadProfiles(): Profile[] {
+  moveRenamedGames()
   const text = localStorage.getItem(PROFILES_KEY)
   if (text === null) return []
   let stored: unknown
@@ -108,10 +137,10 @@ export function addProfile(name: string, avatar: Avatar): Profile {
   const profile: Profile = { id: crypto.randomUUID().slice(0, 8), name, avatar }
   if (profiles.length === 0) {
     for (const game of SAVING_GAMES) {
-      for (const key of SAVES_BEFORE_PROFILES[game]) {
+      for (const [key, to] of Object.entries(SAVES_BEFORE_PROFILES[game])) {
         const text = localStorage.getItem(key)
         if (text === null) continue
-        localStorage.setItem(gameScope(profile.id, game) + key, text)
+        localStorage.setItem(gameScope(profile.id, game) + to, text)
         localStorage.removeItem(key)
       }
     }

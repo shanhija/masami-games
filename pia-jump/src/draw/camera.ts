@@ -1,4 +1,4 @@
-/** The camera both platformers share: Pia Jump's renderer and Super Me's (marienpeli/src/draw/frame.ts). */
+/** The camera both platformers share: Pia Jump's renderer and Super Me's (super-me/src/draw/frame.ts). */
 
 /** Pia sits ANCHOR_RIGHT across the view while she heads right and ANCHOR_LEFT while she heads left. The camera turns only once she has moved the other way faster than TURN_SPEED (tiles/s) for TURN_AFTER, and eases round over TURN_EASE. */
 const ANCHOR_RIGHT = 0.38

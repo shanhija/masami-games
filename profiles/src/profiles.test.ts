@@ -56,16 +56,40 @@ describe('profiles', () => {
     local.setItem('rocket-factory-2', 'a factory')
     local.setItem('rocket-factory-2-old', 'old factories')
     local.setItem('silly-billy-settings', '{"lang":"fi"}')
+    local.setItem('rakennustyömaat', 'a house')
     local.setItem('rocket-factory', 'version 1, never read')
     const masami = addProfile('Masami', avatar)
     expect(profileSaves(masami.id, 'castle-builder').getItem('castle-builder')).toBe('a castle')
     expect(profileSaves(masami.id, 'rocket-factory').getItem('rocket-factory-2-old')).toBe('old factories')
     expect(profileSaves(masami.id, 'silly-billy').getItem('silly-billy-settings')).toBe('{"lang":"fi"}')
+    // Cat Hat Builder's save had its folder's old Finnish name, and has its new one under the profile.
+    expect(profileSaves(masami.id, 'cat-hat-builder').getItem('cat-hat-builder')).toBe('a house')
     expect(local.getItem('castle-builder')).toBeNull()
+    expect(local.getItem('rakennustyömaat')).toBeNull()
     expect(local.getItem('rocket-factory')).toBe('version 1, never read')
-    expect(savedGames(masami.id)).toEqual(['castle-builder', 'rocket-factory', 'silly-billy'])
+    expect(savedGames(masami.id)).toEqual(['castle-builder', 'cat-hat-builder', 'rocket-factory', 'silly-billy'])
     const pia = addProfile('Pia', avatar)
     expect(savedGames(pia.id)).toEqual([])
+  })
+
+  it('moves the saves of the games whose folders had Finnish names to their new folders, with the keys renamed with them', () => {
+    const masami = addProfile('Masami', avatar)
+    const pia = addProfile('Pia', avatar)
+    local.setItem(`profile/${masami.id}/rakennustyömaat/rakennustyömaat`, 'a house')
+    local.setItem(`profile/${masami.id}/ruokapeli/ruokapeli`, 'a burger')
+    local.setItem(`profile/${masami.id}/rakennuspeli/digger-town-old`, 'an old town')
+    local.setItem(`profile/${pia.id}/marienpeli/super-me`, 'a crown')
+    local.setItem(`profile/${pia.id}/limaukkopeli/slime-guy`, 'two islands')
+    // A save already at the new place is newer than one left at the old.
+    local.setItem(`profile/${pia.id}/slime-guy/slime-guy`, 'three islands')
+    expect(loadProfiles()).toEqual([masami, pia])
+    expect(profileSaves(masami.id, 'cat-hat-builder').getItem('cat-hat-builder')).toBe('a house')
+    expect(profileSaves(masami.id, 'monster-lunch').getItem('monster-lunch')).toBe('a burger')
+    expect(profileSaves(masami.id, 'digger-town').getItem('digger-town-old')).toBe('an old town')
+    expect(profileSaves(pia.id, 'super-me').getItem('super-me')).toBe('a crown')
+    expect(profileSaves(pia.id, 'slime-guy').getItem('slime-guy')).toBe('three islands')
+    expect([...local.items.keys()].filter((key) => /rakennus|ruokapeli|marienpeli|limaukkopeli/.test(key))).toEqual([])
+    expect(savedGames(masami.id)).toEqual(['cat-hat-builder', 'monster-lunch', 'digger-town'])
   })
 
   it('keeps each profile its own saves, and starts one game over for one profile only', () => {
@@ -73,16 +97,16 @@ describe('profiles', () => {
     const pia = addProfile('Pia', avatar)
     profileSaves(masami.id, 'pia-jump').setItem('pia-jump', 'three kittens')
     profileSaves(pia.id, 'pia-jump').setItem('pia-jump', 'one kitten')
-    profileSaves(masami.id, 'ruokapeli').setItem('ruokapeli', 'a burger')
+    profileSaves(masami.id, 'monster-lunch').setItem('monster-lunch', 'a burger')
     expect(profileSaves(masami.id, 'pia-jump').getItem('pia-jump')).toBe('three kittens')
     expect(profileSaves(pia.id, 'pia-jump').getItem('pia-jump')).toBe('one kitten')
     // The same key in another game is another save.
-    expect(profileSaves(masami.id, 'marienpeli').getItem('pia-jump')).toBeNull()
+    expect(profileSaves(masami.id, 'super-me').getItem('pia-jump')).toBeNull()
 
     clearGame(masami.id, 'pia-jump')
     expect(profileSaves(masami.id, 'pia-jump').getItem('pia-jump')).toBeNull()
     expect(profileSaves(pia.id, 'pia-jump').getItem('pia-jump')).toBe('one kitten')
-    expect(savedGames(masami.id)).toEqual(['ruokapeli'])
+    expect(savedGames(masami.id)).toEqual(['monster-lunch'])
   })
 
   it('removes a profile with every save it had, and its pick', () => {
