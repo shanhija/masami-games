@@ -65,8 +65,6 @@ export type Needs =
 
 export interface Card {
   id: CardId
-  /** The card's one word, which Beep says aloud. */
-  word: string
   needs: Needs
   /** The stickers it brings. */
   gives: Partial<Record<Sticker, number>>
@@ -87,18 +85,18 @@ export interface Card {
  * scripted children's measurements, session.test.ts and plans/rocket-factory.md, Science).
  */
 export const PATH: readonly Card[] = [
-  { id: 'digger', word: 'Digger!', needs: { kind: 'legs', n: 3 }, gives: { digger: 1 }, part: null, launch: false, pattern: false },
-  { id: 'gold', word: 'Gold!', needs: { kind: 'legs', n: 20 }, gives: { digger: 1, oven: 1 }, part: null, launch: false, pattern: false },
-  { id: 'science', word: 'Science!', needs: { kind: 'goldBar' }, gives: { greenMaker: 1, lab: 1 }, part: null, launch: false, pattern: false },
-  { id: 'gears', word: 'Gears!', needs: { kind: 'bottles', green: 5, orange: 0 }, gives: { workshop: 1, digger: 1, oven: 1 }, part: 'body', launch: false, pattern: true },
-  { id: 'bubbles', word: 'Bubbles!', needs: { kind: 'bottles', green: 80, orange: 0 }, gives: { pump: 1, tower: 2 }, part: null, launch: false, pattern: true },
-  { id: 'hedges', word: 'Hedges!', needs: { kind: 'bottles', green: 80, orange: 0 }, gives: { hedge: 8 }, part: null, launch: false, pattern: true },
-  { id: 'nose', word: 'Nose!', needs: { kind: 'bottles', green: 90, orange: 0 }, gives: { tower: 1, hedge: 3 }, part: 'nose', launch: false, pattern: true },
-  { id: 'stars', word: 'Stars!', needs: { kind: 'bottles', green: 85, orange: 0 }, gives: { orangeMaker: 1 }, part: null, launch: false, pattern: true },
-  { id: 'snacks', word: 'Snacks!', needs: { kind: 'bottles', green: 75, orange: 20 }, gives: { bowl: 2 }, part: null, launch: false, pattern: true },
-  { id: 'more', word: 'More!', needs: { kind: 'bottles', green: 90, orange: 45 }, gives: { digger: 1, oven: 1, greenMaker: 1, tower: 1, bowl: 1, hedge: 3 }, part: null, launch: false, pattern: true },
-  { id: 'rocket', word: 'Rocket!', needs: { kind: 'bottles', green: 130, orange: 40 }, gives: {}, part: 'engine', launch: false, pattern: true },
-  { id: 'fuel', word: 'Fuel!', needs: { kind: 'bottles', green: 180, orange: 0 }, gives: {}, part: null, launch: true, pattern: true },
+  { id: 'digger', needs: { kind: 'legs', n: 3 }, gives: { digger: 1 }, part: null, launch: false, pattern: false },
+  { id: 'gold', needs: { kind: 'legs', n: 20 }, gives: { digger: 1, oven: 1 }, part: null, launch: false, pattern: false },
+  { id: 'science', needs: { kind: 'goldBar' }, gives: { greenMaker: 1, lab: 1 }, part: null, launch: false, pattern: false },
+  { id: 'gears', needs: { kind: 'bottles', green: 5, orange: 0 }, gives: { workshop: 1, digger: 1, oven: 1 }, part: 'body', launch: false, pattern: true },
+  { id: 'bubbles', needs: { kind: 'bottles', green: 80, orange: 0 }, gives: { pump: 1, tower: 2 }, part: null, launch: false, pattern: true },
+  { id: 'hedges', needs: { kind: 'bottles', green: 80, orange: 0 }, gives: { hedge: 8 }, part: null, launch: false, pattern: true },
+  { id: 'nose', needs: { kind: 'bottles', green: 90, orange: 0 }, gives: { tower: 1, hedge: 3 }, part: 'nose', launch: false, pattern: true },
+  { id: 'stars', needs: { kind: 'bottles', green: 85, orange: 0 }, gives: { orangeMaker: 1 }, part: null, launch: false, pattern: true },
+  { id: 'snacks', needs: { kind: 'bottles', green: 75, orange: 20 }, gives: { bowl: 2 }, part: null, launch: false, pattern: true },
+  { id: 'more', needs: { kind: 'bottles', green: 90, orange: 45 }, gives: { digger: 1, oven: 1, greenMaker: 1, tower: 1, bowl: 1, hedge: 3 }, part: null, launch: false, pattern: true },
+  { id: 'rocket', needs: { kind: 'bottles', green: 130, orange: 40 }, gives: {}, part: 'engine', launch: false, pattern: true },
+  { id: 'fuel', needs: { kind: 'bottles', green: 180, orange: 0 }, gives: {}, part: null, launch: true, pattern: true },
 ]
 const CARD_OF = new Map(PATH.map((c) => [c.id, c] as const))
 export const card = (id: CardId): Card => CARD_OF.get(id)!
@@ -259,15 +257,3 @@ export const IDLE_MOST = 10 * 60
 
 /** Every kind the child places, in the save's order. */
 export const PLACEABLE: readonly Placeable[] = ['digger', 'oven', 'workshop', 'greenMaker', 'orangeMaker', 'lab', 'pump', 'tower', 'bowl']
-/** What Beep says the first time she places a sticker of each kind: a word or two a five-year-old knows, and one name per thing, so a sticker a card brings alone is called by its card's word (the orange bottle maker is Stars!, as its card is; the snack bowl comes with Snacks!). */
-export const STICKER_WORD: Record<Placeable, string> = {
-  digger: 'Digger!',
-  oven: 'Oven!',
-  workshop: 'Workshop!',
-  greenMaker: 'Green bottles!',
-  orangeMaker: 'Stars!',
-  lab: 'Lab!',
-  pump: 'Pump!',
-  tower: 'Bubble tower!',
-  bowl: 'Snack bowl!',
-}

@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from 'react'
 
+import { inLang } from '../../profiles/src/lang'
 import { Btn } from './Btn'
 import { ChoiceCard, DiscoveryCard, GoodNightCard, PathView, StartCard, TurnMe } from './Cards'
 import { THING } from './draw/look'
@@ -12,6 +13,7 @@ import { PauseIcon, TickIcon } from './Icons'
 import { PauseMenu } from './Pause'
 import { CardPic, RocketPic, StickerPic, ThingPic } from './Pictures'
 import { OopsButton, PeelButton, Tray } from './Tray'
+import { CARD_WORDS, HUD } from './words'
 
 /** The HUD frame's boxes as CSS custom properties (--strip-x, --tray-w, ...), with the buttons' size and gap: styles.css lays the HUD out in exactly them, so it never covers the board the view fitted into `free`. */
 function frameStyle(f: HudFrame): CSSProperties {
@@ -51,7 +53,7 @@ function RocketCard({ game, rocket }: { game: Game; rocket: HudView['rocket'] })
     setWiggles((n) => n + 1)
   }
   return (
-    <Btn className="card rocket-card" label="The rocket" onTap={tap}>
+    <Btn className="card rocket-card" label={inLang(HUD.rocket, game.lang)} onTap={tap}>
       <span key={wiggles} className={`wobble${wiggles > 0 ? ' wiggle' : ''}`}>
         <RocketPic parts={rocket.parts} className="pic" />
       </span>
@@ -71,7 +73,7 @@ function LabCard({ game, lab, narrow }: { game: Game; lab: HudView['lab']; narro
     return (
       <span className="card lab-card choice">
         {(['bubbles', 'hedges'] as const).map((c) => (
-          <Btn key={c} className="pick" label={c === 'bubbles' ? 'Bubbles' : 'Hedges'} onTap={() => game.choose(c)}>
+          <Btn key={c} className="pick" label={inLang(CARD_WORDS[c], game.lang)} card={c} onTap={() => game.choose(c)}>
             <CardPic id={c} animate={false} className="pic" />
           </Btn>
         ))}
@@ -85,7 +87,7 @@ function LabCard({ game, lab, narrow }: { game: Game; lab: HudView['lab']; narro
           <StickerPic sticker={peek.sticker} className="pic" />
         </span>
       )}
-      <Btn className="lab-card" label="The path" onTap={() => game.openPath()}>
+      <Btn className="lab-card" label={inLang(HUD.path, game.lang)} onTap={() => game.openPath()}>
         {lab.next === null ? (
           <span className="done">
             <TickIcon />
@@ -103,7 +105,7 @@ function LabCard({ game, lab, narrow }: { game: Game; lab: HudView['lab']; narro
 
 function PauseButton({ game }: { game: Game }) {
   return (
-    <Btn className="round pause" label="Pause" onTap={() => game.openPause()}>
+    <Btn className="round pause" label={inLang(HUD.pause, game.lang)} onTap={() => game.openPause()}>
       <PauseIcon />
     </Btn>
   )

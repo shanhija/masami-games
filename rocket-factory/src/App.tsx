@@ -1,14 +1,15 @@
 import { Component, useMemo, type ReactNode } from 'react'
 
+import type { Lang } from '../../profiles/src/lang'
 import type { GameSaves } from '../../profiles/src/profiles'
 import { Sheet } from './draw/Sheet'
 import { Stage } from './draw/Stage'
 import { Game, useGameInput } from './game/game'
 import { Hud } from './Hud'
 
-function Play({ saves }: { saves: GameSaves }) {
+function Play({ saves, lang }: { saves: GameSaves; lang: Lang }) {
   // The seed is the one random number the page picks, outside the sim (?seed overrides it), so every game rolls its own.
-  const game = useMemo(() => new Game(location.search, Math.floor(Math.random() * 2 ** 31), saves), [saves])
+  const game = useMemo(() => new Game(location.search, Math.floor(Math.random() * 2 ** 31), saves, lang), [saves, lang])
   useGameInput(game, saves)
   // A test run (?debug, ?nosave, ?demo, ?seed, ?autoplay): the game for a look from the console, and for the headless screenshots without ?debug's overlay.
   const w = game.url
@@ -34,7 +35,7 @@ class Oops extends Component<{ children: ReactNode }, { error: Error | null }> {
   }
 }
 
-/** The game, or with ?sheet a sprite sheet instead. */
-export function App({ saves }: { saves: GameSaves }) {
-  return <Oops>{new URLSearchParams(location.search).has('sheet') ? <Sheet /> : <Play saves={saves} />}</Oops>
+/** The game in the player's language, or with ?sheet a sprite sheet instead. */
+export function App({ saves, lang }: { saves: GameSaves; lang: Lang }) {
+  return <Oops>{new URLSearchParams(location.search).has('sheet') ? <Sheet /> : <Play saves={saves} lang={lang} />}</Oops>
 }

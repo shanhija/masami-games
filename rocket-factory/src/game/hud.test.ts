@@ -8,7 +8,9 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
+import { LANGS, type Lang } from '../../../profiles/src/lang'
 import { Tray } from '../Tray'
+import { HUD, STICKER_NAMES } from '../words'
 import { PART_INFO, PATH, START_STICKERS, card } from './catalog'
 import { demoState } from './fixtures'
 import type { Game } from './game'
@@ -239,10 +241,10 @@ describe('the tray', () => {
 })
 
 describe('the cards', () => {
-  it("shows the card that is up with its one word", () => {
+  it('shows the card that is up', () => {
     const s = upTo('gold')
     s.card = { id: 'gold', at: 60 }
-    expect(view(s).card).toEqual({ id: 'gold', word: 'Gold!', at: 60 })
+    expect(view(s).card).toEqual({ id: 'gold', at: 60 })
   })
 
   it('lets dusk fall at Good night, and brings the still card NIGHT_CARD after the last machine is tucked in', () => {
@@ -313,13 +315,13 @@ describe('sameHud', () => {
 })
 
 describe('the tray as it renders', () => {
-  const render = (s: State) => renderToStaticMarkup(createElement(Tray, { game: { state: s } as unknown as Game, view: view(s).tray, frame: hudFrame(1180, 820, true, NO_INSETS), tools: true }))
+  const render = (s: State, lang: Lang = 'en') => renderToStaticMarkup(createElement(Tray, { game: { state: s, lang } as unknown as Game, view: view(s).tray, frame: hudFrame(1180, 820, true, NO_INSETS), tools: true }))
 
   it('wears one New!, a hole for a used sticker, and an endless mark for every count after the launch', () => {
     // After Digger!: the start's oven is on the board, the new digger in the tray.
     const s = upTo('digger')
     const html = render(s)
-    expect(html.match(/New!/g)).toHaveLength(1)
+    for (const lang of LANGS) expect(render(s, lang).split(`class="new">${HUD.fresh[lang]}<`), lang).toHaveLength(2)
     expect(html.match(/class="btn sticker[^"]*\bempty\b/g)).toHaveLength(1)
     expect(html.match(/class="count"/g)).toHaveLength(1)
     s.launches = 1
@@ -343,10 +345,11 @@ describe('the tray as it renders', () => {
   it('has the pencil, the peel and Oops, and lifts only the tool in hand', () => {
     const s = upTo('science')
     s.tool = { kind: 'sticker', sticker: 'digger' }
-    const html = render(s)
-    expect(html.match(/class="btn [^"]*\bon\b/g)).toHaveLength(1)
-    expect(html).toMatch(/aria-label="Pencil"/)
-    expect(html).toMatch(/aria-label="Peel"/)
-    expect(html).toMatch(/aria-label="Oops"/)
+    expect(render(s).match(/class="btn [^"]*\bon\b/g)).toHaveLength(1)
+    // Every button named for a screen reader in the player's language.
+    for (const lang of LANGS) {
+      const html = render(s, lang)
+      for (const words of [HUD.pencil, HUD.peel, HUD.oops, STICKER_NAMES.digger, STICKER_NAMES.lab]) expect(html, lang).toContain(`aria-label="${words[lang]}"`)
+    }
   })
 })

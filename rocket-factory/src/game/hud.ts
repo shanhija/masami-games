@@ -58,8 +58,8 @@ export interface HudView {
   path: PathCard[]
   /** The tray: the pencil (its pattern, lit when it is the tool), the stickers in arrival order, the hedge once given, the peel, and Oops (greyed with nothing to undo). */
   tray: { pencil: { pattern: number; lit: boolean }; stickers: TrayButton[]; hedge: TrayButton | null; peel: boolean; oops: boolean }
-  /** The card that is up: its picture's card and its one word. */
-  card: { id: CardId; word: string; at: number } | null
+  /** The card that is up: its picture's card (and its one word, src/words.ts). */
+  card: { id: CardId; at: number } | null
   /** none; falling: dusk and the tuck-in; done: the still card. */
   night: 'none' | 'falling' | 'done'
   /** The pause menu's Good night would begin a night: none is falling and no launch runs (the rules let neither be cut short), so it is greyed while either does. */
@@ -177,7 +177,7 @@ export function hudView(s: State, t: number, today: readonly CardId[]): HudView 
       peel: tool.kind === 'peel',
       oops: s.undo.length > 0,
     },
-    card: s.card === null ? null : { id: s.card.id, word: card(s.card.id).word, at: s.card.at },
+    card: s.card === null ? null : { id: s.card.id, at: s.card.at },
     night: s.night === null ? 'none' : s.night.doneAt >= 0 && since(s.night.doneAt, t) >= NIGHT_CARD ? 'done' : 'falling',
     goodnight: s.night === null && s.launch === null,
     sky: s.launch !== null && launchSlide(since(s.launch.at, t)) > 0.5,

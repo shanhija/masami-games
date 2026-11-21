@@ -988,7 +988,7 @@ export const SHEET = (): SheetEntry[] => [
     smallEntry(`nap at ${k}x`, k, MUNCHER_BOX, (ctx, t) => drawMuncher(ctx, still('nap', 1, {}), t)),
     smallEntry(`full cheeks at ${k}x`, k, MUNCHER_BOX, (ctx, t) => drawMuncher(ctx, still('sit', 2, { cheeks: ['greenBottle', 'orangeBottle', 'goldBar', 'gear'] }), t)),
   ]),
-  { label: 'Moony waving', box: MOONY_BOX, draw: (ctx, t) => drawMoony(ctx, t, Infinity) },
-  { label: 'Moony hops when tapped', box: MOONY_BOX, draw: (ctx, t) => drawMoony(ctx, t, t % 2) },
-  smallEntry('Moony at 0.6x', 0.6, MOONY_BOX, (ctx, t) => drawMoony(ctx, t, Infinity)),
+  { label: 'waving Moony', box: MOONY_BOX, draw: (ctx, t) => drawMoony(ctx, t, Infinity) },
+  { label: 'tapped Moony hopping', box: MOONY_BOX, draw: (ctx, t) => drawMoony(ctx, t, t % 2) },
+  smallEntry('waving Moony at 0.6x', 0.6, MOONY_BOX, (ctx, t) => drawMoony(ctx, t, Infinity)),
 ]

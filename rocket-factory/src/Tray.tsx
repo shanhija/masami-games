@@ -1,5 +1,6 @@
 import { memo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 
+import { inLang } from '../../profiles/src/lang'
 import { Btn } from './Btn'
 import type { Game } from './game/game'
 import { trayOrder, type HudView, type TrayButton, type TrayKey } from './game/hud'
@@ -7,21 +8,7 @@ import { trayBoxes, type HudFrame } from './game/layout'
 import type { Box } from './game/where'
 import { EndlessIcon, OopsIcon, PeelIcon, PencilIcon } from './Icons'
 import { HolePic, PatternPic, StickerPic } from './Pictures'
-import type { Sticker } from './game/model'
-
-/** The words for a screen reader; the child sees pictures. */
-const NAMES: Record<Sticker, string> = {
-  digger: 'Digger',
-  oven: 'Oven',
-  workshop: 'Workshop',
-  greenMaker: 'Green bottle maker',
-  orangeMaker: 'Orange bottle maker',
-  lab: 'Lab',
-  pump: 'Pump',
-  tower: 'Bubble tower',
-  bowl: 'Snack bowl',
-  hedge: 'Hedge',
-}
+import { HUD, STICKER_NAMES } from './words'
 
 const inBox = (b: Box, x: number, y: number) => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h
 /** Box b placed inside box `in`, as CSS. */
@@ -56,10 +43,10 @@ function StickerButton({ game, b, tray }: { game: Game; b: TrayButton; tray: Box
   }
   return (
     <span className="press" onPointerDown={down} onPointerMove={move}>
-      <Btn className={`sticker${b.picked ? ' on' : ''}${empty ? ' empty' : ''}${b.fresh ? ' fresh' : ''}`} label={NAMES[b.sticker]} onTap={tap}>
+      <Btn className={`sticker${b.picked ? ' on' : ''}${empty ? ' empty' : ''}${b.fresh ? ' fresh' : ''}`} label={inLang(STICKER_NAMES[b.sticker], game.lang)} onTap={tap}>
         {empty ? <HolePic sticker={b.sticker} className="pic" /> : <StickerPic sticker={b.sticker} className="pic" />}
         {!empty && <span className="count">{b.left === Infinity ? <EndlessIcon /> : b.left}</span>}
-        {b.fresh && <span className="new">New!</span>}
+        {b.fresh && <span className="new">{inLang(HUD.fresh, game.lang)}</span>}
       </Btn>
     </span>
   )
@@ -68,7 +55,7 @@ function StickerButton({ game, b, tray }: { game: Game; b: TrayButton; tray: Box
 /** The pencil: the belt it lays in its pattern; lit, a tap on it is the next pattern. */
 export function PencilButton({ game, pencil }: { game: Game; pencil: HudView['tray']['pencil'] }) {
   return (
-    <Btn className={`pencil${pencil.lit ? ' on' : ''}`} label="Pencil" onTap={() => (pencil.lit ? game.dispatch({ kind: 'pattern' }) : game.button({ kind: 'tool', tool: { kind: 'pencil' } }, 'pick'))}>
+    <Btn className={`pencil${pencil.lit ? ' on' : ''}`} label={inLang(HUD.pencil, game.lang)} onTap={() => (pencil.lit ? game.dispatch({ kind: 'pattern' }) : game.button({ kind: 'tool', tool: { kind: 'pencil' } }, 'pick'))}>
       <PatternPic pattern={pencil.pattern} className="pic belt" />
       <span className="lead">
         <PencilIcon />
@@ -80,7 +67,7 @@ export function PencilButton({ game, pencil }: { game: Game; pencil: HudView['tr
 /** The peel's hand, lifted while it is the tool; a tap on it then puts it back. */
 export function PeelButton({ game, on }: { game: Game; on: boolean }) {
   return (
-    <Btn className={`peel${on ? ' on' : ''}`} label="Peel" onTap={() => game.button({ kind: 'tool', tool: on ? { kind: 'pencil' } : { kind: 'peel' } }, 'pick')}>
+    <Btn className={`peel${on ? ' on' : ''}`} label={inLang(HUD.peel, game.lang)} onTap={() => game.button({ kind: 'tool', tool: on ? { kind: 'pencil' } : { kind: 'peel' } }, 'pick')}>
       <PeelIcon />
     </Btn>
   )
@@ -95,7 +82,7 @@ export function OopsButton({ game, can }: { game: Game; can: boolean }) {
     setNopes((n) => n + 1)
   }
   return (
-    <Btn className={`oops${can ? '' : ' off'}`} label="Oops" onTap={tap}>
+    <Btn className={`oops${can ? '' : ' off'}`} label={inLang(HUD.oops, game.lang)} onTap={tap}>
       <span key={nopes} className={`wobble${nopes > 0 ? ' wiggle' : ''}`}>
         <OopsIcon />
       </span>

@@ -46,7 +46,7 @@ function nextFound(s: State, max: number): { id: CardId; at: number } {
     run(s, 1)
     const up = s.card
     if (up === null) continue
-    expect(s.events).toEqual(expect.arrayContaining([{ kind: 'card', id: up.id }, { kind: 'say', word: card(up.id).word }]))
+    expect(s.events).toEqual(expect.arrayContaining([{ kind: 'card', id: up.id }, { kind: 'say', word: { card: up.id } }]))
     s.card = null
     s.cardClosedAt = s.tick
     return up
@@ -417,7 +417,7 @@ describe('the path', () => {
     expect(s.card).toEqual({ id: 'nose', at: LAB_DRINK })
     expect(events.filter((x) => x.e.kind === 'card' || x.e.kind === 'say').map((x) => x.e)).toEqual([
       { kind: 'card', id: 'nose' },
-      { kind: 'say', word: 'Nose!' },
+      { kind: 'say', word: { card: 'nose' } },
     ])
     expect(s.patterns).toBe(5)
     // Burrow B waves hello and sleeps HELLO_SLEEP; A and C are left as they were, and D, E and F have no card at all.

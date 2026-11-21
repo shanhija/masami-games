@@ -31,7 +31,7 @@ export function frame(g: Game, sc: Screen, child: Child | null, dt: number): Sim
 /** A page opened at a screen on `saves`, with its first view drawn. Its document has no full screen to ask for, as a page in a frame has none: the Play and Keep going of a touch screen ask for none. */
 export function open(search: string, seed: number, sc: Screen, saves: Saves): Game {
   vi.stubGlobal('document', { fullscreenEnabled: false, fullscreenElement: null })
-  const g = new Game(search, seed, saves)
+  const g = new Game(search, seed, saves, 'en')
   stage(g, sc)
   return g
 }

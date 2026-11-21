@@ -679,9 +679,11 @@ export type SimEvent =
   | { kind: 'wake' }
   | { kind: 'session' }
   /** Beep says a word aloud (a card's word, a new sticker's name), with the Voice switch on. */
-  | { kind: 'say'; word: string }
+  | { kind: 'say'; word: Said }
   | { kind: 'tool' }
 export type EventKind = SimEvent['kind']
+/** What a 'say' event says, as an id: a card's word or a new sticker's name (src/words.ts has the words). */
+export type Said = { card: CardId } | { sticker: Placeable }
 
 // ---------------------------------------------------------------------------------------
 // Small constructors every part uses

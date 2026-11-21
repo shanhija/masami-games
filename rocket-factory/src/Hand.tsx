@@ -21,8 +21,8 @@ function selectors(b: HandButton): readonly string[] {
     case 'oops':
       return ['.hud .btn.oops']
     case 'choice': {
-      const word = b.card === 'bubbles' ? 'Bubbles' : 'Hedges'
-      return [`.hud .layer.choose .pick[aria-label="${word}"]`, `.hud .dim.path .btn.card.step.now[aria-label="${word}"]`, `.hud .lab-card.choice .pick[aria-label="${word}"]`, '.hud .column .lab-card']
+      const card = `[data-card="${b.card}"]`
+      return [`.hud .layer.choose .pick${card}`, `.hud .dim.path .btn.card.step.now${card}`, `.hud .lab-card.choice .pick${card}`, '.hud .column .lab-card']
     }
     case 'card':
       return ['.hud .layer.discovery .card.found']

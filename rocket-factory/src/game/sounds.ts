@@ -1,3 +1,6 @@
+import { SPEECH_TAG, inLang, type Lang, type Words } from '../../../profiles/src/lang'
+import { pickVoice } from '../../../profiles/src/voice'
+import { BEEP_SAYS, COUNTDOWN, saidWords } from '../words'
 import { EIGHTH, bandOf, notesAt, penta, type Instrument, type Note } from './band'
 import { PART_INFO, SIZE } from './catalog'
 import { HOP, PARTS, STEP, isMaker, isShiny, type EventKind, type HomeWhy, type Kind, type Maker, type SimEvent, type State, type Thing } from './model'
@@ -16,7 +19,8 @@ import { rng } from './random'
  * the flight home) are the loudest; the munchers' havoc stays small and silly. Every chime is
  * on the band's F major pentatonic (band.ts `penta`), so it fits over any bar.
  *
- * Beep's voice is the browser's own speech, pitched up like a little robot (`Sounds.say`).
+ * Beep's voice is the browser's own speech in the player's language, pitched up like a little
+ * robot (`Sounds.say`).
  */
 
 /** Sounds the HUD makes that are not events: a button, a card opening or closing, the parent gate's hold, Start again done, a tray pick, Beep murmuring in its sleep at a tap on the Good night card. */
@@ -47,15 +51,13 @@ export const DRIFT = 0.05
 export const LAY_GAP = 2 * STEP
 /** The parent gate's rising tone lasts as long as Start again's hold. */
 export const HOLD_FOR = 3
-/** Beep's voice: the browser's speech in English (her second language: the word comes when it means something), pitched up like a little robot and a touch slow, so a five-year-old catches it. */
-export const BEEP_VOICE = { lang: 'en-US', pitch: 1.9, rate: 0.95, volume: 1 } as const
+/** Beep's voice: the browser's speech in the player's language (its voice from profiles' pickVoice), pitched up like a little robot and a touch slow, so a five-year-old catches it. */
+export const BEEP_VOICE = { pitch: 1.9, rate: 0.95, volume: 1 } as const
 /** The same word within this many seconds is said once, and the band dips this long under it. */
 const SAY_GAP = 1
 const SAY_DIP = 1.2
 /** A different word comes at least WORD_GAP after the last one Beep said, or not at all: the browser queues what it is told to say, and a word said late is said at a moment it no longer means. The countdown's numbers, a second apart, all come. */
 export const WORD_GAP = 0.7
-/** The countdown's numbers as Beep counts them along with the drum and the bell. */
-const NUMBER_WORD: Record<number, string> = { 5: 'Five!', 4: 'Four!', 3: 'Three!', 2: 'Two!', 1: 'One!' }
 
 /**
  * Beep's words that belong to a moment's sound, beside the sim's 'say' events (a card's word,
@@ -64,16 +66,16 @@ const NUMBER_WORD: Record<number, string> = { 5: 'Five!', 4: 'Four!', 3: 'Three!
  * the scout hops out. Null for every other event. A frame's events come from all its steps, so
  * the scout may be home and gone by the frame: then the word is left out.
  */
-function wordOf(e: SimEvent, s: State): string | null {
+function wordOf(e: SimEvent, s: State): Words | null {
   switch (e.kind) {
     case 'count':
-      return NUMBER_WORD[e.n]!
+      return COUNTDOWN[e.n]!
     case 'landed':
-      return 'Hooray!'
+      return BEEP_SAYS.hooray
     case 'goodnight':
-      return 'Good night!'
+      return BEEP_SAYS.goodNight
     case 'hopOut':
-      return s.munchers.some((m) => m.id === e.id && m.scout) ? 'Munchers!' : null
+      return s.munchers.some((m) => m.id === e.id && m.scout) ? BEEP_SAYS.munchers : null
     default:
       return null
   }
@@ -971,22 +973,27 @@ function keyOf(e: SimEvent, s: State): string {
 interface Speech {
   /** The browser can speak. */
   readonly speaks: boolean
-  speak(word: string): void
+  /** Says `text`, or nothing (false) when the browser has no voice for the player's language. */
+  speak(text: string): boolean
   hush(): void
   wake(): void
 }
 
 /**
- * Beep's voice: the browser's own speech (nothing to load) in English, pitched up like a
- * little robot (BEEP_VOICE). Where the browser has no speech Beep has no voice: this is the
- * one place that asks, and Sounds keeps its Voice switch off there.
+ * Beep's voice: the browser's own speech (nothing to load) in the player's language, pitched
+ * up like a little robot (BEEP_VOICE). Where the browser has no speech Beep has no voice: this
+ * is the one place that asks, and Sounds keeps its Voice switch off there. Where it has no
+ * voice for the language (the voices may also still be loading) she says nothing: another
+ * language's voice never reads her words.
  */
-function beepVoice(): Speech {
-  if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return { speaks: false, speak() {}, hush() {}, wake() {} }
+function beepVoice(lang: Lang): Speech {
+  if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return { speaks: false, speak: () => false, hush() {}, wake() {} }
   const synth = speechSynthesis
+  // Chrome lists its voices only a moment after it is first asked: asking now has them there by her first word.
+  synth.getVoices()
   const utter = (text: string, volume: number) => {
     const u = new SpeechSynthesisUtterance(text)
-    u.lang = BEEP_VOICE.lang
+    u.lang = SPEECH_TAG[lang]
     u.pitch = BEEP_VOICE.pitch
     u.rate = BEEP_VOICE.rate
     u.volume = volume
@@ -994,13 +1001,14 @@ function beepVoice(): Speech {
   }
   return {
     speaks: true,
-    speak(word) {
-      const u = utter(word, BEEP_VOICE.volume)
-      // An English voice where the browser lists one: the device may speak another language by default.
-      const voices = synth.getVoices()
-      const english = voices.find((v) => v.lang === BEEP_VOICE.lang) ?? voices.find((v) => v.lang.startsWith('en'))
-      if (english) u.voice = english
+    speak(text) {
+      // The device may speak another language by default: the voice is always the player's language's.
+      const voice = pickVoice(synth.getVoices(), lang)
+      if (voice === null) return false
+      const u = utter(text, BEEP_VOICE.volume)
+      u.voice = voice
       synth.speak(u)
+      return true
     },
     hush() {
       synth.cancel()
@@ -1060,9 +1068,12 @@ export class Sounds {
   private visiting = false
   /** The audio time Beep last said a word. */
   private spokeAt = -Infinity
+  private readonly lang: Lang
 
-  constructor() {
-    this.speech = beepVoice()
+  /** `lang` is the player's: Beep speaks it. */
+  constructor(lang: Lang) {
+    this.lang = lang
+    this.speech = beepVoice(lang)
     this.speaks = this.speech.speaks
     this.voice = this.speaks
   }
@@ -1157,7 +1168,7 @@ export class Sounds {
     this.lastNow = now
     for (const e of events) {
       if (e.kind === 'say') {
-        this.say(e.word)
+        this.say(saidWords(e.word))
         continue
       }
       const word = wordOf(e, s)
@@ -1188,15 +1199,15 @@ export class Sounds {
     if (this.fresh(sound, DEDUP, now)) this.live.synth.ui(sound, now)
   }
 
-  /** Beep says `word` aloud (a card's word, a new sticker's name, a moment's word: wordOf), after its chirp, the band dipping under it: with the sound and the Voice switch on, once the page has been touched, never the same word twice within SAY_GAP nor two words within WORD_GAP. */
-  say(word: string): void {
+  /** Beep says `words` aloud in the player's language (a card's word, a new sticker's name, a moment's word: wordOf), with her chirp, the band dipping under it: with the sound and the Voice switch on, once the page has been touched and where the browser has a voice for the language, never the same word twice within SAY_GAP nor two words within WORD_GAP. */
+  say(words: Words): void {
     if (!this.live || !this.sound || !this.voice) return
     const now = this.live.ctx.currentTime
-    if (now - this.spokeAt < WORD_GAP || !this.fresh(`say:${word}`, SAY_GAP, now)) return
+    const text = inLang(words, this.lang)
+    if (now - this.spokeAt < WORD_GAP || !this.fresh(`say:${text}`, SAY_GAP, now) || !this.speech.speak(text)) return
     this.spokeAt = now
     this.live.synth.chirp(now)
     this.live.synth.dip(now, SAY_DIP)
-    this.speech.speak(word)
   }
 
   /** Whether the sound with `key` may play now: it did not play under `gap` seconds ago. Marks it played. */

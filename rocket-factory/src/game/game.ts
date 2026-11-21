@@ -1,8 +1,10 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { Lang } from '../../../profiles/src/lang'
 import type { GameSaves, Saves } from '../../../profiles/src/profiles'
 
 import type { StageGame } from '../draw/Stage'
+import { BEEP_SAYS } from '../words'
 import { working } from './band'
 import { CORNER } from './board'
 import { IDLE_MOST, IDLE_PAUSE, SESSION_GAP, card } from './catalog'
@@ -46,8 +48,6 @@ const SAVE_EVERY = 2
 const SAVE_NOW: ReadonlySet<EventKind> = new Set<EventKind>(['lay', 'repoint', 'bridge', 'join', 'fork', 'rollUp', 'hedgeIn', 'place', 'peel', 'oops', 'card', 'partFull', 'visitOver', 'landed'])
 /** ?fast: at most this many times the speed. */
 const FAST_MOST = 20
-/** What Beep asks when the lab's one choice waits: the choice card's word. */
-const WHICH_ONE = 'Which one?'
 
 /** The URL switches, read once at load (plans/rocket-factory.md, Save: they may read the save and never write it). */
 export interface UrlSwitches {
@@ -115,7 +115,9 @@ const sameFrame = (a: HudFrame, b: HudFrame) => JSON.stringify(a) === JSON.strin
  */
 export class Game implements StageGame {
   state: State
-  readonly audio = new Sounds()
+  /** The player's language: every word the HUD shows and Beep says is in it. */
+  readonly lang: Lang
+  readonly audio: Sounds
   readonly url: UrlSwitches
   paused = false
   /** The lab card's whole path is open over the board. */
@@ -169,9 +171,11 @@ export class Game implements StageGame {
 
   private readonly saves: Saves
 
-  /** `search` is the page's query string (see UrlSwitches); `seed` seeds the random numbers unless ?seed does; `saves` are the player's. */
-  constructor(search: string, seed: number, saves: Saves) {
+  /** `search` is the page's query string (see UrlSwitches); `seed` seeds the random numbers unless ?seed does; `saves` and `lang` are the player's. */
+  constructor(search: string, seed: number, saves: Saves, lang: Lang) {
     this.saves = saves
+    this.lang = lang
+    this.audio = new Sounds(lang)
     const w = (this.url = readSwitches(search))
     this.test = isTest(w)
     this.seed = w.seed ?? seed
@@ -644,7 +648,7 @@ export class Game implements StageGame {
     if (sw.voice !== this.voiceOn) this.audio.setVoice((this.voiceOn = sw.voice))
     const v = hudView(this.state, this.time, this.today())
     if (sameHud(v, this.hud)) return
-    if (v.ask && !this.hud.ask) this.audio.say(WHICH_ONE)
+    if (v.ask && !this.hud.ask) this.audio.say(BEEP_SAYS.whichOne)
     this.hud = v
     this.bump()
   }

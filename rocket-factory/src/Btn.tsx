@@ -1,6 +1,7 @@
 import { useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 
 import { onButton } from './game/layout'
+import type { CardId } from './game/model'
 
 /** Keeps a press from focusing the button, so Space never clicks it (the page blocks the browser's menu for the whole game: useGameInput). */
 export const noFocus = (e: { preventDefault: () => void }) => e.preventDefault()
@@ -16,10 +17,11 @@ const boxOf = (el: Element) => {
  * `.btn`, and `.down` from the press on), taking no focus. It acts when its press lifts within
  * layout.SLOP of it, never on the browser's click: a five-year-old's tap slides up to 4 mm, and
  * a sliding tap makes no click. A press that slides further off lets go with nothing done.
- * `label` names it for a screen reader; the child sees pictures. Most buttons have no `style`;
- * a colour swatch sets its colour there.
+ * `label` names it for a screen reader, in the player's language; the child sees pictures. Most
+ * buttons have no `style`; a colour swatch sets its colour there. Only the choice's two cards
+ * carry their `card`, as `data-card`, so the hint's hand finds them (Hand.tsx).
  */
-export function Btn({ className, label, onTap, style, children }: { className: string; label: string; onTap: () => void; style?: CSSProperties; children: ReactNode }) {
+export function Btn({ className, label, onTap, style, card, children }: { className: string; label: string; onTap: () => void; style?: CSSProperties; card?: CardId; children: ReactNode }) {
   const press = useRef<number | null>(null)
   const [down, setDown] = useState(false)
   const end = () => {
@@ -50,6 +52,7 @@ export function Btn({ className, label, onTap, style, children }: { className: s
       tabIndex={-1}
       className={`btn ${className}${down ? ' down' : ''}`}
       aria-label={label}
+      data-card={card}
       style={style}
       onMouseDown={noFocus}
       onPointerDown={begin}

@@ -14,7 +14,7 @@ import { add, line, put } from './beltKit'
 import { BURROWS, PAD, cellOf } from './board'
 import { rebuild } from './belts'
 import { startView } from './camera'
-import { BEEP_REST, CARD_FOR, CARD_IDLE, COUNT_AT, DIG_GAP, HOLD, LAUNCH_FOR, LIFT_WAIT, NIGHT_TUCK, PART_INFO, SIZE, STACK, STICKER_WORD, UNDO_FOR, UNDO_MAX } from './catalog'
+import { BEEP_REST, CARD_FOR, CARD_IDLE, COUNT_AT, DIG_GAP, HOLD, LAUNCH_FOR, LIFT_WAIT, NIGHT_TUCK, PART_INFO, SIZE, STACK, UNDO_FOR, UNDO_MAX } from './catalog'
 import { NO_INSETS, pick, pictureSpot, toScreen } from './layout'
 import { CARDS, HOP, PARTS, STEP, inSlot, outSlot, thingIndex, ticks, type Action, type Dir, type EventKind, type Hit, type SimEvent, type State, type Tool } from './model'
 import { next } from './random'
@@ -465,7 +465,7 @@ describe('a drag and its release', () => {
     expect(s.drag).toEqual({ kind: 'ghost', sticker: 'digger', x: 8.1, y: 3.1, at: s.tick })
     const events = doing(s, { kind: 'release', commit: true })
     expect(of(events, 'place')).toEqual([{ kind: 'place', id: 2, sticker: 'digger' }])
-    expect(of(events, 'say')).toEqual([{ kind: 'say', word: STICKER_WORD.digger }])
+    expect(of(events, 'say')).toEqual([{ kind: 'say', word: { sticker: 'digger' } }])
     expect(s.buildings.find((b) => b.id === 2)).toMatchObject({ kind: 'digger', x: 7, y: 2, placedAt: s.tick - 1 })
     expect(s.help.placed.digger).toBe(1)
     expect(s.beep).toMatchObject({ x: 8, y: 4, pose: 'pat' })
@@ -783,7 +783,7 @@ describe('a card', () => {
     const [[cardAt]] = events
     expect(events).toEqual([
       [cardAt, { kind: 'card', id: 'digger' }],
-      [cardAt, { kind: 'say', word: 'Digger!' }],
+      [cardAt, { kind: 'say', word: { card: 'digger' } }],
       [cardAt + CARD_FOR, { kind: 'cardClosed', id: 'digger' }],
     ])
   })

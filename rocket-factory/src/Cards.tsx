@@ -1,5 +1,6 @@
 import { useRef, useState, type CSSProperties, type PointerEvent } from 'react'
 
+import { inLang } from '../../profiles/src/lang'
 import { Btn } from './Btn'
 import { SIZE, card as cardOf } from './game/catalog'
 import type { Game } from './game/game'
@@ -8,6 +9,7 @@ import { toScreen } from './game/layout'
 import type { CardId } from './game/model'
 import { MoonIcon, PlayIcon, TickIcon, TurnIcon } from './Icons'
 import { BeepPicture, CardPic, FactoryPic, RocketPic } from './Pictures'
+import { CARD_WORDS, HUD } from './words'
 
 /** A card layer takes no taps for this long after it opens (seconds): a card found flips in (0.6 s) while Beep says its word, and a tap then was meant for what was there before. */
 export const SETTLE = 1
@@ -54,7 +56,7 @@ export function StartCard({ game, view }: { game: Game; view: HudView }) {
           <RocketPic parts={view.rocket.parts} className="rocket" />
           {view.lab.next !== null && <CardPic id={view.lab.next} animate={false} className="next ground" />}
         </div>
-        <Btn className="play" label="Play" onTap={() => game.play()}>
+        <Btn className="play" label={inLang(HUD.play, game.lang)} onTap={() => game.play()}>
           <PlayIcon />
         </Btn>
       </div>
@@ -70,7 +72,7 @@ export function DiscoveryCard({ game, card }: { game: Game; card: NonNullable<Hu
     <div className="layer discovery" {...taps}>
       <div className={from === null ? 'card found' : 'card found from-lab'} style={from ?? undefined}>
         <CardPic id={card.id} animate className="pic ground" />
-        <span className="word">{card.word}</span>
+        <span className="word">{inLang(CARD_WORDS[card.id], game.lang)}</span>
       </div>
     </div>
   )
@@ -101,7 +103,7 @@ export function ChoiceCard({ game }: { game: Game }) {
     <div className="layer choose" {...taps}>
       <div key={asked} className={`card which${asked > 0 ? ' wiggle' : ''}`}>
         {(['bubbles', 'hedges'] as const).map((c) => (
-          <Btn key={c} className="pick ground" label={c === 'bubbles' ? 'Bubbles' : 'Hedges'} onTap={() => game.choose(c)}>
+          <Btn key={c} className="pick ground" label={inLang(CARD_WORDS[c], game.lang)} card={c} onTap={() => game.choose(c)}>
             <CardPic id={c} animate={false} className="pic" />
           </Btn>
         ))}
@@ -122,7 +124,7 @@ export function PathView({ game, path, choice }: { game: Game; path: readonly Pa
       <div className="cards">
         {path.map((c) =>
           choice && (c.id === 'bubbles' || c.id === 'hedges') ? (
-            <Btn key={c.id} className={`card step ${c.at}`} label={c.id === 'bubbles' ? 'Bubbles' : 'Hedges'} onTap={() => game.choose(c.id as 'bubbles' | 'hedges')}>
+            <Btn key={c.id} className={`card step ${c.at}`} label={inLang(CARD_WORDS[c.id], game.lang)} card={c.id} onTap={() => game.choose(c.id as 'bubbles' | 'hedges')}>
               <CardPic id={c.id} animate={false} className="pic ground" />
             </Btn>
           ) : (

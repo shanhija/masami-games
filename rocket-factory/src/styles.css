@@ -899,11 +899,11 @@ body,
   pointer-events: none;
 }
 
-/* The Munchers and Science switches as pictures with their words under them, the picked one lifted. */
+/* The Munchers and Science switches as pictures with their words under them, the picked one lifted. Wide enough for the longest word in either language (Tavallinen). */
 .hud .menu .btn.choice {
   flex-direction: column;
   gap: 2px;
-  width: 80px;
+  width: 88px;
   height: 84px;
   padding: 6px 6px 4px;
   border-radius: 16px;
@@ -999,7 +999,7 @@ body,
   }
 
   .hud .menu .btn.choice {
-    width: 70px;
+    width: 84px;
     height: 70px;
   }
 }

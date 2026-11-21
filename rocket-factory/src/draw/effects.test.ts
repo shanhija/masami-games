@@ -124,7 +124,7 @@ function everyEvent(): SimEvent[] {
     sleep: [{ kind: 'sleep' }],
     wake: [{ kind: 'wake' }],
     session: [{ kind: 'session' }],
-    say: [{ kind: 'say', word: 'Gold!' }],
+    say: [{ kind: 'say', word: { card: 'gold' } }],
     tool: [{ kind: 'tool' }],
   }
   return Object.values(all).flat()

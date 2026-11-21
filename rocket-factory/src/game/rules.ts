@@ -2,7 +2,7 @@ import { LIFTOFF, NIGHT_LEAD, PART_OF, padDrums } from './band'
 import { BEEP_HOME, beepHome, beepPose, beepTo, carryBasket, carryHeap, carrySlot, carryStack, dig, digRefused, patSticker, restBeep, sendEach } from './beep'
 import { BURROWS, PAD, START_OVEN, xOf, yOf } from './board'
 import { emptyNet, hop, owners, rebuild, thingsOn } from './belts'
-import { CARD_FOR, CARD_IDLE, COUNT_AT, DIG_GAP, HINT_EVERY, LAUNCH_FOR, LIFT_WAIT, NIGHT_TUCK, PART_INFO, SIZE, STICKER_WORD, UNDO_FOR, UNDO_MAX } from './catalog'
+import { CARD_FOR, CARD_IDLE, COUNT_AT, DIG_GAP, HINT_EVERY, LAUNCH_FOR, LIFT_WAIT, NIGHT_TUCK, PART_INFO, SIZE, UNDO_FOR, UNDO_MAX } from './catalog'
 import { aimOf, brokeBetween, reachOf, stepHint } from './hint'
 import { stepJams } from './jams'
 import { hintGhost, hintPath } from './layout'
@@ -291,7 +291,7 @@ function place(s: State, sticker: Placeable, x: number, y: number): void {
   const added = edit.added[0]!
   commit(s, edit, 'sticker')
   s.events.push({ kind: 'place', id: added.id, sticker })
-  if (s.help.placed[sticker]++ === 0) s.events.push({ kind: 'say', word: STICKER_WORD[sticker] })
+  if (s.help.placed[sticker]++ === 0) s.events.push({ kind: 'say', word: { sticker } })
   patSticker(s, added, s.tick)
 }
 

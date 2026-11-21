@@ -6,13 +6,16 @@
  * silent, stop, stay gentle, stay in the hearing range and reach its bus, and the good sounds
  * to be the loudest. The lifecycle: Sounds on the fake context with a fake speech (nothing
  * before unlock, the dedup, machine sounds on the next eighth, the switches, the pause, the
- * page sleeping, the band on the sim's beat and re-anchoring, Beep's voice).
+ * page sleeping, the band on the sim's beat and re-anchoring, Beep's voice in the player's
+ * language).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EIGHTH, INSTRUMENTS, NIGHT_LEAD, PIECES, REJOIN, SOFT, SONG, notesAt, type Band, type Instrument, type Note, type Piece } from './band'
-import { PART_INFO, PLACEABLE, STICKER_WORD, card } from './catalog'
-import { BOTTLES, CARDS, HOP, HZ, KINDS, PARTS, STEP, THINGS, newBuilding, thingIndex, type EventKind, type Kind, type Placeable, type SimEvent, type State } from './model'
+import { LANGS, SPEECH_TAG, type Lang, type Words } from '../../../profiles/src/lang'
+import { BEEP_SAYS, CARD_WORDS, COUNTDOWN, STICKER_WORDS } from '../words'
+import { PART_INFO, PLACEABLE, card } from './catalog'
+import { BOTTLES, CARDS, HOP, HZ, KINDS, PARTS, STEP, THINGS, newBuilding, thingIndex, type CardId, type EventKind, type Kind, type Placeable, type SimEvent, type State } from './model'
 import { blankState } from './rules'
 import { BEEP_VOICE, DEDUP, DRIFT, EFFECTS, HOLD_FOR, LAY_GAP, LOOKAHEAD, MASTER, MUSIC, PER_EIGHTH, SPRINKLE, Sounds, Synth, VISIT_SPRINKLE, WORD_GAP, type UiSound } from './sounds'
 
@@ -592,18 +595,21 @@ class FakeUtterance {
     this.text = text
   }
 }
-function fakeSpeech() {
+/** The voices a browser lists: by default a Finnish one and two English ones, as a Mac's. */
+function fakeSpeech(
+  voices = [
+    { lang: 'fi-FI', name: 'Satu' },
+    { lang: 'en-US', name: 'Samantha' },
+    { lang: 'en-GB', name: 'Daniel' },
+  ],
+) {
   const said: FakeUtterance[] = []
   const speech = {
     said,
     hushed: 0,
     speak: (u: FakeUtterance) => said.push(u),
     cancel: () => (speech.hushed += 1),
-    getVoices: () => [
-      { lang: 'fi-FI', name: 'Satu' },
-      { lang: 'en-GB', name: 'Daniel' },
-      { lang: 'en-US', name: 'Samantha' },
-    ],
+    getVoices: () => voices,
   }
   vi.stubGlobal('speechSynthesis', speech)
   vi.stubGlobal('SpeechSynthesisUtterance', FakeUtterance)
@@ -669,11 +675,11 @@ describe('Sounds', () => {
 
   it('makes no sound, no context and no speech before the first unlock, then one context, and the band starts with the next frame', () => {
     const speech = fakeSpeech()
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     const s = shaking()
     sounds.frame(s, ALL_EVENTS, STEP)
     sounds.ui('tap')
-    sounds.say('Oven!')
+    sounds.say(STICKER_WORDS.oven)
     sounds.setSound(false)
     sounds.setSound(true)
     sounds.setMusic(false)
@@ -697,7 +703,7 @@ describe('Sounds', () => {
   })
 
   it('sleeps when suspended, stays asleep through gestures, plays nothing into the sleeping context, and wakes on resume', async () => {
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const ctx = contexts[0]!
     expect(ctx.resumes).toBe(0)
@@ -718,7 +724,7 @@ describe('Sounds', () => {
 
   it('plays the same sound once within DEDUP and again after, two variants together, and a HUD pick and a sim pick as one', () => {
     const event = vi.spyOn(Synth.prototype, 'event')
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const ctx = contexts[0]!
     const s = blankState(1)
@@ -742,7 +748,7 @@ describe('Sounds', () => {
 
   it("waits a machine's sound for the next eighth, at most PER_EIGHTH of a kind on one, and plays a tap's sound at once", () => {
     const event = vi.spyOn(Synth.prototype, 'event')
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const ctx = contexts[0]!
     const s = blankState(1)
@@ -771,7 +777,7 @@ describe('Sounds', () => {
 
   it("schedules each eighth once, on the sim's beat, within the lookahead, from the parts playing now", () => {
     const rec = notes()
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const ctx = contexts[0]!
     ctx.currentTime = 3
@@ -799,7 +805,7 @@ describe('Sounds', () => {
 
   it('re-anchors after a slow frame, a sim held back, a stalled clock and a new game, never playing an eighth twice or in the past', () => {
     const rec = notes()
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const ctx = contexts[0]!
     const s = shaking()
@@ -835,7 +841,7 @@ describe('Sounds', () => {
 
   it("halves the machines' sprinkle while munchers are out, as the particles halve, and brings it back when they are home", () => {
     const take = vi.spyOn(Synth.prototype, 'take')
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const s = shaking()
     run(sounds, s, 2)
@@ -856,7 +862,7 @@ describe('Sounds', () => {
   it('mutes everything with the sound switch and the music bus with the music switch, the band then playing one soft hit a bar, from before the unlock too', () => {
     const rec = notes()
     const take = vi.spyOn(Synth.prototype, 'take')
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.setMusic(false)
     sounds.unlock()
     const ctx = contexts[0]!
@@ -890,7 +896,7 @@ describe('Sounds', () => {
     run(sounds, s, 2 * HOP)
     expect(sources()).toBeGreaterThan(made)
     // Off before the first touch: the master starts silent.
-    const later = new Sounds()
+    const later = new Sounds('en')
     later.setSound(false)
     later.unlock()
     expect(contexts).toHaveLength(2)
@@ -901,7 +907,7 @@ describe('Sounds', () => {
     const rec = notes()
     const retire = vi.spyOn(Synth.prototype, 'retire')
     const ui = vi.spyOn(Synth.prototype, 'ui')
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const ctx = contexts[0]!
     const s = shaking()
@@ -930,41 +936,62 @@ describe('Sounds', () => {
     }
   })
 
-  it("says Beep's words in English pitched up like a little robot, once each, with the band dipping, the Voice and Sound switches on", () => {
+  it.each(LANGS)("says Beep's words in the player's language (%s) pitched up like a little robot, once each, with the band dipping, the Voice and Sound switches on", (lang) => {
     const speech = fakeSpeech()
     const dip = vi.spyOn(Synth.prototype, 'dip')
     const chirp = vi.spyOn(Synth.prototype, 'chirp')
-    const sounds = new Sounds()
+    const sounds = new Sounds(lang)
     expect(sounds.speaks).toBe(true)
     sounds.unlock()
     const ctx = contexts[0]!
     const s = blankState(1)
-    sounds.frame(s, [{ kind: 'say', word: 'Oven!' }, { kind: 'say', word: 'Oven!' }], STEP)
+    sounds.frame(s, [{ kind: 'say', word: { sticker: 'oven' } }, { kind: 'say', word: { sticker: 'oven' } }], STEP)
     const words = () => speech.said.filter((u) => u.text !== '')
-    expect(words().map((u) => [u.text, u.lang, u.pitch, u.rate, u.voice!.name])).toEqual([['Oven!', BEEP_VOICE.lang, BEEP_VOICE.pitch, BEEP_VOICE.rate, 'Samantha']])
+    // English in the British voice before the American one, as the repo writes it; Finnish in the Finnish one.
+    expect(words().map((u) => [u.text, u.lang, u.pitch, u.rate, u.voice!.name])).toEqual([[STICKER_WORDS.oven[lang], SPEECH_TAG[lang], BEEP_VOICE.pitch, BEEP_VOICE.rate, { fi: 'Satu', en: 'Daniel' }[lang]]])
     expect(chirp).toHaveBeenCalledTimes(1)
     expect(dip).toHaveBeenCalledTimes(1)
     ctx.currentTime += 2
-    sounds.say('Gears!')
-    expect(words().map((u) => u.text)).toEqual(['Oven!', 'Gears!'])
+    sounds.frame(s, [{ kind: 'say', word: { card: 'gears' } }], STEP)
+    expect(words().map((u) => u.text)).toEqual([STICKER_WORDS.oven[lang], CARD_WORDS.gears[lang]])
     sounds.setVoice(false)
     ctx.currentTime += 2
-    sounds.say('Hooray!')
+    sounds.say(BEEP_SAYS.hooray)
     sounds.setVoice(true)
     sounds.setSound(false)
-    sounds.say('Hooray!')
+    sounds.say(BEEP_SAYS.hooray)
     sounds.setSound(true)
     expect(words()).toHaveLength(2)
-    sounds.say('Hooray!')
-    expect(words()).toHaveLength(3)
+    sounds.say(BEEP_SAYS.hooray)
+    expect(words().map((u) => u.text)).toEqual([STICKER_WORDS.oven[lang], CARD_WORDS.gears[lang], BEEP_SAYS.hooray[lang]])
     const hushed = speech.hushed
     sounds.suspend()
     expect(speech.hushed).toBe(hushed + 1)
   })
 
-  it('counts down with the countdown, cheers the flight home, says good night at dusk and calls out the scout, two words never closer than WORD_GAP', () => {
+  it("says nothing where the browser has no voice for the player's language: another language's voice never reads her words, and no chirp comes without a word", () => {
+    const speech = fakeSpeech([
+      { lang: 'en-US', name: 'Samantha' },
+      { lang: 'sv-SE', name: 'Alva' },
+    ])
+    const chirp = vi.spyOn(Synth.prototype, 'chirp')
+    const fi = new Sounds('fi')
+    fi.unlock()
+    fi.frame(blankState(1), [{ kind: 'say', word: { card: 'gold' } }], STEP)
+    fi.say(BEEP_SAYS.hooray)
+    expect(speech.said.filter((u) => u.text !== '')).toEqual([])
+    expect(chirp).not.toHaveBeenCalled()
+    // Any English voice will do where the browser has no British one.
+    const en = new Sounds('en')
+    en.unlock()
+    en.say(BEEP_SAYS.hooray)
+    expect(speech.said.filter((u) => u.text !== '').map((u) => [u.text, u.voice!.name])).toEqual([[BEEP_SAYS.hooray.en, 'Samantha']])
+    expect(chirp).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(LANGS)('counts down with the countdown, cheers the flight home, says good night at dusk and calls out the scout (%s), two words never closer than WORD_GAP', (lang: Lang) => {
     const speech = fakeSpeech()
-    const sounds = new Sounds()
+    const sounds = new Sounds(lang)
     sounds.unlock()
     const ctx = contexts[0]!
     const s = blankState(1)
@@ -981,40 +1008,48 @@ describe('Sounds', () => {
     // Another muncher's hop out, and one home and gone by the frame, say nothing.
     s.munchers[0]!.scout = false
     at([{ kind: 'hopOut', id: 7, burrow: 0 }, { kind: 'hopOut', id: 99, burrow: 0 }])
-    expect(words()).toEqual(['Five!', 'Four!', 'Three!', 'Two!', 'One!', 'Hooray!', 'Good night!', 'Munchers!'])
+    expect(words()).toEqual([...[5, 4, 3, 2, 1].map((n) => COUNTDOWN[n]![lang]), BEEP_SAYS.hooray[lang], BEEP_SAYS.goodNight[lang], BEEP_SAYS.munchers[lang]])
     // A card's word and a new sticker's at once: the first is said, the second would come too late to mean its moment.
     ctx.currentTime += 1
-    sounds.frame(s, [{ kind: 'say', word: 'Snacks!' }, { kind: 'say', word: 'Snack bowl!' }], STEP)
+    sounds.frame(s, [{ kind: 'say', word: { card: 'snacks' } }, { kind: 'say', word: { sticker: 'bowl' } }], STEP)
     ctx.currentTime += WORD_GAP / 2
-    sounds.say('Oven!')
-    expect(words().slice(-1)).toEqual(['Snacks!'])
+    sounds.say(STICKER_WORDS.oven)
+    expect(words().slice(-1)).toEqual([CARD_WORDS.snacks[lang]])
     ctx.currentTime += WORD_GAP
-    sounds.say('Oven!')
-    expect(words().slice(-2)).toEqual(['Snacks!', 'Oven!'])
+    sounds.say(STICKER_WORDS.oven)
+    expect(words().slice(-2)).toEqual([CARD_WORDS.snacks[lang], STICKER_WORDS.oven[lang]])
   })
 
-  it('calls a sticker a card brings alone by its card\'s word, so each thing has one name', () => {
-    for (const c of CARDS.map(card)) {
-      const kinds = Object.keys(c.gives).filter((k): k is Placeable => (PLACEABLE as readonly string[]).includes(k))
-      if (kinds.length !== 1 || Object.keys(c.gives).length !== 1) continue
-      expect(STICKER_WORD[kinds[0]!], c.id).toMatch(new RegExp(`^${c.word.replace(/s?!$/, '')}`))
+  it("calls a sticker a card brings alone by its card's word, so each thing has one name, in both languages", () => {
+    // The name each such card and its sticker share, written out for each language: Finnish bends the word where English adds an s (Herkut!, Herkkukulho!).
+    const shared: Partial<Record<CardId, Words>> = {
+      digger: { en: 'Digger', fi: 'Kaivuri' },
+      stars: { en: 'Stars', fi: 'Tähdet' },
+      snacks: { en: 'Snack', fi: 'Herk' },
     }
-    expect(STICKER_WORD.orangeMaker).toBe(card('stars').word)
+    const alone = CARDS.map(card).filter((c) => Object.keys(c.gives).length === 1 && (PLACEABLE as readonly string[]).includes(Object.keys(c.gives)[0]!))
+    expect(alone.map((c) => c.id)).toEqual(Object.keys(shared))
+    for (const c of alone)
+      for (const lang of LANGS) {
+        const name = shared[c.id]![lang]
+        expect(CARD_WORDS[c.id][lang], c.id).toMatch(new RegExp(`^${name}`))
+        expect(STICKER_WORDS[Object.keys(c.gives)[0] as Placeable][lang], c.id).toMatch(new RegExp(`^${name}`))
+      }
   })
 
   it('has no voice where the browser cannot speak: the switch stays off and words make no sound', () => {
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     expect(sounds.speaks).toBe(false)
     sounds.unlock()
     sounds.setVoice(true)
     const chirp = vi.spyOn(Synth.prototype, 'chirp')
-    sounds.say('Oven!')
-    sounds.frame(blankState(1), [{ kind: 'say', word: 'Lab!' }], STEP)
+    sounds.say(STICKER_WORDS.oven)
+    sounds.frame(blankState(1), [{ kind: 'say', word: { sticker: 'lab' } }], STEP)
     expect(chirp).not.toHaveBeenCalled()
   })
 
   it("cuts the gate's rising tone short at the next HUD sound, or when the page sleeps", () => {
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const ctx = contexts[0]!
     for (const end of ['tap', 'suspend'] as const) {
@@ -1033,7 +1068,7 @@ describe('Sounds', () => {
   })
 
   it('never steps the sim or reads anything but the state: a frame leaves the state as it was', () => {
-    const sounds = new Sounds()
+    const sounds = new Sounds('en')
     sounds.unlock()
     const s = shaking()
     s.belts.slot[3] = thingIndex('gear')

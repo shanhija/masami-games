@@ -101,7 +101,7 @@ function met(s: State, c: Card, goldBar: boolean): boolean {
 function found(s: State, c: Card): void {
   s.found.push(c.id)
   s.card = { id: c.id, at: s.tick }
-  s.events.push({ kind: 'card', id: c.id }, { kind: 'say', word: c.word })
+  s.events.push({ kind: 'card', id: c.id }, { kind: 'say', word: { card: c.id } })
   BURROW_WAKES.forEach((id, i) => {
     if (id !== c.id || i === 0) return
     s.burrows[i]!.helloAt = s.tick
