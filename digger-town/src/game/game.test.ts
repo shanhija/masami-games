@@ -14,7 +14,7 @@ afterEach(() => vi.restoreAllMocks())
 /** The seed a fresh save gets in these tests. */
 const FRESH_SEED = 4242
 
-const make = (search = '?job=hole1', storage: Saves | null = null) => new Game({ search, storage, recognizer: null, audio: new Sounds(), freshSeed: () => FRESH_SEED })
+const make = (search = '?job=hole1', storage: Saves | null = null) => new Game({ search, lang: 'fi', storage, recognizer: null, audio: new Sounds(), freshSeed: () => FRESH_SEED })
 
 /** A storage that remembers what it is given. */
 function memory(): Saves & { data: Map<string, string>; writes: number } {
@@ -289,8 +289,8 @@ describe('autoplay', () => {
 
 describe('rank', () => {
   it('follows the stars', () => {
-    expect(rankOf(freshSave(1)).name).toBe('Helper')
-    expect(rankOf({ ...freshSave(1), stars: 26 }).name).toBe('Big Builder')
+    expect(rankOf(freshSave(1)).id).toBe('helper')
+    expect(rankOf({ ...freshSave(1), stars: 26 }).id).toBe('bigBuilder')
   })
 })
 
@@ -325,7 +325,7 @@ const silent = () => {
 }
 const withVoice = (search: string) => {
   FakeRecognizer.all = []
-  return new Game({ search, storage: null, recognizer: FakeRecognizer as unknown as RecognizerCtor, audio: silent(), freshSeed: () => FRESH_SEED })
+  return new Game({ search, lang: 'fi', storage: null, recognizer: FakeRecognizer as unknown as RecognizerCtor, audio: silent(), freshSeed: () => FRESH_SEED })
 }
 const lastRecognizer = () => FakeRecognizer.all[FakeRecognizer.all.length - 1]
 
@@ -571,7 +571,7 @@ describe('the voice listens only in play', () => {
       FakeRecognizer.all = []
       const storage = memory()
       storage.data.set('digger-town-old', serializeSave(played()))
-      return { game: new Game({ search: '', storage, recognizer: FakeRecognizer as unknown as RecognizerCtor, audio: silent(), freshSeed: () => FRESH_SEED }) }
+      return { game: new Game({ search: '', lang: 'fi', storage, recognizer: FakeRecognizer as unknown as RecognizerCtor, audio: silent(), freshSeed: () => FRESH_SEED }) }
     })()
     g.start()
     g.toggleMic()

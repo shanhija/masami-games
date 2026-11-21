@@ -192,23 +192,20 @@ export function Viewer() {
   const focus = at ?? [0, spec ? spec.height * 0.42 : 0.6, 0]
   const focusY = focus[1]
   const firstPaint = kind ? PAINTS.find((p) => p.id === FIRST_PAINT[kind])!.colour : '#ffffff'
-  const missing = kind && !Object.keys(modules).includes(`./machines/${kind[0].toUpperCase() + kind.slice(1)}.tsx`)
+  if (kind && !Object.keys(modules).includes(`./machines/${kind[0].toUpperCase() + kind.slice(1)}.tsx`)) throw new Error(`No model yet for the ${kind}`)
 
   return (
-    <>
-      <Canvas
-        className="stage"
-        shadows
-        dpr={1}
-        camera={{ fov: 32, near: 0.1, far: 300, position: [focus[0], focusY + dist * 0.42, focus[2] + dist * 0.9] }}
-        onCreated={({ camera }) => camera.lookAt(focus[0], focusY, focus[2])}
-      >
-        <Studio day={day} />
-        <Stats show={q.has('stats')} />
-        {kind && <MachineStage kind={kind} paint={paint ?? firstPaint} t={t} angle={angle} arm={arm} driver={driver} />}
-        {animal !== null && <AnimalStage species={animal as Species | 'all'} hat={hat === null ? null : hat.startsWith('#') ? hat : `#${hat}`} t={t} angle={angle} seated={q.has('seated')} />}
-      </Canvas>
-      {missing && <pre className="oops">No model yet for the {kind}.</pre>}
-    </>
+    <Canvas
+      className="stage"
+      shadows
+      dpr={1}
+      camera={{ fov: 32, near: 0.1, far: 300, position: [focus[0], focusY + dist * 0.42, focus[2] + dist * 0.9] }}
+      onCreated={({ camera }) => camera.lookAt(focus[0], focusY, focus[2])}
+    >
+      <Studio day={day} />
+      <Stats show={q.has('stats')} />
+      {kind && <MachineStage kind={kind} paint={paint ?? firstPaint} t={t} angle={angle} arm={arm} driver={driver} />}
+      {animal !== null && <AnimalStage species={animal as Species | 'all'} hat={hat === null ? null : hat.startsWith('#') ? hat : `#${hat}`} t={t} angle={angle} seated={q.has('seated')} />}
+    </Canvas>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
+import { inLang } from '../../profiles/src/lang'
 import { useGameView } from './game/game'
 import type { Game } from './game/game'
 import { FRIEND_OF, MACHINE_KINDS } from './game/model'
@@ -9,6 +10,7 @@ import { guardedOf } from './game/jobs'
 import { HOP_BLOCK } from './game/hands'
 import { actionFace, actionReady, stepPointer } from './game/sim'
 import { ActionIcon, Face, Glyph, MachineIcon, paintColour } from './Icons'
+import { HUD, MACHINE_NAMES } from './words'
 
 /** Keeps the browser's own answer to a press away from a button: no focus on mousedown, no long-press menu, no text selection. */
 export const noDefault = (e: { preventDefault: () => void }) => e.preventDefault()
@@ -62,7 +64,7 @@ function BigButton({ game, className, children }: { game: Game; className: strin
     <button
       type="button"
       {...BUTTON}
-      aria-label="work"
+      aria-label={inLang(HUD.work, game.lang)}
       className={className}
       onPointerDown={(e) => {
         e.preventDefault()
@@ -113,6 +115,7 @@ export function Controls({ game }: { game: Game }) {
   const held = Math.min(1, sim.hands.heldFor)
   const voice = game.voice
   const micState = voice.state
+  const lang = game.lang
 
   return (
     <div className="controls">
@@ -125,7 +128,7 @@ export function Controls({ game }: { game: Game }) {
               key={kind}
               type="button"
               {...BUTTON}
-              aria-label={kind}
+              aria-label={inLang(MACHINE_NAMES[kind], lang)}
               className={cls('portrait', sim.active === kind && 'on', wanted && 'wanted', wanted && tier === 2 && 'loud')}
               onPointerDown={(e) => {
                 e.preventDefault()
@@ -146,7 +149,7 @@ export function Controls({ game }: { game: Game }) {
             <button
               type="button"
               {...BUTTON}
-              aria-label="microphone"
+              aria-label={inLang(HUD.microphone, lang)}
               className={cls('push', 'mic', micState, voice.hearing && 'hearing', micDown && 'pressed')}
               onPointerDown={(e) => {
                 e.preventDefault()
@@ -160,14 +163,14 @@ export function Controls({ game }: { game: Game }) {
             >
               <Glyph name={micState === 'denied' || micState === 'broken' ? 'micOff' : 'mic'} />
               {micState === 'starting' ? <span className="spin" /> : null}
-              {micState === 'denied' ? <span className="note">Mic blocked</span> : null}
-              {micState === 'broken' ? <span className="note">Can&apos;t hear</span> : null}
+              {micState === 'denied' ? <span className="note">{inLang(HUD.micBlocked, lang)}</span> : null}
+              {micState === 'broken' ? <span className="note">{inLang(HUD.cantHear, lang)}</span> : null}
             </button>
           )}
           <button
             type="button"
             {...BUTTON}
-            aria-label="horn"
+            aria-label={inLang(HUD.horn, lang)}
             className="push horn"
             onPointerDown={(e) => {
               e.preventDefault()

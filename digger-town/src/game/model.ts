@@ -599,7 +599,7 @@ export interface Hands {
 export type ActionFace = 'dig' | 'dump' | 'tip' | 'bladeUp' | 'bladeDown' | 'stomp' | 'pick' | 'drop' | 'hook' | 'unhook' | 'pour' | 'unload' | 'none'
 
 // ---------------------------------------------------------------------------------------
-// What was said: one clause of Finnish speech, parsed. Any part can be missing: "kaivuri" only names a machine.
+// What was said: one clause of speech, parsed, in either language. Any part can be missing: "kaivuri" only names a machine.
 
 export type SpokenMove = 'forward' | 'back' | 'left' | 'right' | 'up' | 'down' | 'around'
 export type SpokenWork = 'take' | 'give' | 'push' | 'roll'
@@ -891,14 +891,15 @@ export interface Sim {
 /** Coins per thing done: small and often, so something always rings. */
 export const COINS = { scoop: 1, tip: 2, pick: 1, place: 3, stepDone: 3, jobDone: 10, rolledMetre: 0.25, pushed: 1 } as const
 
-/** The rank a child's stars earn: its name and hat colour show as a small hat beside the star counter, and once the story is told the driver's own hard hat turns golden. */
-export const RANKS: readonly { stars: number; name: string; hat: string }[] = [
-  { stars: 0, name: 'Helper', hat: '#ffd23f' },
-  { stars: 10, name: 'Builder', hat: '#ff9f43' },
-  { stars: 25, name: 'Big Builder', hat: '#ff5e5e' },
-  { stars: 45, name: 'Boss', hat: '#5ec8ff' },
-  { stars: 60, name: 'Golden Builder', hat: '#ffcf3f' },
-]
+/** The rank a child's stars earn: its hat colour shows as a small hat beside the star counter and its name (`RANK_NAMES` in words.ts) on the pause card; once the story is told the driver's own hard hat turns golden. */
+export const RANKS = [
+  { stars: 0, id: 'helper', hat: '#ffd23f' },
+  { stars: 10, id: 'builder', hat: '#ff9f43' },
+  { stars: 25, id: 'bigBuilder', hat: '#ff5e5e' },
+  { stars: 45, id: 'boss', hat: '#5ec8ff' },
+  { stars: 60, id: 'golden', hat: '#ffcf3f' },
+] as const
+export type RankId = (typeof RANKS)[number]['id']
 
 // ---------------------------------------------------------------------------------------
 // The paint shop and the builder.
@@ -948,6 +949,7 @@ export function isWorking(m: Machine): boolean {
 export const DRIVER_SPECIES = ['bunny', 'cat', 'dog', 'fox', 'bear', 'frog'] as const satisfies readonly Species[]
 export type DriverSpecies = (typeof DRIVER_SPECIES)[number]
 export const HAT_COLOURS = ['#ffd23f', '#ff7f50', '#ff6fa8', '#5ec8ff', '#7fe07a', '#ffffff'] as const
+export type HatColour = (typeof HAT_COLOURS)[number]
 
 export interface DriverLook {
   species: DriverSpecies

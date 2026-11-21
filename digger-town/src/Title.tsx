@@ -1,8 +1,12 @@
+import type { CSSProperties } from 'react'
+
+import { inLang } from '../../profiles/src/lang'
 import { useGameView } from './game/game'
 import type { Game } from './game/game'
 import { BUTTON, cls } from './Controls'
 import { Glyph, MachineIcon, paintColour } from './Icons'
 import { BuilderPicker } from './Shop'
+import { HUD, LOGO } from './words'
 
 /** A word of chunky letters, each its own colour and tilt. */
 function Letters({ word, tint }: { word: string; tint: readonly string[] }) {
@@ -22,26 +26,28 @@ export function Title({ game }: { game: Game }) {
   useGameView(game)
   if (game.screen !== 'title') return null
   const first = !game.save.picked
+  const lang = game.lang
+  const [top, bottom] = LOGO.map((w) => inLang(w, lang))
   return (
     <div className="title">
-      <div className="logo">
-        <Letters word="DIGGER" tint={['#ffc21a', '#fff7e6']} />
+      <div className="logo" style={{ '--letters': Math.max(top.length, bottom.length) } as CSSProperties}>
+        <Letters word={top} tint={['#ffc21a', '#fff7e6']} />
         <div className="logo-line">
-          <Letters word="TOWN" tint={['#fff7e6', '#ffc21a']} />
+          <Letters word={bottom} tint={['#fff7e6', '#ffc21a']} />
           <span className="logo-digger"><MachineIcon kind="digger" colour={paintColour(game.save.paints.digger)} /></span>
         </div>
         <div className="logo-stripe" />
       </div>
       {first ? <BuilderPicker game={game} /> : null}
-      <button type="button" {...BUTTON} aria-label="go" className={cls('push', 'go')} onPointerDown={(e) => { e.preventDefault(); game.start() }}>
+      <button type="button" {...BUTTON} aria-label={inLang(HUD.go, lang)} className={cls('push', 'go')} onPointerDown={(e) => { e.preventDefault(); game.start() }}>
         <Glyph name="play" />
-        <span>Go!</span>
+        <span>{inLang(HUD.go, lang)}</span>
       </button>
       {first ? null : (
         <button
           type="button"
           {...BUTTON}
-          aria-label="paint shop"
+          aria-label={inLang(HUD.paintShop, lang)}
           className="push round title-paint"
           onPointerDown={(e) => {
             e.preventDefault()

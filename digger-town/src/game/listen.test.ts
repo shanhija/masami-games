@@ -68,7 +68,7 @@ afterEach(() => {
 
 beforeEach(() => {
   Fake.all = []
-  voice = new Voice(Fake as unknown as RecognizerCtor)
+  voice = new Voice(Fake as unknown as RecognizerCtor, 'fi')
   heard = []
   unheard = []
   changes = 0
@@ -76,6 +76,12 @@ beforeEach(() => {
   voice.unheard = (text) => unheard.push(text)
   voice.changed = () => changes++
 })
+
+/** The language tag a fresh voice in `lang` gives its recognizer. */
+function latestLang(lang: 'fi' | 'en'): string {
+  new Voice(Fake as unknown as RecognizerCtor, lang).toggle()
+  return latest().lang
+}
 
 /** Turned on and listening. */
 function listen() {
@@ -85,7 +91,7 @@ function listen() {
 
 describe('Voice states', () => {
   it('is unsupported with no recognizer, and cannot be toggled', () => {
-    const v = new Voice(null)
+    const v = new Voice(null, 'fi')
     expect(v.state).toBe('unsupported')
     expect(() => v.toggle()).toThrow()
   })
@@ -102,6 +108,11 @@ describe('Voice states', () => {
     voice.toggle()
     expect(voice.state).toBe('off')
     expect(rec.aborted).toBe(true)
+  })
+
+  it('listens in the player’s language: Finnish as fi-FI, English as en-GB', () => {
+    expect(latestLang('fi')).toBe('fi-FI')
+    expect(latestLang('en')).toBe('en-GB')
   })
 
   it('shows that it hears between speechstart and speechend', () => {

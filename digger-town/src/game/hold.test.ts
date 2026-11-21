@@ -43,7 +43,7 @@ describe('an animal facing away', () => {
 
 describe('a pending tap', () => {
   it('is dropped when the game releases its inputs', () => {
-    const g = new Game({ search: '?job=hole1', storage: null, recognizer: null, audio: new Sounds(), freshSeed: () => 1 })
+    const g = new Game({ search: '?job=hole1', lang: 'fi', storage: null, recognizer: null, audio: new Sounds(), freshSeed: () => 1 })
     setAction(g.sim, true)
     setAction(g.sim, false)
     expect(g.sim.hands.tapped).toBe(true)
@@ -52,7 +52,7 @@ describe('a pending tap', () => {
   })
 
   const tapped = (rest: (g: Game) => void) => {
-    const g = new Game({ search: '?job=hole1', storage: null, recognizer: null, audio: new Sounds(), freshSeed: () => 1 })
+    const g = new Game({ search: '?job=hole1', lang: 'fi', storage: null, recognizer: null, audio: new Sounds(), freshSeed: () => 1 })
     g.advance(1 / 30)
     const m = g.sim.machines[g.sim.active]
     if (m.kind !== 'digger') throw new Error('the first machine of hole1 is the digger')

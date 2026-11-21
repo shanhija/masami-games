@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { MACHINE_NAMES, PLACES_TO_TRY } from '../words'
+import { MACHINE_KINDS } from './model'
 import type { MachineKind, PlaceId, Spoken, SpokenMove, SpokenWork } from './model'
-import { WORDS_TO_TRY, parseBest, parseSpeech, partsOf } from './speech'
+import { parseBest, parseSpeech, partsOf } from './speech'
 
 interface Want {
   who?: MachineKind
@@ -192,15 +194,15 @@ describe('parseBest', () => {
   })
 })
 
-describe('WORDS_TO_TRY', () => {
-  it('has about sixteen words and the parser understands each one', () => {
-    expect(WORDS_TO_TRY.length).toBeGreaterThanOrEqual(14)
-    expect(WORDS_TO_TRY.length).toBeLessThanOrEqual(18)
-    for (const { word, picture } of WORDS_TO_TRY) {
-      const clauses = parseSpeech(word)
-      expect(clauses, word).toHaveLength(1)
+describe('the words to try', () => {
+  it('are sixteen words, a word for each machine and seven places, and the parser understands each one', () => {
+    const words = [...MACHINE_KINDS.map((k) => ({ word: MACHINE_NAMES[k], means: k })), ...PLACES_TO_TRY.map((p) => ({ word: p.word, means: p.place }))]
+    expect(words).toHaveLength(16)
+    for (const { word, means } of words) {
+      const clauses = parseSpeech(word.fi)
+      expect(clauses, word.fi).toHaveLength(1)
       const c = clauses[0]
-      expect(c.who ?? c.to, word).toBe(picture)
+      expect(c.who ?? c.to, word.fi).toBe(means)
     }
   })
 })

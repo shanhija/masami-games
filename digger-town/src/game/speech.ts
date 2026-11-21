@@ -3,7 +3,7 @@
  * lower-cased, split into clauses, and each word is matched against the tables below after a
  * fold that undoes a small child's way of saying r, j and d.
  */
-import type { MachineKind, PlaceId, Picture, Spoken, SpokenMove, SpokenWork } from './model'
+import type { MachineKind, PlaceId, Spoken, SpokenMove, SpokenWork } from './model'
 
 type Flag = 'stop' | 'honk' | 'come' | 'help'
 
@@ -242,23 +242,3 @@ export function parseBest(alternatives: string[]): Spoken[] {
   }
   return []
 }
-
-/** The words for the pause card, machines first. */
-export const WORDS_TO_TRY: readonly { word: string; picture: Picture }[] = [
-  { word: 'kaivuri', picture: 'digger' },
-  { word: 'kippiauto', picture: 'dumper' },
-  { word: 'puskutraktori', picture: 'dozer' },
-  { word: 'jyrä', picture: 'roller' },
-  { word: 'betoniauto', picture: 'mixer' },
-  { word: 'trukki', picture: 'forklift' },
-  { word: 'nosturi', picture: 'tower' },
-  { word: 'rekka', picture: 'semi' },
-  { word: 'autonosturi', picture: 'mobile' },
-  { word: 'hiekka', picture: 'sand' },
-  { word: 'kivi', picture: 'rock' },
-  { word: 'kuoppa', picture: 'hole' },
-  { word: 'tie', picture: 'road' },
-  { word: 'vesi', picture: 'water' },
-  { word: 'talo', picture: 'house' },
-  { word: 'silta', picture: 'bridge' },
-]

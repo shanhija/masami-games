@@ -1,8 +1,10 @@
+import { inLang } from '../../profiles/src/lang'
 import { useGameView } from './game/game'
 import type { Game } from './game/game'
 import { DRIVER_SPECIES, HAT_COLOURS, MACHINE_KINDS, PAINTS } from './game/model'
 import { BUTTON, cls } from './Controls'
 import { Face, Glyph, HatIcon, MachineIcon, paintColour } from './Icons'
+import { HAT_NAMES, HUD, MACHINE_NAMES, PAINT_NAMES, SPECIES_NAMES } from './words'
 
 /** A gentle head shake: that one costs too much. */
 function shake(el: HTMLElement) {
@@ -12,6 +14,7 @@ function shake(el: HTMLElement) {
 /** Six builders as big faces and six hat colours; the picked ones ring. Used on the title and in the shop. */
 export function BuilderPicker({ game }: { game: Game }) {
   const look = game.save.driver
+  const lang = game.lang
   return (
     <div className="builder">
       <div className="builder-faces">
@@ -20,7 +23,7 @@ export function BuilderPicker({ game }: { game: Game }) {
             key={species}
             type="button"
             {...BUTTON}
-            aria-label={species}
+            aria-label={inLang(SPECIES_NAMES[species], lang)}
             className={cls('pick', 'face', look.species === species && 'on')}
             onPointerDown={(e) => {
               e.preventDefault()
@@ -37,7 +40,7 @@ export function BuilderPicker({ game }: { game: Game }) {
             key={hat}
             type="button"
             {...BUTTON}
-            aria-label="hat"
+            aria-label={inLang(HAT_NAMES[hat], lang)}
             className={cls('pick', 'hat', look.hat === hat && 'on')}
             onPointerDown={(e) => {
               e.preventDefault()
@@ -59,9 +62,10 @@ export function Shop({ game }: { game: Game }) {
   const save = game.save
   const kind = game.shopMachine
   const wearing = save.paints[kind]
+  const lang = game.lang
   return (
     <div className="shop">
-      <button type="button" {...BUTTON} aria-label="back" className="push round back" onPointerDown={(e) => { e.preventDefault(); game.closeShop() }}>
+      <button type="button" {...BUTTON} aria-label={inLang(HUD.back, lang)} className="push round back" onPointerDown={(e) => { e.preventDefault(); game.closeShop() }}>
         <Glyph name="back" />
       </button>
       <div className="chip shop-coins">
@@ -79,7 +83,7 @@ export function Shop({ game }: { game: Game }) {
               key={paint.id}
               type="button"
               {...BUTTON}
-              aria-label={paint.id}
+              aria-label={inLang(PAINT_NAMES[paint.id], lang)}
               className={cls('swatch', wearing === paint.id && 'on', !owned && 'locked')}
               style={{ background: paint.colour }}
               onPointerDown={(e) => {
@@ -104,7 +108,7 @@ export function Shop({ game }: { game: Game }) {
             key={k}
             type="button"
             {...BUTTON}
-            aria-label={k}
+            aria-label={inLang(MACHINE_NAMES[k], lang)}
             className={cls('portrait', k === kind && 'on')}
             onPointerDown={(e) => {
               e.preventDefault()

@@ -21,15 +21,15 @@ import { parseAst } from 'vite'
 import { describe, expect, it } from 'vitest'
 
 /** Games not yet in both languages. Each leaves this list in the commit that makes it so; then the list goes. */
-const PENDING = new Set(['digger-town', 'silly-billy'])
+const PENDING = new Set(['silly-billy'])
 
 /** Files only a developer sees (the `?sheet` pages), or that only a model reads (Silly Billy's dev server, its guard of made code, the API and the scene as the interpreter and the designer are told them). */
 const DEV_ONLY: readonly RegExp[] = [/\/Sheet\.tsx$/, /^silly-billy\/src\/server\//, /^silly-billy\/src\/engine\/(sandbox|apidoc)\.ts$/, /^silly-billy\/src\/brain\/context\.ts$/]
 
 /** Literals that look like words and are not: key names, fonts. */
 const NOT_WORDS = new Set(['Enter', 'Escape', 'Space', 'Tab', 'Shift', 'Backspace', 'Control', 'Alt', 'Meta', 'Delete', 'Home', 'End', 'Fredoka', 'Fredoka Variable'])
-/** Names in code that look like words and are not: key codes ('KeyW', 'ArrowLeft'), names with two capitals ('NotAllowedError', 'BlockStatement'), chords ('Am', 'Bb7'). */
-const NOT_WORDS_LIKE: readonly RegExp[] = [/^(Key[A-Z]|Digit\d|Numpad\w+)$/, /^\p{Lu}\p{Ll}+(\p{Lu}\p{Ll}*)+$/u, /^[A-G][b#]?(m|maj|dim|aug|sus)?\d*$/]
+/** Names in code that look like words and are not: key codes ('KeyW', 'ArrowLeft'), names with two capitals ('NotAllowedError', 'BlockStatement'), chords ('Am', 'Bb7'), and a bar of a tune, its chord and then its notes, rests and holds ('Am C6 . B5 - -'). */
+const NOT_WORDS_LIKE: readonly RegExp[] = [/^(Key[A-Z]|Digit\d|Numpad\w+)$/, /^\p{Lu}\p{Ll}+(\p{Lu}\p{Ll}*)+$/u, /^[A-G][b#]?(m|maj|dim|aug|sus)?\d*$/, /^[A-G][b#]?(m|maj|dim|aug|sus)?\d*( ([A-G][b#]?\d|[.-]))+$/]
 
 /** Properties whose text only a model reads: Silly Billy's `about` of an action or a thing. */
 const MODEL_ONLY = new Set(['about'])
@@ -201,6 +201,7 @@ describe('both languages', () => {
       import { thing } from './Some Module'
       type Shout = 'Wow!' | 'oops'
       const LEVEL = { name: 'Garden', id: 'garden' }
+      const BARS = ['Am C6 . B5 - -', 'F A5 . G5 F5 . A5 . .']
       const SAY = { go: { en: 'Go!', fi: 'Mennään!' }, empty: { en: 'Hi', fi: '' }, dash: { en: 'Wait — now', fi: 'Odota' } }
       export function Hud({ on }: { on: boolean }) {
         if (!on) throw new Error('Nothing to show')

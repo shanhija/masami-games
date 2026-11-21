@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { Lang } from '../../../profiles/src/lang'
 import type { Saves } from '../../../profiles/src/profiles'
 
 import { botFrame, createBot } from './bot'
@@ -15,7 +16,7 @@ import type { Save } from './progress'
 import { ackCard, actionFace, actionReady, createSim, dropTap, honk, hopTo, leverTap, letGo, say, setAction, setLevers, setMode as setSimMode, setPoint, setViewYaw as setSimViewYaw, stepPointer, stepView, tick } from './sim'
 import { QUIET, loopsFor, Sounds, soundsFor } from './sounds'
 import type { Loops, TuneId } from './sounds'
-import { parseSpeech, WORDS_TO_TRY } from './speech'
+import { parseSpeech } from './speech'
 import { groundY } from './world'
 
 // A hot edit to anything game-side reloads the page, so an old sim's tune never plays on beside a new one.
@@ -26,13 +27,13 @@ export type Screen = 'title' | 'play' | 'shop'
 export type CameraMode = 'behind' | 'high' | 'cab'
 const CAMERAS: readonly CameraMode[] = ['behind', 'high', 'cab']
 
-/** What the HUD shows of the last thing heard. `at` is `Game.clock`; `wanted` is set on the second miss in a row. */
+/** What the HUD shows of the last thing heard. `at` is `Game.clock`; `wanted`, the machine whose word the HUD shows for the parent to read out, is set on the second miss in a row. */
 export interface Heard {
   text: string
   clauses: Spoken[]
   understood: boolean
   at: number
-  wanted: { word: string; machine: MachineKind } | null
+  wanted: MachineKind | null
 }
 
 /** Seconds a heard card stays up. */
@@ -98,7 +99,7 @@ const isTuning = (sw: Switches) => sw.job !== null || sw.story !== null || sw.au
 
 /** The rank a save's stars have earned. */
 export function rankOf(save: Save): (typeof RANKS)[number] {
-  let rank = RANKS[0]
+  let rank: (typeof RANKS)[number] = RANKS[0]
   for (const r of RANKS) if (r.stars <= save.stars) rank = r
   return rank
 }
@@ -106,6 +107,8 @@ export function rankOf(save: Save): (typeof RANKS)[number] {
 /** What a Game is made from: tests pass a fake storage and recognizer, the browser's own come from `createBrowserGame`. */
 export interface GameParts {
   search: string
+  /** The player's language: every word shown, and what the microphone hears. */
+  lang: Lang
   /** Where the save lives, or null to keep it in memory only. */
   storage: Saves | null
   recognizer: RecognizerCtor | null
@@ -155,6 +158,7 @@ export class Game {
   readonly audio: Sounds
   readonly voice: Voice
   readonly switches: Switches
+  readonly lang: Lang
   screen: Screen = 'title'
   save: Save
   sim: Sim
@@ -211,6 +215,7 @@ export class Game {
 
   constructor(parts: GameParts) {
     this.switches = readSwitches(parts.search)
+    this.lang = parts.lang
     const sw = this.switches
     this.storage = parts.storage
     this.freshSeed = parts.freshSeed
@@ -225,7 +230,7 @@ export class Game {
     this.oldTown = !isTuning(sw) && this.readOld() !== null
     this.audio.setSound(saved.sound)
     this.audio.setMusic(saved.music)
-    this.voice = new Voice(parts.recognizer)
+    this.voice = new Voice(parts.recognizer, parts.lang)
     this.voice.changed = () => this.changed()
     this.voice.heard = (clauses, text, first) => this.onHeard(clauses, text, first)
     this.voice.unheard = (text) => this.onUnheard(text)
@@ -744,13 +749,10 @@ export class Game {
     if (this.screen !== 'play') return
     this.poke()
     this.misses += 1
-    let wanted: Heard['wanted'] = null
+    let wanted: MachineKind | null = null
     if (this.misses >= 2) {
       const p = stepPointer(this.sim)
-      const machine = p === null ? this.sim.active : p.machine
-      const entry = WORDS_TO_TRY.find((w) => w.picture === machine)
-      if (entry === undefined) throw new Error(`no Finnish word to try for the ${machine}`)
-      wanted = { word: entry.word, machine }
+      wanted = p === null ? this.sim.active : p.machine
     }
     this.heard = { text, clauses: [], understood: false, at: this.clock, wanted }
     this.changed()
@@ -878,7 +880,7 @@ export class Game {
     const unlocked = MACHINE_KINDS.map((k) => (s.machines[k].unlocked ? 1 : 0)).join('')
     const card = s.card === null ? '' : `${s.card.kind}${'chapter' in s.card ? s.card.chapter : ''}${'stars' in s.card ? s.card.stars : ''}`
     const h = this.heard
-    const heard = h === null ? '' : `${h.at}${h.understood}${h.wanted === null ? '' : h.wanted.word}${this.clock - h.at < HEARD_FOR}`
+    const heard = h === null ? '' : `${h.at}${h.understood}${h.wanted ?? ''}${this.clock - h.at < HEARD_FOR}`
     const tier = s.idle < 6 ? 0 : s.idle < 12 ? 1 : 2
     return [
       head, this.cameraMode, this.shopMachine, s.active, unlocked,
@@ -917,9 +919,9 @@ export function canFullscreen(): boolean {
   return document.documentElement.requestFullscreen !== undefined
 }
 
-/** The game with the player's saves and the browser's own recognizer and sound. A visit with any switch leaves it on `window.game`. */
-export function createBrowserGame(saves: Saves): Game {
-  const game = new Game({ search: location.search, storage: saves, recognizer: findRecognizer(), audio: new Sounds(), freshSeed: () => crypto.getRandomValues(new Uint32Array(1))[0] >>> 1 })
+/** The game with the player's saves and language, and the browser's own recognizer and sound. A visit with any switch leaves it on `window.game`. */
+export function createBrowserGame(saves: Saves, lang: Lang): Game {
+  const game = new Game({ search: location.search, lang, storage: saves, recognizer: findRecognizer(), audio: new Sounds(), freshSeed: () => crypto.getRandomValues(new Uint32Array(1))[0] >>> 1 })
   if ([...new URLSearchParams(location.search).keys()].length > 0) (window as unknown as { game: Game }).game = game
   return game
 }

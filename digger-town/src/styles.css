@@ -1017,7 +1017,8 @@ kbd {
 .logo-word {
   display: flex;
   gap: 0.02em;
-  font-size: clamp(46px, 14vmin, 170px);
+  /* DIGGER's six letters at 14vmin; a longer word (KAIVURI) is smaller, so it fits the same width. */
+  font-size: clamp(46px, calc(84vmin / var(--letters)), 170px);
   font-weight: 700;
   line-height: 0.92;
   letter-spacing: 0.02em;
@@ -1087,7 +1088,10 @@ kbd {
   --face: var(--green);
   --rim: #2a8a37;
   --lift: clamp(8px, 1.8vmin, 18px);
-  width: clamp(200px, 46vmin, 500px);
+  /* As wide as the word needs: Mennään! is longer than Go!. */
+  width: auto;
+  min-width: clamp(200px, 46vmin, 500px);
+  padding-inline: 0.4em;
   height: clamp(80px, 18vmin, 190px);
   border-radius: 999px;
   grid-auto-flow: column;
@@ -1328,7 +1332,7 @@ kbd {
   }
 
   .logo-word {
-    font-size: clamp(44px, 24vw, 190px);
+    font-size: clamp(44px, calc(144vw / var(--letters)), 190px);
   }
 
   .portraits {

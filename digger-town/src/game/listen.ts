@@ -1,8 +1,10 @@
 /**
- * The microphone: the browser's speech recognizer turned into parts of Finnish speech. It runs
- * from `advance(dt)`, once a frame, so the stability check, the restart throttle and the
- * turn-off all count the game's own seconds and a test can step them exactly.
+ * The microphone: the browser's speech recognizer, in the player's language, turned into parts
+ * of speech. It runs from `advance(dt)`, once a frame, so the stability check, the restart
+ * throttle and the turn-off all count the game's own seconds and a test can step them exactly.
  */
+import { SPEECH_TAG } from '../../../profiles/src/lang'
+import type { Lang } from '../../../profiles/src/lang'
 import type { Spoken } from './model'
 import { isBareNo, parseBest, partsOf, wordsOf } from './speech'
 
@@ -100,6 +102,7 @@ export class Voice {
   unheard: (text: string) => void = () => {}
 
   private ctor: RecognizerCtor | null
+  private lang: Lang
   private rec: Recognizer | null = null
   /** The child wants it on. */
   private want = false
@@ -117,8 +120,9 @@ export class Voice {
   private restartPending = false
   private idle = 0
 
-  constructor(ctor: RecognizerCtor | null) {
+  constructor(ctor: RecognizerCtor | null, lang: Lang) {
     this.ctor = ctor
+    this.lang = lang
     this.state = ctor === null ? 'unsupported' : 'off'
   }
 
@@ -210,7 +214,7 @@ export class Voice {
   private start(state: VoiceState, byChild: boolean) {
     if (this.ctor === null) throw new Error('start: no recognizer')
     const rec = new this.ctor()
-    rec.lang = 'fi-FI'
+    rec.lang = SPEECH_TAG[this.lang]
     rec.continuous = true
     rec.interimResults = true
     rec.maxAlternatives = 5
@@ -241,7 +245,7 @@ export class Voice {
       // A start no tap asked for may be refused by a browser that allowed the mic a minute ago: that is no block.
       if (e.error === 'not-allowed' && !byChild && this.wasOn) this.set('off')
       else if (e.error === 'not-allowed') this.fail('denied', e.error)
-      // The mic is fine but hearing cannot work (Siri and Dictation off, no Finnish).
+      // The mic is fine but hearing cannot work (Siri and Dictation off, no recognizer for the language).
       else this.fail('broken', e.error)
     }
     rec.onend = () => {

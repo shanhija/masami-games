@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
 
+import { inLang } from '../../profiles/src/lang'
+import type { Lang, Words } from '../../profiles/src/lang'
 import { canFullscreen, HEARD_FOR, useGameView } from './game/game'
 import type { Game } from './game/game'
 import type { Voice } from './game/listen'
-import { RANKS } from './game/model'
-import type { ChapterId, MachineKind, Mode, Picture, Spoken, SpokenWork } from './game/model'
+import { MACHINE_KINDS, RANKS } from './game/model'
+import type { ChapterId, Mode, Picture, Spoken, SpokenWork } from './game/model'
 import { stepPointer, stepView } from './game/sim'
-import { WORDS_TO_TRY } from './game/speech'
 import { onEdge } from './scene/frame'
 import { freeArea } from './scene/free'
 import { BUTTON, cls, hintOf, hintTier, noDefault } from './Controls'
 import { ActionIcon, Face, Glyph, HatIcon, paintColour, PictureIcon, PLACE_PICTURE } from './Icons'
 import type { GlyphName } from './Icons'
+import { HUD, KEYS, LEVERS, MACHINE_NAMES, PAUSE, PLACES_TO_TRY, RANK_NAMES, VOICE_LINE, VOICE_TROUBLE } from './words'
+import type { KeyRow } from './words'
 
 /** The landmark each chapter builds. */
 const LANDMARK: Record<ChapterId, Picture> = { road: 'road', house: 'house', bridge: 'bridge', play: 'playground', clock: 'clock' }
@@ -23,6 +26,9 @@ const PIP_HAT = '#ffd23f'
 const STARS_FOR = 2.2
 /** Seconds a hold button must be held. */
 const HOLD_FOR = 3
+
+/** The words for the pause card, machines first: each one the parser understands. */
+const WORDS_TO_TRY: readonly { word: Words; picture: Picture }[] = [...MACHINE_KINDS.map((k) => ({ word: MACHINE_NAMES[k], picture: k })), ...PLACES_TO_TRY.map((p) => ({ word: p.word, picture: p.place }))]
 
 /** A tap that acts the moment the finger is down. */
 const tapOn = (act: () => void) => ({
@@ -124,7 +130,7 @@ function Markers({ game, loud, ring }: { game: Game; loud: boolean; ring: boolea
   )
 }
 
-/** One clause of Finnish speech as pictures. */
+/** One clause of speech as pictures. */
 function ClausePictures({ clause, game }: { clause: Spoken; game: Game }) {
   const bits: ReactNode[] = []
   if (clause.stop) bits.push(<Glyph key="stop" name="stop" />)
@@ -157,8 +163,8 @@ function HeardStrip({ game }: { game: Game }) {
         {h.understood ? h.clauses.map((c, i) => <ClausePictures key={i} clause={c} game={game} />) : <span className="heard-pic"><Glyph name="question" /></span>}
         {h.wanted === null ? null : (
           <span className="heard-want">
-            <span className="heard-pic"><PictureIcon picture={h.wanted.machine} colour={paintColour(game.save.paints[h.wanted.machine])} /></span>
-            <b>{h.wanted.word}</b>
+            <span className="heard-pic"><PictureIcon picture={h.wanted} colour={paintColour(game.save.paints[h.wanted])} /></span>
+            <b>{inLang(MACHINE_NAMES[h.wanted], game.lang)}</b>
           </span>
         )}
       </div>
@@ -208,22 +214,23 @@ function CardView({ game }: { game: Game }) {
   if (card === null) return null
   if (card.kind === 'chapter') return null
   const end = card.kind === 'theEnd'
+  const lang = game.lang
   return (
     <div key={`${card.kind}${end ? '' : card.chapter}`} className="cardwrap">
       <div className="bigcard hazard-top">
         {end ? (
           <>
             <div className="bigcard-face"><Face species={game.save.driver.species} hat="#ffcf3f" /></div>
-            <div className="bigcard-title">The End</div>
+            <div className="bigcard-title">{inLang(HUD.theEnd, lang)}</div>
           </>
         ) : (
           <>
             <div className="bigcard-pic"><PictureIcon picture={LANDMARK[card.chapter]} /></div>
-            <div className="bigcard-title">Hooray!</div>
+            <div className="bigcard-title">{inLang(HUD.hooray, lang)}</div>
           </>
         )}
         <div className="bigcard-stars"><span className="chip-icon"><Glyph name="star" /></span><b>{card.stars}</b></div>
-        <button type="button" {...BUTTON} aria-label="next" className="push next" {...tapOn(() => game.next())}>
+        <button type="button" {...BUTTON} aria-label={inLang(HUD.next, lang)} className="push next" {...tapOn(() => game.next())}>
           <Glyph name="play" />
         </button>
       </div>
@@ -259,81 +266,26 @@ function Flight({ game }: { game: Game }) {
   )
 }
 
-/** What the parent is told for each reason the recognizer gave for stopping. */
-const VOICE_TROUBLE: Record<string, string> = {
-  'not-allowed': 'The microphone is blocked. Allow it for this page in the browser settings.',
-  'service-not-allowed': 'Talking to the game is turned off on this device. On an iPad, turn on Dictation in Settings.',
-  'language-not-supported': 'This browser cannot hear Finnish.',
-  network: 'Hearing needs the internet.',
-  'audio-capture': 'No microphone was found.',
-}
-
 /** What the microphone line for the parent says. */
-function voiceLine(voice: Voice): string {
+function voiceLine(voice: Voice, lang: Lang): string {
   switch (voice.state) {
     case 'unsupported':
-      return 'This browser cannot hear. Chrome, Edge or Safari can.'
+      return inLang(VOICE_LINE.unsupported, lang)
     case 'denied':
     case 'broken':
-      return VOICE_TROUBLE[voice.errorName ?? ''] ?? 'Listening stopped. Tap the microphone to try again.'
+      return inLang(VOICE_TROUBLE[voice.errorName ?? ''] ?? VOICE_LINE.stopped, lang)
     default:
-      return 'Listening sends the voice to the browser’s speech service: Google in Chrome, Apple in Safari.'
+      return inLang(VOICE_LINE.where, lang)
   }
 }
 
-type KeyRow = { caps: readonly string[]; word: string }
-
-/** The keys and the mouse that work every machine. */
-const KEYS: readonly KeyRow[] = [
-  { caps: ['W', 'A', 'S', 'D'], word: 'Drive' },
-  { caps: ['Left drag'], word: 'First two levers' },
-  { caps: ['Wheel'], word: 'Third lever' },
-  { caps: ['Right drag'], word: 'Fourth lever' },
-  { caps: ['1-9'], word: 'Pick a machine' },
-  { caps: ['H'], word: 'Horn' },
-  { caps: ['C'], word: 'Camera' },
-  { caps: ['M'], word: 'Sound' },
-  { caps: ['Esc'], word: 'Pause' },
-]
-
-/** What the keys do on each machine. */
-const LEVERS: Record<MachineKind, readonly KeyRow[]> = {
-  digger: [
-    { caps: ['Q', 'E'], word: 'Turn' },
-    { caps: ['R', 'F'], word: 'Boom' },
-    { caps: ['T', 'G'], word: 'Stick' },
-    { caps: ['Z', 'X'], word: 'Bucket' },
-  ],
-  dumper: [{ caps: ['Q', 'E'], word: 'Bed' }],
-  dozer: [{ caps: ['Q', 'E'], word: 'Blade' }],
-  roller: [{ caps: ['Space'], word: 'Stomp' }],
-  mixer: [{ caps: ['Q', 'E'], word: 'Chute' }],
-  forklift: [
-    { caps: ['Q', 'E'], word: 'Forks' },
-    { caps: ['Space'], word: 'Pick or drop' },
-  ],
-  tower: [
-    { caps: ['Q', 'E'], word: 'Turn' },
-    { caps: ['R', 'F'], word: 'Trolley' },
-    { caps: ['T', 'G'], word: 'Hook' },
-    { caps: ['Space'], word: 'Hook or unhook' },
-  ],
-  semi: [{ caps: ['Space'], word: 'Unload' }],
-  mobile: [
-    { caps: ['Q', 'E'], word: 'Turn' },
-    { caps: ['R', 'F'], word: 'Reach' },
-    { caps: ['T', 'G'], word: 'Hook' },
-    { caps: ['Space'], word: 'Hook or unhook' },
-  ],
-}
-
-function KeyRows({ rows }: { rows: readonly KeyRow[] }) {
+function KeyRows({ rows, lang }: { rows: readonly KeyRow[]; lang: Lang }) {
   return (
     <>
-      {rows.map((k) => (
-        <div key={k.word} className="keys-row">
-          <span className="caps">{k.caps.map((c) => <kbd key={c}>{c}</kbd>)}</span>
-          <span>{k.word}</span>
+      {rows.map((k, i) => (
+        <div key={i} className="keys-row">
+          <span className="caps">{k.caps.map((c, j) => <kbd key={j}>{typeof c === 'string' ? c : inLang(c, lang)}</kbd>)}</span>
+          <span>{inLang(k.word, lang)}</span>
         </div>
       ))}
     </>
@@ -388,7 +340,8 @@ function HoldButton({ label, text, act }: { label: string; text: string; act: ()
   )
 }
 
-function ModeButton({ game, mode, glyph, label }: { game: Game; mode: Mode; glyph: GlyphName; label: string }) {
+function ModeButton({ game, mode, glyph, words }: { game: Game; mode: Mode; glyph: GlyphName; words: Words }) {
+  const label = inLang(words, game.lang)
   return (
     <button type="button" {...BUTTON} aria-label={label} className={cls('pill', 'mode', game.save.mode === mode && 'on')} onClick={() => game.setMode(mode)}>
       <span className="pill-icon"><Glyph name={glyph} /></span>
@@ -401,6 +354,7 @@ function PauseCard({ game, rank }: { game: Game; rank: number }) {
   const save = game.save
   const pro = save.mode === 'pro'
   const voice = game.voice
+  const lang = game.lang
   const half = Math.ceil(WORDS_TO_TRY.length / 2)
   return (
     <div className="pausewrap" onPointerDown={noDefault}>
@@ -408,68 +362,68 @@ function PauseCard({ game, rank }: { game: Game; rank: number }) {
         <div className="pause-main">
           <div className="pause-rank">
             <span className="pause-rank-hat"><HatIcon colour={RANKS[rank].hat} /></span>
-            <b>{RANKS[rank].name}</b>
+            <b>{inLang(RANK_NAMES[RANKS[rank].id], lang)}</b>
           </div>
-          <button type="button" {...BUTTON} aria-label="keep going" className="push keep" onClick={() => game.setPaused(false)}>
+          <button type="button" {...BUTTON} aria-label={inLang(PAUSE.keepGoing, lang)} className="push keep" onClick={() => game.setPaused(false)}>
             <Glyph name="play" />
-            <span>Keep going</span>
+            <span>{inLang(PAUSE.keepGoing, lang)}</span>
           </button>
           <div className="pause-row">
-            <button type="button" {...BUTTON} aria-label="music" className={cls('pill', 'toggle', save.music && 'on')} onClick={() => game.setMusic(!save.music)}>
+            <button type="button" {...BUTTON} aria-label={inLang(PAUSE.music, lang)} className={cls('pill', 'toggle', save.music && 'on')} onClick={() => game.setMusic(!save.music)}>
               <span className="pill-icon"><Glyph name={save.music ? 'music' : 'musicOff'} /></span>
-              <span>Music</span>
+              <span>{inLang(PAUSE.music, lang)}</span>
             </button>
-            <button type="button" {...BUTTON} aria-label="sound" className={cls('pill', 'toggle', save.sound && 'on')} onClick={() => game.setSound(!save.sound)}>
+            <button type="button" {...BUTTON} aria-label={inLang(PAUSE.sound, lang)} className={cls('pill', 'toggle', save.sound && 'on')} onClick={() => game.setSound(!save.sound)}>
               <span className="pill-icon"><Glyph name={save.sound ? 'sound' : 'soundOff'} /></span>
-              <span>Sound</span>
+              <span>{inLang(PAUSE.sound, lang)}</span>
             </button>
           </div>
           <div className="pause-row">
-            <ModeButton game={game} mode="easy" glyph="hand" label="Easy" />
-            <ModeButton game={game} mode="pro" glyph="keyboard" label="Pro" />
+            <ModeButton game={game} mode="easy" glyph="hand" words={PAUSE.easy} />
+            <ModeButton game={game} mode="pro" glyph="keyboard" words={PAUSE.pro} />
           </div>
           {pro ? (
             <div className="keys">
-              <KeyRows rows={LEVERS[game.sim.active]} />
-              <KeyRows rows={KEYS} />
+              <KeyRows rows={LEVERS[game.sim.active]} lang={lang} />
+              <KeyRows rows={KEYS} lang={lang} />
             </div>
           ) : null}
           <div className="pause-row">
-            <button type="button" {...BUTTON} aria-label="paint shop" className="pill" onClick={() => game.openShop()}>
+            <button type="button" {...BUTTON} aria-label={inLang(HUD.paintShop, lang)} className="pill" onClick={() => game.openShop()}>
               <span className="pill-icon"><Glyph name="paint" /></span>
-              <span>Paint</span>
+              <span>{inLang(PAUSE.paint, lang)}</span>
             </button>
             {canFullscreen() ? (
-              <button type="button" {...BUTTON} aria-label="full screen" className="pill" onClick={() => game.toggleFullscreen()}>
+              <button type="button" {...BUTTON} aria-label={inLang(PAUSE.fullScreen, lang)} className="pill" onClick={() => game.toggleFullscreen()}>
                 <span className="pill-icon"><Glyph name="fullscreen" /></span>
-                <span>Full screen</span>
+                <span>{inLang(PAUSE.fullScreen, lang)}</span>
               </button>
             ) : null}
-            <a className="pill" href="../index.html" aria-label="more games" tabIndex={-1} onContextMenu={noDefault} draggable={false}>
+            <a className="pill" href="../index.html" aria-label={inLang(PAUSE.moreGames, lang)} tabIndex={-1} onContextMenu={noDefault} draggable={false}>
               <span className="pill-icon"><Glyph name="games" /></span>
-              <span>More games</span>
+              <span>{inLang(PAUSE.moreGames, lang)}</span>
             </a>
           </div>
         </div>
         <div className="pause-words">
-          <div className="words-title">Try saying</div>
+          <div className="words-title">{inLang(PAUSE.trySaying, lang)}</div>
           <div className="words">
             {[WORDS_TO_TRY.slice(0, half), WORDS_TO_TRY.slice(half)].map((col, i) => (
               <div key={i} className="words-col">
                 {col.map((w) => (
-                  <div key={w.word} className="word">
+                  <div key={w.picture} className="word">
                     <span className="word-pic"><PictureIcon picture={w.picture} /></span>
-                    <span>{w.word}</span>
+                    <span>{inLang(w.word, lang)}</span>
                   </div>
                 ))}
               </div>
             ))}
           </div>
-          <p className={cls('voiceline', (voice.state === 'denied' || voice.state === 'broken' || voice.state === 'unsupported') && 'bad')}>{voiceLine(voice)}</p>
-          {game.saveTrouble ? <p className="voiceline bad">Part of the old save could not be read. A copy is kept.</p> : null}
+          <p className={cls('voiceline', (voice.state === 'denied' || voice.state === 'broken' || voice.state === 'unsupported') && 'bad')}>{voiceLine(voice, lang)}</p>
+          {game.saveTrouble ? <p className="voiceline bad">{inLang(PAUSE.saveTrouble, lang)}</p> : null}
           <div className="pause-row">
-            <HoldButton label="hold to start fresh" text="Hold: new game" act={() => game.startFresh()} />
-            {game.oldTown ? <HoldButton label="hold to get the old town back" text="Hold: old town back" act={() => game.restoreOldTown()} /> : null}
+            <HoldButton label={inLang(PAUSE.newGameLabel, lang)} text={inLang(PAUSE.newGame, lang)} act={() => game.startFresh()} />
+            {game.oldTown ? <HoldButton label={inLang(PAUSE.oldTownLabel, lang)} text={inLang(PAUSE.oldTown, lang)} act={() => game.restoreOldTown()} /> : null}
           </div>
         </div>
       </div>
@@ -486,6 +440,7 @@ export function Hud({ game }: { game: Game }) {
   const hint = hintOf(sim)
   const rank = rankIndex(sim.score.stars)
   const soundOn = save.sound || save.music
+  const lang = game.lang
   return (
     <div className="hud">
       <div className="topleft">
@@ -496,13 +451,13 @@ export function Hud({ game }: { game: Game }) {
       </div>
       <Bubble game={game} />
       <div className="topright">
-        <button type="button" {...BUTTON} aria-label="pause" className="push round" {...tapOn(() => game.setPaused(true))}>
+        <button type="button" {...BUTTON} aria-label={inLang(HUD.pause, lang)} className="push round" {...tapOn(() => game.setPaused(true))}>
           <Glyph name="pause" />
         </button>
         <button
           type="button"
           {...BUTTON}
-          aria-label="sound"
+          aria-label={inLang(HUD.sound, lang)}
           className="push round"
           {...tapOn(() => {
             game.setSound(!soundOn)

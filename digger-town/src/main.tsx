@@ -11,5 +11,5 @@ import { App } from './App'
 const entry = enterGame('digger-town')
 if (entry !== null) {
   startPage('digger-town', entry.lang)
-  createRoot(document.getElementById('root')!).render(<App saves={entry.saves} />)
+  createRoot(document.getElementById('root')!).render(<App saves={entry.saves} lang={entry.lang} />)
 }

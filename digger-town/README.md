@@ -2,7 +2,7 @@
 
 A 3D construction site game for a four-year-old, on react-three-fiber. The animals want a town in an empty valley, and Pip the hedgehog has machines but nobody to drive them. The child hops from machine to machine and digs, carries, pushes, rolls, mixes and lifts. Materials change on the way: sand becomes bricks and concrete, rock becomes gravel, logs become planks, gravel becomes road. New jobs keep coming, and nothing can be lost or broken.
 
-The brief is Sami's [`design.md`](design.md), plus one addition: select a machine and direct it by talking Finnish. Decisions and open work are in [`plans/digger-town.md`](../plans/digger-town.md). The game shares only the repo's tech with the others: the one Vite + React project at the repo root, a pure numeric sim under vitest, synthesised sounds and a DOM HUD. Every machine, animal and building is modelled in code; there are no asset files.
+The brief is Sami's [`design.md`](design.md), plus one addition: select a machine and direct it by talking Finnish. Decisions and open work are in [`plans/digger-town.md`](../plans/digger-town.md). It plays in the player's language, Finnish or English: every word shown is in [`src/words.ts`](src/words.ts). The game shares only the repo's tech with the others: the one Vite + React project at the repo root, a pure numeric sim under vitest, synthesised sounds and a DOM HUD. Every machine, animal and building is modelled in code; there are no asset files.
 
 ```
 npm install                    # at the repo root, once for every game
@@ -44,13 +44,13 @@ The microphone button turns listening on. Then the game can be played by talking
 
 Child speech is allowed for: "lekka" is rekka, "kaivuli" is kaivuri, "tlukki" is trukki. The pause card lists words to try.
 
-**When the mic cannot hear.** The button shows a crossed-out mic and a small note, and the pause card gives the parent one line:
+**When the mic cannot hear.** The button shows a crossed-out mic and a small note, and the pause card gives the parent one line, in the player's language (the English is below, the Finnish beside it in `src/words.ts`):
 
 | What went wrong | Note on the button | Line in the pause card |
 |---|---|---|
 | The browser blocked the microphone | Mic blocked | The microphone is blocked. Allow it for this page in the browser settings. |
 | Talking to the game is off on the device (`service-not-allowed`) | Can't hear | Talking to the game is turned off on this device. On an iPad, turn on Dictation in Settings. |
-| No Finnish in this browser | Can't hear | This browser cannot hear Finnish. |
+| The browser cannot hear the player's language | Can't hear | This browser cannot hear English. (A Finnish player reads: Tämä selain ei kuule suomea.) |
 | No internet | Can't hear | Hearing needs the internet. |
 | No microphone found | Can't hear | No microphone was found. |
 | Anything else | Can't hear | Listening stopped. Tap the microphone to try again. |
