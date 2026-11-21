@@ -1,8 +1,9 @@
 /**
- * `say`: one clause of the child's Finnish, already parsed into a `Spoken`, acted on in the sim.
- * The order is the plan's: stop, help, come, who, honk, to, move (only without a `to`), work
- * (only without a `to`). A spoken press skips the 1 s hold and the block after a hop; a part the
- * game cannot use gives `uhuh`, and every command it can use gives one `ack`.
+ * `say`: one clause of what the child said, in either language, already parsed into a `Spoken`,
+ * acted on in the sim. The order is the plan's: stop, help, come, who, honk, to, move (only
+ * without a `to`), work (only without a `to`). A spoken press skips the 1 s hold and the block
+ * after a hop; a part the game cannot use gives `uhuh`, and every command it can use gives one
+ * `ack`.
  */
 
 import { BUILD_HALF, PLACES } from './map'

@@ -2,13 +2,13 @@
 
 A 3D construction site game for a four-year-old, on react-three-fiber. The animals want a town in an empty valley, and Pip the hedgehog has machines but nobody to drive them. The child hops from machine to machine and digs, carries, pushes, rolls, mixes and lifts. Materials change on the way: sand becomes bricks and concrete, rock becomes gravel, logs become planks, gravel becomes road. New jobs keep coming, and nothing can be lost or broken.
 
-The brief is Sami's [`design.md`](design.md), plus one addition: select a machine and direct it by talking Finnish. Decisions and open work are in [`plans/digger-town.md`](../plans/digger-town.md). It plays in the player's language, Finnish or English: every word shown is in [`src/words.ts`](src/words.ts). The game shares only the repo's tech with the others: the one Vite + React project at the repo root, a pure numeric sim under vitest, synthesised sounds and a DOM HUD. Every machine, animal and building is modelled in code; there are no asset files.
+The brief is Sami's [`design.md`](design.md), plus one addition: select a machine and direct it by talking, in Finnish or in English. Decisions and open work are in [`plans/digger-town.md`](../plans/digger-town.md). It plays in the player's language, Finnish or English: every word shown is in [`src/words.ts`](src/words.ts), and the microphone hears that language. The game shares only the repo's tech with the others: the one Vite + React project at the repo root, a pure numeric sim under vitest, synthesised sounds and a DOM HUD. Every machine, animal and building is modelled in code; there are no asset files.
 
 ```
 npm install                    # at the repo root, once for every game
 npm run dev                    # https://localhost:3002/digger-town/, and https://$DEV_HOST:3002/digger-town/ over the VPN (a tablet)
 npm run typecheck              # tsc over every game
-npx vitest run digger-town    # the ground, the machines, the jobs, the tap bot and the voice bot through the story, speech, the save, sounds, the camera's arithmetic
+npx vitest run digger-town    # the ground, the machines, the jobs, the tap bot and the voice bot through the story in both languages, speech, the save, sounds, the camera's arithmetic
 npm run build                  # typecheck + static build of every game in dist/
 ```
 
@@ -28,21 +28,23 @@ Nothing needs reading: pictures, arrows, sound and a hint hand say what comes ne
 
 Keys for a child at a keyboard: arrows or `WASD` drive that way on the screen, `Space` or `Enter` is the big button, `H` the horn, `1` to `9` the machines, `Esc` or `P` pause, `M` mute, `F` full screen.
 
-### Finnish speech
+### Speech
 
-The microphone button turns listening on. Then the game can be played by talking:
+The microphone button turns listening on. Then the game can be played by talking, in the player's language:
 
-| Say | What happens |
-|---|---|
-| "kaivuri" | Hops into the digger. Every machine has its word: kippiauto, puskutraktori, jyrä, betoniauto, trukki, nosturi, rekka, autonosturi. |
-| "kaiva", "kaada", "kippaa", "nosta", "laske" | The machine's job. |
-| "aja sinne" | Drives to the ring the job shows. |
-| "aja kuopalle", "aja hiekalle", "mene metsään" | Drives to that place. |
-| "kippiauto, aja kuopalle ja kippaa" | Hops, drives there, and tips on arrival. |
-| "vasemmalle", "oikealle", "peruuta", "seis", "tööt" | Left and right on the screen, back up (with the beeps), stop, honk. |
-| "kippiauto, tule tänne" | A friend brings the truck, and the builder stays put. |
+| Say in Finnish | Or in English | What happens |
+|---|---|---|
+| "kaivuri" | "digger" | Hops into the digger. Every machine has its word: kippiauto, puskutraktori, jyrä, betoniauto, trukki, nosturi, rekka, autonosturi; dump truck, bulldozer, roller, cement mixer, forklift, crane, lorry, truck crane. |
+| "kaiva", "kaada", "kippaa", "nosta", "laske" | "dig", "dump", "tip", "pick it up", "put it down" | The machine's job. |
+| "aja sinne" | "go there" | Drives to the ring the job shows. |
+| "aja kuopalle", "aja hiekalle", "mene metsään" | "go to the hole", "drive to the sand", "go to the forest" | Drives to that place. |
+| "kippiauto, aja kuopalle ja kippaa" | "dump truck, drive to the hole and tip" | Hops, drives there, and tips on arrival. |
+| "hyppää kaivuriin" | "get in the digger", "switch to the crane" | Hops in, and goes nowhere. |
+| "vasemmalle", "oikealle", "peruuta", "seis", "tööt" | "left", "right", "back up", "stop", "honk" | Left and right on the screen, back up (with the beeps), stop, honk. |
+| "kippiauto, tule tänne" | "dump truck, come here" | A friend brings the truck, and the builder stays put. |
+| "apua", "mitä nyt" | "help", "what now" | The hint hand shows. |
 
-Child speech is allowed for: "lekka" is rekka, "kaivuli" is kaivuri, "tlukki" is trukki. The pause card lists words to try.
+Child speech is allowed for, and what a recognizer writes for it: "lekka" is rekka, "kaivuli" is kaivuri, "tlukki" is trukki; "dig her" is digger, "dumb truck" is dump truck, "folk lift" is forklift. "truck" alone is the dump truck, as "auto" alone is; the lorry is "lorry" or "big truck". A lone "ei" or "no" stops, but waits half a second, as a child starts many sentences with it; "älä" and "don't" stop at once. The pause card lists words to try.
 
 **When the mic cannot hear.** The button shows a crossed-out mic and a small note, and the pause card gives the parent one line, in the player's language (the English is below, the Finnish beside it in `src/words.ts`):
 
@@ -58,7 +60,7 @@ Child speech is allowed for: "lekka" is rekka, "kaivuli" is kaivuri, "tlukki" is
 
 A browser that refuses a restart the child did not ask for (the mic had been working since the child's last tap) is not called blocked: the mic goes quietly off and the next tap starts it again. A repeated word inside 1.5 s counts once, so a browser that cuts one sentence up does not act twice; two honks are two honks.
 
-**Where the voice goes.** The browser does the hearing, through the Web Speech API. Chrome and Edge send the audio to their speech service (Google's in Chrome), and Safari to Apple's. Finnish is not available on the device in Chrome (measured on Chromium 156). Listening starts only on a tap, and only in a play that is running: it sleeps on the title, in the paint shop, under the pause card and while the page is hidden, and comes back by itself when the play does (a new game or the old town back leaves it off until the next tap). It turns itself off after 60 s with nothing understood. It costs nothing and needs no key, but no browser publishes a quota for it, so it can stop working without notice; a mic that cannot hear says so, and the rest of the game is unaffected. Firefox has no recognizer: the button does not show. The words are understood by [`src/game/speech.ts`](src/game/speech.ts), a small grammar with no model behind it.
+**Where the voice goes.** The browser does the hearing, through the Web Speech API. Chrome and Edge send the audio to their speech service (Google's in Chrome), and Safari to Apple's. Finnish is not available on the device in Chrome (measured on Chromium 156). Listening starts only on a tap, and only in a play that is running: it sleeps on the title, in the paint shop, under the pause card and while the page is hidden, and comes back by itself when the play does (a new game or the old town back leaves it off until the next tap). It turns itself off after 60 s with nothing understood. It costs nothing and needs no key, but no browser publishes a quota for it, so it can stop working without notice; a mic that cannot hear says so, and the rest of the game is unaffected. Firefox has no recognizer: the button does not show. The words are understood by [`src/game/speech.ts`](src/game/speech.ts), a small grammar with no model behind it, with each language's words and rules in [`speechFi.ts`](src/game/speechFi.ts) and [`speechEn.ts`](src/game/speechEn.ts).
 
 ### Mouse and keyboard (Pro, a switch in the pause card)
 
@@ -118,7 +120,7 @@ URL switches, read once when the page loads (a bad value shows its message on th
 | `?mode=pro`, `?mode=easy` | Starts in that mode, and the save keeps it at its next write. |
 | `?fresh` | A fresh save for this visit, never written. |
 | `?all` | Every machine come and every paint open, for this visit. |
-| `?say=<words>` | Hears these Finnish words at the start: all of speech can be tried without a microphone. `window.game.hear('kaivuri kaiva')` does the same at any time. |
+| `?say=<words>` | Hears these words, in the player's language, at the start: all of speech can be tried without a microphone. `window.game.hear('kaivuri kaiva')` (or `'digger dig'`) does the same at any time. |
 | `?stats` | Draw calls and triangles on the screen. |
 | `?look=<machine>` | One machine on a turntable, sweeping through its motion (`&t=`, `&angle=`, `&paint=`). `?animal=<species or all>` the same for the animals. |
 | `?world` | The valley alone (`&x=`, `&z=`, `&d=`, `&day=`, `&dig`). `?builds` the buildings and plants (`&placed=`, `&work`, `&things`, `&animals`). |

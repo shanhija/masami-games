@@ -727,9 +727,9 @@ export class Game {
     this.voice.toggle()
   }
 
-  /** Words as the recognizer would have finished them; the same path, so tests and `?say=` need no microphone. */
+  /** Words as the recognizer would have finished them, in the player's language; the same path, so tests and `?say=` need no microphone. */
   hear(text: string) {
-    const clauses = parseSpeech(text)
+    const clauses = parseSpeech(text, this.lang)
     if (clauses.length > 0) this.onHeard(clauses, text, true)
     else if (text.trim() !== '') this.onUnheard(text)
   }

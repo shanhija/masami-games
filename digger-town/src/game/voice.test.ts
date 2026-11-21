@@ -1,234 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { FOREST_RING, MOBILE_PARK, PALLET_RING, TIP_RINGS, WATER_RING } from './map'
+import { FOREST_RING, PALLET_RING, TIP_RINGS, WATER_RING } from './map'
 import { DUMP_MAX } from './model'
-import type { MachineKind, Sim, SimEvent, Spoken } from './model'
-import { STORY } from './jobs'
+import type { MachineKind, Sim, Spoken } from './model'
 import { parseBest } from './speech'
-import { createSim, say, stepPointer, tick } from './sim'
-import { SAY_EVERY, createVoiceBot, voiceFrame } from './voicebot'
-import type { VoiceBot } from './voicebot'
+import { say, stepPointer, tick } from './sim'
+import { DT, dist, hear as hearIn, heard as heardIn, kinds, play, scene as sceneIn, storyByVoice } from './testing'
+import { SAY_EVERY } from './voicebot'
 
-const DT = 1 / 30
+// The whole story by voice in Finnish; voice.en.test.ts runs it in English in its own worker.
+storyByVoice('fi')
 
-const fresh = (storyDone = 0) => createSim({ storyDone, moreDone: 0, coins: 0, stars: 0, mode: 'easy', seed: 5000, lastTemplate: -1 })
-
-/** One utterance as the game hears it: the first clause starts a breath, the rest are in the same breath. */
-function hear(s: Sim, text: string): Spoken[] {
-  const clauses = parseBest([text])
-  clauses.forEach((c, i) => say(s, c, i > 0))
-  return clauses
-}
-
-/** Steps the sim for `seconds` and returns the events that happened; `then` may stop it early by returning true. */
-function play(s: Sim, seconds: number, then: (s: Sim) => boolean = () => false): SimEvent[] {
-  const events: SimEvent[] = []
-  const end = s.time + seconds
-  while (s.time < end && !then(s)) {
-    tick(s, DT)
-    events.push(...s.events)
-    s.events.length = 0
-  }
-  return events
-}
-
-/** Takes the events the sentence itself gave, before any frame. */
-function heard(s: Sim, text: string): SimEvent[] {
-  s.events.length = 0
-  hear(s, text)
-  const events = [...s.events]
-  s.events.length = 0
-  return events
-}
-
-const kinds = (events: SimEvent[]) => events.map((e) => e.kind)
-const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z)
-
-/** Steps with the voice bot until `until` holds; throws past `cap` seconds. Returns the seconds it took. */
-function talkUntil(s: Sim, bot: VoiceBot, until: (s: Sim) => boolean, cap: number): number {
-  const t0 = s.time
-  while (!until(s)) {
-    if (s.time - t0 > cap) throw new Error(`still at ${s.job === null ? 'no job' : `${s.job.job.id} step ${s.job.step} (${s.job.job.steps[s.job.step].kind})`} after ${cap} s; last said ${JSON.stringify(bot.said.slice(-4))}`)
-    voiceFrame(bot, s)
-    tick(s, DT)
-    s.events.length = 0
-  }
-  return s.time - t0
-}
-
-/** The seconds the voice bot takes for story job `i`: from the job's start, not from the end of the one before, which leaves a chapter's card and party between them. */
-function talkJob(s: Sim, bot: VoiceBot, i: number, cap: number): number {
-  talkUntil(s, bot, (x) => x.job !== null && x.job.job.id === STORY[i].id, 60)
-  return talkUntil(s, bot, (x) => x.storyDone > i, cap)
-}
-
-/** Scenes are played once by the voice bot and cloned for each test. */
-const scenes = new Map<string, Sim>()
-function scene(job: string, step: number): Sim {
-  const key = `${job}:${step}`
-  let s = scenes.get(key)
-  if (s === undefined) {
-    const sim = fresh()
-    const bot = createVoiceBot()
-    talkUntil(sim, bot, (x) => x.job !== null && x.job.job.id === job && x.job.step === step, 900)
-    scenes.set(key, sim)
-    s = sim
-  }
-  return structuredClone(s)
-}
-
-describe('the voice bot plays by talking only', () => {
-  it('says one short sentence at most every 1.5 s, from words the parser knows', () => {
-    const s = fresh()
-    const bot = createVoiceBot()
-    talkUntil(s, bot, (x) => x.storyDone > 0, STORY[0].par)
-    expect(bot.said.length).toBeGreaterThan(10)
-    for (let i = 1; i < bot.said.length; i++) expect(bot.said[i].at - bot.said[i - 1].at).toBeGreaterThanOrEqual(SAY_EVERY - 1e-6)
-    for (const { text } of bot.said) {
-      expect(text.split(' ').length, text).toBeLessThanOrEqual(2)
-      expect(parseBest([text]).length, text).toBeGreaterThan(0)
-    }
-  })
-
-  it('does the road chapter and the first two jobs of the house, each inside its par', () => {
-    const s = fresh()
-    const bot = createVoiceBot()
-    for (let i = 0; i < 5; i++) {
-      const job = STORY[i]
-      const t = talkJob(s, bot, i, job.par)
-      expect(t, job.id).toBeLessThanOrEqual(job.par)
-    }
-    expect(s.storyDone).toBe(5)
-  })
-
-  it('does the whole story, every job inside two stars', () => {
-    const s = fresh()
-    const bot = createVoiceBot()
-    for (let i = 0; i < STORY.length; i++) {
-      const job = STORY[i]
-      const t = talkJob(s, bot, i, 2 * job.par)
-      expect(t, job.id).toBeLessThanOrEqual(2 * job.par)
-    }
-    expect(s.storyDone).toBe(STORY.length)
-  }, 60000)
-})
-
-/** What a child who talks in whole sentences says at each step of the story. */
-function sentenceAt(s: Sim): string | null {
-  if (s.job === null) return null
-  const step = s.job.job.steps[s.job.step]
-  switch (step.kind) {
-    case 'scoop':
-      return step.into === 'dumper' ? 'kaivuri kaiva hiekkaa kippiautoon' : step.into === 'mixer' ? 'kaivuri kaiva hiekkaa betoniautoon' : step.into === 'crusher' ? 'kaivuri kaiva kiviä murskaan' : 'kaivuri kaiva hiekkaa tiilikoneeseen'
-    case 'digOut':
-      return 'kaivuri kaiva kuoppaa'
-    case 'tip':
-      return 'kippiauto kippaa kuoppaan'
-    case 'feed':
-      return 'kippiauto kippaa tiilikoneeseen'
-    case 'push':
-      return 'puskutraktori työnnä hiekka kuoppaan'
-    case 'clear':
-      return 'puskutraktori työnnä'
-    case 'roll':
-      return 'jyrä jyrää tietä'
-    case 'water':
-      return 'betoniauto aja veteen'
-    case 'pour':
-      return 'betoniauto valaa'
-    case 'carry':
-      return s.machines.forklift.holding >= 0 ? 'trukki laske' : 'trukki nosta'
-    case 'lift': {
-      const crane = step.crane === 'tower' ? 'nosturi' : 'autonosturi'
-      return `${crane} ${s.machines[step.crane].holding >= 0 ? 'laske' : 'nosta'}`
-    }
-    case 'drive':
-      return step.ring === FOREST_RING ? 'rekka aja metsään' : 'rekka aja sahalle'
-    case 'unload':
-      return 'rekka pura'
-    case 'watch':
-      return null
-  }
-}
-
-describe('a child who says whole sentences', () => {
-  it('does the whole story, saying the same sentence again every 3 s until it works', () => {
-    const s = fresh()
-    let next = 0
-    for (let i = 0; i < STORY.length; i++) {
-      const job = STORY[i]
-      const t0 = s.time
-      while (s.storyDone <= i) {
-        if (s.time - t0 > 2 * job.par) throw new Error(`${job.id}: step ${s.job?.step} not done in ${2 * job.par} s`)
-        const text = s.time >= next ? sentenceAt(s) : null
-        if (text !== null) {
-          hear(s, text)
-          next = s.time + 3
-        }
-        tick(s, DT)
-        s.events.length = 0
-      }
-    }
-    expect(s.storyDone).toBe(STORY.length)
-  }, 600000)
-})
-
-describe('the truck crane lifts by voice from wherever it is parked', () => {
-  /** The span job with the truck crane set down at `x`, `z` facing `yaw` with its legs down, and a child who says "nosta" when it holds nothing and "laske" when it holds a piece, every 3 s. Returns the seconds the three pieces took, the pieces placed. */
-  function span(x: number, z: number, yaw: number): { seconds: number; placed: number } {
-    const i = STORY.findIndex((j) => j.id === 'span')
-    const s = fresh(i)
-    while (s.job === null) tick(s, DT)
-    const m = s.machines.mobile
-    m.x = x
-    m.z = z
-    m.yaw = yaw
-    m.legs = 1
-    m.goal = null
-    hear(s, 'autonosturi')
-    const t0 = s.time
-    let next = 0
-    while (s.storyDone <= i && s.time - t0 < 150) {
-      if (s.time >= next) {
-        hear(s, `autonosturi ${m.holding >= 0 ? 'laske' : 'nosta'}`)
-        next = s.time + 3
-      }
-      tick(s, DT)
-      s.events.length = 0
-    }
-    return { seconds: s.time - t0, placed: s.builds[1].placed }
-  }
-
-  it.each([
-    [0, 0, 0],
-    [4, 0, 0],
-    [8, 0, 0],
-    [-8, 5, Math.PI / 2],
-    [12, 10, Math.PI / 2],
-    [4, 5, -Math.PI / 2],
-    [-4, 10, Math.PI],
-  ])('places all three pieces of the span within two stars with the crane %i m east and %i m south of its park, facing %f', (dx, dz, yaw) => {
-    const done = span(MOBILE_PARK.x + dx, MOBILE_PARK.z + dz, yaw)
-    expect(done.placed).toBe(3)
-    expect(done.seconds).toBeLessThanOrEqual(2 * STORY.find((j) => j.id === 'span')!.par)
-  })
-
-  it('"laske" with the piece the span needs puts it on the next open spot, not back where it was picked up', () => {
-    const i = STORY.findIndex((j) => j.id === 'span')
-    const s = fresh(i)
-    while (s.job === null) tick(s, DT)
-    hear(s, 'autonosturi')
-    hear(s, 'nosta')
-    play(s, 40, (o) => o.machines.mobile.holding >= 0 && o.machines.mobile.seq === 'rest')
-    const m = s.machines.mobile
-    expect(m.holding).toBeGreaterThanOrEqual(0)
-    const picked = s.things.find((t) => t.id === m.holding)!
-    const at = { x: picked.x, z: picked.z }
-    hear(s, 'laske')
-    play(s, 40, (o) => o.builds[1].placed > 0)
-    expect(s.builds[1].placed).toBe(1)
-    expect(dist(picked, at)).toBeGreaterThan(3)
-  })
-})
+/** The world tests below are in Finnish; their English twins are in voice.en.test.ts. */
+const hear = (s: Sim, text: string) => hearIn(s, text, 'fi')
+const heard = (s: Sim, text: string) => heardIn(s, text, 'fi')
+const scene = (job: string, step: number) => sceneIn(job, step, 'fi')
 
 describe('what a child says, and what it does in the world', () => {
   describe('hole1, the digger and the truck', () => {
@@ -598,7 +383,7 @@ describe('what a child says, and what it does in the world', () => {
 
   describe('a word said twice, and a machine named as its own place', () => {
     it('"jyrä jyrää" in the road chapter rolls: it is the roller and its job, with no uhuh', () => {
-      expect(parseBest(['jyrä jyrää'])).toEqual([expect.objectContaining({ who: 'roller', work: 'roll', to: null })])
+      expect(parseBest(['jyrä jyrää'], 'fi')).toEqual([expect.objectContaining({ who: 'roller', work: 'roll', to: null })])
       const s = scene('rollMain', 0)
       const events = heard(s, 'jyrä jyrää')
       expect(kinds(events)).toContain('ack')
@@ -628,7 +413,7 @@ describe('what a child says, and what it does in the world', () => {
     })
 
     it('"trukki nosta tukki" in the logs job names the forklift and the logs, and buzzes at nothing', () => {
-      expect(parseBest(['trukki nosta tukki'])).toEqual([expect.objectContaining({ who: 'forklift', work: 'take', to: 'forest' })])
+      expect(parseBest(['trukki nosta tukki'], 'fi')).toEqual([expect.objectContaining({ who: 'forklift', work: 'take', to: 'forest' })])
       const s = scene('logs', 0)
       const events = heard(s, 'trukki nosta tukki')
       expect(s.active).toBe('forklift')
@@ -772,7 +557,7 @@ describe('what a child says, and what it does in the world', () => {
 
     it('"kippiauto aja talolle" while the step is the crane\'s drives the truck to the house, and the crane stays', () => {
       const s = scene('walls', 0)
-      expect(parseBest(['kippiauto aja talolle'])[0]).toMatchObject({ who: 'dumper', to: 'house' })
+      expect(parseBest(['kippiauto aja talolle'], 'fi')[0]).toMatchObject({ who: 'dumper', to: 'house' })
       const tower = structuredClone(s.machines.tower)
       hear(s, 'kippiauto aja talolle')
       expect(s.active).toBe('dumper')
@@ -805,7 +590,7 @@ describe('what a child says, and what it does in the world', () => {
         ['autonosturi', 'mobile'],
       ]
       for (const [text, who] of names) {
-        const clauses = parseBest([text])
+        const clauses = parseBest([text], 'fi')
         expect(clauses.map((c) => c.who), text).toEqual([who])
       }
     })

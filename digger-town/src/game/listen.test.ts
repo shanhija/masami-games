@@ -659,3 +659,60 @@ describe('the 60 s turn-off', () => {
     expect(voice.state).toBe('starting')
   })
 })
+
+describe('in English', () => {
+  beforeEach(() => {
+    voice = new Voice(Fake as unknown as RecognizerCtor, 'en')
+    voice.heard = (clauses, text, first) => heard.push({ clauses, text, first })
+    voice.unheard = (text) => unheard.push(text)
+  })
+
+  it('listens as en-GB', () => {
+    listen()
+    expect(latest().lang).toBe('en-GB')
+  })
+
+  it('fires nothing for an interim "tip" before 500 ms, and one goal when "tip it in the hole" arrives inside it', () => {
+    listen()
+    latest().interim('tip')
+    voice.advance(0.3)
+    latest().interim('tip it in the hole')
+    voice.advance(0.3)
+    expect(heard).toEqual([])
+    voice.advance(0.3)
+    expect(heard.map(parts)).toEqual([[['work:give', 'to:hole']]])
+  })
+
+  it('fires "stop" and "honk" at once', () => {
+    listen()
+    latest().interim('stop')
+    latest().interim('stop honk')
+    expect(heard.map(parts)).toEqual([[['stop']], [['honk']]])
+  })
+
+  it('does not fire a bare "no" at once, and stops once it has stood half a second', () => {
+    listen()
+    latest().interim('no')
+    expect(heard).toEqual([])
+    voice.advance(0.51)
+    expect(parts(heard[0])).toEqual([['stop']])
+  })
+
+  it('takes "no" at the start of a sentence for no stop', () => {
+    listen()
+    latest().interim('no')
+    latest().interim('no the digger')
+    voice.advance(1)
+    expect(heard.map(parts)).toEqual([[['who:digger']]])
+  })
+
+  it('gives each clause of a final sentence in one call, and takes the first alternative with parts', () => {
+    listen()
+    latest().final('dump truck drive to the hole and tip')
+    expect(parts(heard[0])).toEqual([['who:dumper', 'move:forward', 'to:hole'], ['work:give']])
+    latest().final('bigger', 1, ['dig her'])
+    expect(parts(heard[1])).toEqual([['who:digger']])
+    latest().final('I saw a bird', 2)
+    expect(unheard).toEqual(['I saw a bird'])
+  })
+})

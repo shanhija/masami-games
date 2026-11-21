@@ -22,6 +22,34 @@ function memory(): Saves & { data: Map<string, string>; writes: number } {
   return { data, writes: 0, getItem: (k) => data.get(k) ?? null, setItem(k, v) { data.set(k, v); this.writes++ }, removeItem: (k) => void data.delete(k) }
 }
 
+describe('speech in English', () => {
+  const english = (search: string) => new Game({ search, lang: 'en', storage: null, recognizer: null, audio: new Sounds(), freshSeed: () => FRESH_SEED })
+
+  it('hops on a machine name and presses on a verb', () => {
+    const g = english('?job=hole1')
+    g.hop('dumper')
+    g.hear('digger')
+    expect(g.sim.active).toBe('digger')
+    g.hear('dump truck, tip')
+    expect(g.sim.active).toBe('dumper')
+    expect(g.sim.pressNext).toBe(true)
+  })
+
+  it('does not understand Finnish, and on the second miss wants the step’s machine', () => {
+    const g = english('?job=hole1')
+    g.hear('kaivuri')
+    expect(g.heard).toMatchObject({ understood: false, wanted: null })
+    g.hear('kippiauto')
+    expect(g.heard).toMatchObject({ understood: false, wanted: 'digger' })
+  })
+
+  it('hears ?say once the game has started', () => {
+    const g = english('?say=dump%20truck')
+    g.start()
+    expect(g.sim.active).toBe('dumper')
+  })
+})
+
 describe('speech', () => {
   it('hops on a machine name', () => {
     const g = make()

@@ -62,7 +62,7 @@ const AT_ONCE = new Set(['stop', 'honk', 'help'])
 interface Track {
   committed: Set<string>
   text: string
-  /** The text is only "ei": a stop that waits to be sure, like other words. */
+  /** The text is only the language's no ("ei", "no"): a stop that waits to be sure, like other words. */
   bareNo: boolean
   stable: number
   /** The stable-text check has run for this text. */
@@ -353,8 +353,8 @@ export class Voice {
       t.stable = 0
       t.checked = false
     }
-    t.bareNo = isBareNo(text)
-    t.clauses = parseBest(alts)
+    t.bareNo = isBareNo(text, this.lang)
+    t.clauses = parseBest(alts, this.lang)
   }
 
   /** Send on the parts of a track that have not gone yet: only the at-once ones, or all. */
