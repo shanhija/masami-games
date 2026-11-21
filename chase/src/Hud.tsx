@@ -1,5 +1,8 @@
+import { DIRECTORY } from '../../profiles/src/directory'
+import { inLang, type Lang, type Words } from '../../profiles/src/lang'
 import { bolts, bonking, shrieking, toggleFullscreen, useGameView, type Game } from './game/game'
 import { TURBO_BOLTS, other, score, type Phase, type Role } from './game/sim'
+import { GO, GOAL, HINT, NAME, PAUSE, PLAY_AS, ROLE, SHOUT } from './words'
 
 /** A five-point star, the same outline as the badge on the car door. */
 const STAR_POINTS = Array.from({ length: 10 }, (_, i) => {
@@ -24,45 +27,35 @@ function ScoreIcon({ role, size }: { role: Role; size: number }) {
   )
 }
 
-const ROLE_LABEL: Record<Role, string> = { police: '🚓 Police', robber: '💰 Robber' }
-const GOAL: Record<Role, string> = { police: 'Jump the rocks and cakes. Catch the robber!', robber: 'Jump the rocks and cakes. Get away from the police!' }
-
 /** The shout for each phase, from the player's side of it. */
-function shoutFor(role: Role, phase: Phase): { text: string; tone: string } | null {
+function shoutFor(role: Role, phase: Phase): { words: Words; tone: string } | null {
   switch (phase) {
     case 'caught':
-      return { text: 'GOTCHA!', tone: role === 'police' ? 'win' : 'lose' }
+      return { words: SHOUT.gotcha, tone: role === 'police' ? 'win' : 'lose' }
     case 'escaped':
-      return { text: 'GOT AWAY!', tone: 'win' }
+      return { words: SHOUT.gotAway, tone: 'win' }
     case 'escape':
-      return { text: role === 'police' ? 'Catch me!' : 'Go go go!', tone: 'turbo' }
+      return { words: role === 'police' ? SHOUT.catchMe : SHOUT.goGoGo, tone: 'turbo' }
     case 'regroup':
-      return { text: 'Here they come!', tone: 'turbo' }
+      return { words: SHOUT.hereTheyCome, tone: 'turbo' }
     default:
       return null
   }
 }
 
-function RolePick({ game, current }: { game: Game; current: Role }) {
-  return (
-    <div className="row">
-      {(['police', 'robber'] as const).map((role) => (
-        <button key={role} type="button" className={role === current ? 'is-active' : ''} onClick={() => game.chooseRole(role)}>
-          {ROLE_LABEL[role]}
-        </button>
-      ))}
-    </div>
-  )
+/** A line of words with keys in it: each `[cap]` is shown as a key. */
+function Keyed({ text }: { text: string }) {
+  return text.split(/\[([^\]]+)\]/).map((part, i) => (i % 2 === 1 ? <kbd key={i}>{part}</kbd> : part))
 }
 
 /** A big round pedal for a thumb: held, it drives the throttle, and lets go however the finger leaves. */
-function Pedal({ game, value, label }: { game: Game; value: -1 | 1; label: string }) {
+function Pedal({ game, value, label, name }: { game: Game; value: -1 | 1; label: string; name: string }) {
   const release = () => game.throttle(0)
   return (
     <button
       type="button"
       className="pedal"
-      aria-label={value > 0 ? 'turbo' : 'brake'}
+      aria-label={name}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId)
         game.throttle(value)
@@ -81,7 +74,8 @@ function Pedal({ game, value, label }: { game: Game; value: -1 | 1; label: strin
  * The words over the picture, few and big: the score, the turbo bolts, what to press,
  * and a shout when something happens. Re-renders only when the game says there is news.
  */
-export function Hud({ game }: { game: Game }) {
+export function Hud({ game, lang }: { game: Game; lang: Lang }) {
+  const say = (words: Words) => inLang(words, lang)
   const sim = useGameView(game)
   const muted = game.audio.muted
   const shout = shoutFor(sim.role, sim.phase)
@@ -92,7 +86,7 @@ export function Hud({ game }: { game: Game }) {
         <ScoreIcon role={sim.role} size={44} />
         <span>{score(sim)}</span>
       </div>
-      <div className={`bolts${sim.turboOn ? ' is-on' : ''}`} aria-label={`turbo ${lit} of ${TURBO_BOLTS}`}>
+      <div className={`bolts${sim.turboOn ? ' is-on' : ''}`} aria-label={say(NAME.turboLeft(lit, TURBO_BOLTS))}>
         {Array.from({ length: TURBO_BOLTS }, (_, i) => (
           <span key={i} className={i < lit ? 'lit' : ''}>
             ⚡
@@ -101,72 +95,76 @@ export function Hud({ game }: { game: Game }) {
       </div>
       {game.paused ? (
         <div className="card menu">
-          <h1>Paused</h1>
+          <h1>{say(PAUSE.paused)}</h1>
           <button type="button" className="big" onClick={() => game.resume()}>
-            Keep going
+            {say(PAUSE.keepGoing)}
           </button>
           <button type="button" className="big" onClick={() => game.restart()}>
-            Start over
+            {say(PAUSE.startOver)}
           </button>
           <div className="row">
             <button type="button" onClick={() => game.restart(other(sim))}>
-              Play as {ROLE_LABEL[other(sim)]}
+              {say(PLAY_AS[other(sim)])}
             </button>
             <button type="button" onClick={() => game.toggleMute()}>
-              {muted ? '🔇 Sound off' : '🔊 Sound on'}
+              {say(muted ? PAUSE.soundOff : PAUSE.soundOn)}
             </button>
             <button type="button" onClick={toggleFullscreen}>
-              ⛶ Full screen
+              {say(PAUSE.fullScreen)}
             </button>
             <button type="button" onClick={() => location.assign('../index.html')}>
-              🎮 More games
+              {say(PAUSE.moreGames)}
             </button>
           </div>
           <p className="small">
-            <kbd>ESC</kbd> to keep going
+            <Keyed text={say(PAUSE.escToGoOn)} />
           </p>
         </div>
       ) : (
         <>
           {sim.phase === 'ready' && (
             <div className="card menu start">
-              <h1>Police Chase</h1>
-              <RolePick game={game} current={sim.role} />
+              <h1>{say(DIRECTORY.chase.name)}</h1>
+              <div className="row">
+                {(['police', 'robber'] as const).map((role) => (
+                  <button key={role} type="button" className={role === sim.role ? 'is-active' : ''} onClick={() => game.chooseRole(role)}>
+                    {say(ROLE[role])}
+                  </button>
+                ))}
+              </div>
               <p>
-                Press <kbd>SPACE</kbd> to go!
+                <Keyed text={say(GO)} />
               </p>
-              <p className="small">{GOAL[sim.role]}</p>
+              <p className="small">{say(GOAL[sim.role])}</p>
             </div>
           )}
-          {shout && <div className={`shout ${shout.tone}`}>{shout.text}</div>}
-          {bonking(sim) && sim.phase === 'chase' && <div className="shout bonk">BONK!</div>}
-          {shrieking(sim) && <div className="shout eek">EEK! A worm!</div>}
+          {shout && <div className={`shout ${shout.tone}`}>{say(shout.words)}</div>}
+          {bonking(sim) && sim.phase === 'chase' && <div className="shout bonk">{say(SHOUT.bonk)}</div>}
+          {shrieking(sim) && <div className="shout eek">{say(SHOUT.worm)}</div>}
           {sim.phase !== 'ready' && (
             <div className={`hint${sim.wormAt >= 0 ? ' urgent' : ''}`}>
               {sim.wormAt >= 0 ? (
-                <>
-                  Jump! Shake it off!
-                </>
+                say(HINT.worm)
               ) : (
                 <>
-                  <kbd>SPACE</kbd> or tap = jump <span className="sep">·</span> <kbd>◀</kbd> brake <kbd>▶</kbd> turbo
+                  <Keyed text={say(HINT.jump)} /> <span className="sep">·</span> <Keyed text={say(HINT.pedals)} />
                 </>
               )}
             </div>
           )}
           {sim.phase !== 'ready' && (
             <div className="pedals">
-              <Pedal game={game} value={-1} label="◀" />
-              <Pedal game={game} value={1} label="▶" />
+              <Pedal game={game} value={-1} label="◀" name={say(NAME.brake)} />
+              <Pedal game={game} value={1} label="▶" name={say(NAME.turbo)} />
             </div>
           )}
         </>
       )}
       <div className="corner">
-        <button type="button" onClick={() => (game.paused ? game.resume() : game.pause())} aria-label={game.paused ? 'keep going' : 'pause'}>
+        <button type="button" onClick={() => (game.paused ? game.resume() : game.pause())} aria-label={say(game.paused ? NAME.keepGoing : NAME.pause)}>
           {game.paused ? '▶' : '⏸'}
         </button>
-        <button type="button" onClick={() => game.toggleMute()} aria-label={muted ? 'sound off' : 'sound on'}>
+        <button type="button" onClick={() => game.toggleMute()} aria-label={say(muted ? NAME.soundOff : NAME.soundOn)}>
           {muted ? '🔇' : '🔊'}
         </button>
       </div>

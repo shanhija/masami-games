@@ -8,5 +8,6 @@ import { playerLang } from '../../profiles/src/profiles'
 import { App } from './App'
 
 // It keeps nothing, so it needs no player: only the language of whoever plays in this tab.
-startPage('chase', playerLang())
-createRoot(document.getElementById('root')!).render(<App />)
+const lang = playerLang()
+startPage('chase', lang)
+createRoot(document.getElementById('root')!).render(<App lang={lang} />)

@@ -7,6 +7,8 @@ A side-view 3D chase for a five-year-old: the police car chases the robber car f
 
 The day turns in a minute: sunrise on the left, sunset on the right, then stars, a moon, and headlights and the light bar lighting the road until morning. At night everything runs a quarter faster, and worms come up out of the road: a few as the sky turns at dusk and dawn, nothing but worms at full dark, closer together than the day's rocks, all crawling toward the cars. Jump them like anything else; drive through one and it climbs in, the driver shrieks and the car is held back until your next jump flings it out (or it gets bored after a few seconds).
 
+It plays in the player's language, Finnish or English, by the flag on their player in the gallery; it keeps nothing, so it only asks `playerLang()`. Every word is in `src/words.ts`, both languages side by side; a key is written in brackets there (`[ESC]`) and shown as a key cap, so each language keeps its own word order around it. Space is VÄLILYÖNTI in Finnish.
+
 Vite, React, TypeScript, react-three-fiber and drei, vitest: the same scaffolding as the presentation deck it started in.
 
 ```
@@ -53,7 +55,8 @@ src/
     Effects.tsx   dizzy stars, confetti, dust
     Puffs.tsx     exhaust
     look.ts       the toon gradient and the palette
-  Hud.tsx         the words over the picture
+  Hud.tsx         the words over the picture, in the player's language
+  words.ts        every word of it in Finnish and English
 ```
 
 ## How it hangs together

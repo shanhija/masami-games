@@ -125,12 +125,16 @@ body,
   left: 50%;
   top: 44%;
   transform: translate(-50%, -50%);
+  /* As wide as its words up to the screen's edges: a box set at left 50% would otherwise stop at half the screen. */
+  width: max-content;
+  max-width: calc(100% - 32px);
   text-align: center;
 }
 
 .card h1 {
   margin: 0;
-  font-size: clamp(48px, 9vw, 140px);
+  /* A low screen, a phone on its side, makes it smaller too. */
+  font-size: clamp(40px, min(9vw, 15vh), 140px);
   line-height: 1;
   letter-spacing: 0.02em;
   color: #ffd23f;
@@ -181,7 +185,7 @@ body,
 }
 
 .menu button.big {
-  font-size: clamp(28px, 4.2vw, 64px);
+  font-size: clamp(24px, min(4.2vw, 8vh), 64px);
   padding: 0.3em 1.2em;
   background: #ffd23f;
   box-shadow: 0 8px 0 #b8860b;
@@ -267,7 +271,12 @@ kbd {
   position: absolute;
   left: 50%;
   bottom: 30px;
-  transform: translateX(-50%);
+  /* translate, not transform, so the worm hint's bounce keeps it centred. */
+  translate: -50% 0;
+  /* As wide as its words, and wrapping only before it would reach the pedals. */
+  width: max-content;
+  max-width: calc(100% - 2 * (40px + clamp(64px, 9vw, 110px)));
+  text-align: center;
   font-size: clamp(16px, 2vw, 30px);
   -webkit-text-stroke: 4px #2a2f45;
   opacity: 0.9;
