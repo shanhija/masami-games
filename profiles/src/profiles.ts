@@ -1,4 +1,5 @@
 import { parseAvatar, type Avatar } from './avatar'
+import { LANGS, type Lang } from './lang'
 
 /**
  * The children who play on this device, and each game's saves kept apart per child. The
@@ -18,12 +19,24 @@ import { parseAvatar, type Avatar } from './avatar'
 export const SAVING_GAMES = ['castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'monster-lunch', 'digger-town', 'silly-billy'] as const
 export type SavingGame = (typeof SAVING_GAMES)[number]
 
-/** One child on this device: the name and the avatar they made. */
+/** One child on this device: the name, the avatar they made, and the language every game plays in for them. */
 export interface Profile {
   id: string
   name: string
   avatar: Avatar
+  lang: Lang
 }
+
+/** What a game page gets when it starts: the player's saves of it and the language it plays in. */
+export interface GameEntry {
+  saves: GameSaves
+  lang: Lang
+}
+
+/** The language of a new player, and of a page with nobody picked yet (Sami, 2026-11-21). */
+export const FIRST_LANG: Lang = 'en'
+/** The language of a player made before players had one: the family's (Sami, 2026-11-21). */
+const LANG_BEFORE_LANGS: Lang = 'fi'
 
 /** What a game reads and writes its saves through: the browser's storage under one profile's keys, or a stand-in in tests. */
 export interface Saves {
@@ -111,8 +124,13 @@ export function loadProfiles(): Profile[] {
   const profiles: Profile[] = []
   for (const entry of stored) {
     const e = entry as Record<string, unknown>
-    if (typeof e === 'object' && e !== null && typeof e.id === 'string' && typeof e.name === 'string') profiles.push({ id: e.id, name: e.name, avatar: parseAvatar(e.avatar) })
-    else console.warn('A profile cannot be read:', entry)
+    if (typeof e !== 'object' || e === null || typeof e.id !== 'string' || typeof e.name !== 'string') {
+      console.warn('A profile cannot be read:', entry)
+      continue
+    }
+    const lang = LANGS.find((l) => l === e.lang)
+    if (lang === undefined && e.lang !== undefined) console.warn('A profile has no language we know, so it plays in Finnish:', entry)
+    profiles.push({ id: e.id, name: e.name, avatar: parseAvatar(e.avatar), lang: lang ?? LANG_BEFORE_LANGS })
   }
   return profiles
 }
@@ -132,9 +150,9 @@ function keysUnder(scope: string): string[] {
 }
 
 /** Makes a profile. The first one on the device takes over the saves made before there were profiles. */
-export function addProfile(name: string, avatar: Avatar): Profile {
+export function addProfile(name: string, avatar: Avatar, lang: Lang): Profile {
   const profiles = loadProfiles()
-  const profile: Profile = { id: crypto.randomUUID().slice(0, 8), name, avatar }
+  const profile: Profile = { id: crypto.randomUUID().slice(0, 8), name, avatar, lang }
   if (profiles.length === 0) {
     for (const game of SAVING_GAMES) {
       for (const [key, to] of Object.entries(SAVES_BEFORE_PROFILES[game])) {
@@ -149,7 +167,7 @@ export function addProfile(name: string, avatar: Avatar): Profile {
   return profile
 }
 
-/** Stores a profile's new name or avatar. */
+/** Stores a profile's new name, avatar or language. */
 export function updateProfile(profile: Profile): void {
   const profiles = loadProfiles()
   const at = profiles.findIndex((p) => p.id === profile.id)
@@ -221,23 +239,38 @@ export function profileSaves(id: string, game: SavingGame): GameSaves {
 }
 
 /**
- * What a game page calls before it starts: the saves of the profile playing in its tab, which
- * then stays this tab's pick. With nobody picked it sends the page to the gallery to pick
- * someone and returns null, so a game never starts on nobody's saves. A browser that keeps no
- * site data at all has no profiles either: there the game plays on saves kept in memory only.
+ * What a game page that keeps saves calls before it starts: the saves of the profile playing in
+ * its tab, which then stays this tab's pick, and that player's language. With nobody picked it
+ * sends the page to the gallery to pick someone and returns null, so a game never starts on
+ * nobody's saves. A browser that keeps no site data at all has no profiles either: there the
+ * game plays on saves kept in memory only, in FIRST_LANG.
  */
-export function enterGame(game: SavingGame): GameSaves | null {
+export function enterGame(game: SavingGame): GameEntry | null {
   let profile: Profile | null
   try {
     profile = pickedProfile()
   } catch (e) {
     console.warn('This browser keeps no site data, so this visit is not remembered:', e)
-    return memorySaves()
+    return { saves: memorySaves(), lang: FIRST_LANG }
   }
   if (profile === null) {
     location.replace('../index.html')
     return null
   }
   pickProfile(profile.id)
-  return profileSaves(profile.id, game)
+  return { saves: profileSaves(profile.id, game), lang: profile.lang }
+}
+
+/**
+ * The language of whoever plays in this tab, for a page that needs no player (the games that
+ * keep nothing, and the gallery before anyone is picked): the one picked here, else the one
+ * last picked on this device, else FIRST_LANG, as it is where the browser keeps no site data.
+ */
+export function playerLang(): Lang {
+  try {
+    return pickedProfile()?.lang ?? FIRST_LANG
+  } catch (e) {
+    console.warn('This browser keeps no site data, so it plays in the first language:', e)
+    return FIRST_LANG
+  }
 }

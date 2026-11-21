@@ -3,7 +3,8 @@ import fs from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PARTS, PART_NAMES, parseAvatar, randomAvatar } from './avatar'
-import { addProfile, clearGame, enterGame, loadProfiles, pickedHere, pickedProfile, pickProfile, profileSaves, removeProfile, SAVING_GAMES, savedGames, updateProfile } from './profiles'
+import { GAME_FOLDERS } from './directory'
+import { addProfile, clearGame, enterGame, loadProfiles, pickedHere, pickedProfile, pickProfile, playerLang, profileSaves, removeProfile, SAVING_GAMES, savedGames, updateProfile } from './profiles'
 
 /** A browser storage in memory, as much of it as the profiles use. */
 function memoryStorage() {
@@ -43,11 +44,12 @@ const avatar = parseAvatar({})
 
 describe('profiles', () => {
   it('keeps the profiles made, in order, with their names and avatars', () => {
-    const masami = addProfile('Masami', { ...avatar, hair: 'pigtails' })
-    const pia = addProfile('Pia', avatar)
+    const masami = addProfile('Masami', { ...avatar, hair: 'pigtails' }, 'fi')
+    const pia = addProfile('Pia', avatar, 'en')
     expect(loadProfiles()).toEqual([masami, pia])
-    updateProfile({ ...pia, name: 'Pia Sofia' })
+    updateProfile({ ...pia, name: 'Pia Sofia', lang: 'fi' })
     expect(loadProfiles().map((p) => p.name)).toEqual(['Masami', 'Pia Sofia'])
+    expect(loadProfiles().map((p) => p.lang)).toEqual(['fi', 'fi'])
     expect(() => updateProfile({ ...pia, id: 'gone' })).toThrow(/gone/)
   })
 
@@ -58,7 +60,7 @@ describe('profiles', () => {
     local.setItem('silly-billy-settings', '{"lang":"fi"}')
     local.setItem('rakennustyömaat', 'a house')
     local.setItem('rocket-factory', 'version 1, never read')
-    const masami = addProfile('Masami', avatar)
+    const masami = addProfile('Masami', avatar, 'en')
     expect(profileSaves(masami.id, 'castle-builder').getItem('castle-builder')).toBe('a castle')
     expect(profileSaves(masami.id, 'rocket-factory').getItem('rocket-factory-2-old')).toBe('old factories')
     expect(profileSaves(masami.id, 'silly-billy').getItem('silly-billy-settings')).toBe('{"lang":"fi"}')
@@ -68,13 +70,13 @@ describe('profiles', () => {
     expect(local.getItem('rakennustyömaat')).toBeNull()
     expect(local.getItem('rocket-factory')).toBe('version 1, never read')
     expect(savedGames(masami.id)).toEqual(['castle-builder', 'cat-hat-builder', 'rocket-factory', 'silly-billy'])
-    const pia = addProfile('Pia', avatar)
+    const pia = addProfile('Pia', avatar, 'en')
     expect(savedGames(pia.id)).toEqual([])
   })
 
   it('moves the saves of the games whose folders had Finnish names to their new folders, with the keys renamed with them', () => {
-    const masami = addProfile('Masami', avatar)
-    const pia = addProfile('Pia', avatar)
+    const masami = addProfile('Masami', avatar, 'en')
+    const pia = addProfile('Pia', avatar, 'en')
     local.setItem(`profile/${masami.id}/rakennustyömaat/rakennustyömaat`, 'a house')
     local.setItem(`profile/${masami.id}/ruokapeli/ruokapeli`, 'a burger')
     local.setItem(`profile/${masami.id}/rakennuspeli/digger-town-old`, 'an old town')
@@ -93,8 +95,8 @@ describe('profiles', () => {
   })
 
   it('keeps each profile its own saves, and starts one game over for one profile only', () => {
-    const masami = addProfile('Masami', avatar)
-    const pia = addProfile('Pia', avatar)
+    const masami = addProfile('Masami', avatar, 'en')
+    const pia = addProfile('Pia', avatar, 'en')
     profileSaves(masami.id, 'pia-jump').setItem('pia-jump', 'three kittens')
     profileSaves(pia.id, 'pia-jump').setItem('pia-jump', 'one kitten')
     profileSaves(masami.id, 'monster-lunch').setItem('monster-lunch', 'a burger')
@@ -110,8 +112,8 @@ describe('profiles', () => {
   })
 
   it('removes a profile with every save it had, and its pick', () => {
-    const masami = addProfile('Masami', avatar)
-    const pia = addProfile('Pia', avatar)
+    const masami = addProfile('Masami', avatar, 'en')
+    const pia = addProfile('Pia', avatar, 'en')
     profileSaves(masami.id, 'castle-builder').setItem('castle-builder', 'a castle')
     profileSaves(pia.id, 'castle-builder').setItem('castle-builder', 'a tower')
     pickProfile(masami.id)
@@ -124,8 +126,8 @@ describe('profiles', () => {
   })
 
   it("plays as this tab's pick, or else as the device's last; a fresh tab of the gallery asks again", () => {
-    const masami = addProfile('Masami', avatar)
-    const pia = addProfile('Pia', avatar)
+    const masami = addProfile('Masami', avatar, 'en')
+    const pia = addProfile('Pia', avatar, 'en')
     expect(pickedProfile()).toBeNull()
     pickProfile(masami.id)
     expect(pickedHere()).toBe(true)
@@ -140,7 +142,14 @@ describe('profiles', () => {
   it('leaves a profile it cannot read out, and keeps the rest', () => {
     local.setItem('masami-profiles', JSON.stringify([{ id: 'a', name: 'Masami', avatar: { hair: 'mohawk', eyes: 'big' } }, { name: 'no id' }]))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    expect(loadProfiles()).toEqual([{ id: 'a', name: 'Masami', avatar: { ...avatar, eyes: 'big' } }])
+    expect(loadProfiles()).toEqual([{ id: 'a', name: 'Masami', avatar: { ...avatar, eyes: 'big' }, lang: 'fi' }])
+    expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('plays a player made before players had a language in Finnish, and one with a language it does not know in Finnish with a warning', () => {
+    local.setItem('masami-profiles', JSON.stringify([{ id: 'a', name: 'Masami', avatar: {} }, { id: 'b', name: 'Pia', avatar: {}, lang: 'en' }, { id: 'c', name: 'Mia', avatar: {}, lang: 'sv' }]))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(loadProfiles().map((p) => p.lang)).toEqual(['fi', 'en', 'fi'])
     expect(warn).toHaveBeenCalledTimes(1)
   })
 })
@@ -151,10 +160,11 @@ describe('a game page', () => {
     expect(replace).toHaveBeenCalledWith('../index.html')
   })
 
-  it("plays on the picked profile's saves, and keeps that profile for its tab", () => {
-    const masami = addProfile('Masami', avatar)
+  it("plays on the picked profile's saves in that profile's language, and keeps that profile for its tab", () => {
+    const masami = addProfile('Masami', avatar, 'fi')
     local.setItem('masami-profile', masami.id)
-    const saves = enterGame('pia-jump')!
+    const { saves, lang } = enterGame('pia-jump')!
+    expect(lang).toBe('fi')
     saves.setItem('pia-jump', 'two kittens')
     expect(profileSaves(masami.id, 'pia-jump').getItem('pia-jump')).toBe('two kittens')
     expect(session.getItem('masami-profile')).toBe(masami.id)
@@ -167,15 +177,28 @@ describe('a game page', () => {
     }
     vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked })
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const saves = enterGame('castle-builder')!
+    const { saves, lang } = enterGame('castle-builder')!
     saves.setItem('castle-builder', 'a castle')
     expect(saves.getItem('castle-builder')).toBe('a castle')
+    expect(lang).toBe('en')
+    expect(playerLang()).toBe('en')
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  it("plays a game that needs no player in the language of the one picked in this tab, else the one last picked on this device, else English", () => {
+    expect(playerLang()).toBe('en')
+    const masami = addProfile('Masami', avatar, 'fi')
+    const pia = addProfile('Pia', avatar, 'en')
+    local.setItem('masami-profile', masami.id)
+    expect(playerLang()).toBe('fi')
+    session.setItem('masami-profile', pia.id)
+    expect(playerLang()).toBe('en')
     expect(replace).not.toHaveBeenCalled()
   })
 
   it("hears another tab write this profile's save of this game, under the game's own key, and nothing else", () => {
-    const masami = addProfile('Masami', avatar)
-    const pia = addProfile('Pia', avatar)
+    const masami = addProfile('Masami', avatar, 'en')
+    const pia = addProfile('Pia', avatar, 'en')
     const heard: [string | null, string | null][] = []
     const unwatch = profileSaves(masami.id, 'rocket-factory').watch((key, value) => void heard.push([key, value]))
     const write = (key: string | null, newValue: string | null) => window.dispatchEvent(Object.assign(new Event('storage'), { storageArea: localStorage, key, newValue }))
@@ -207,14 +230,13 @@ describe('the avatar', () => {
 })
 
 describe('the gallery', () => {
-  it('has a card for every game that keeps saves, and builds each of them', () => {
+  it('lists every game folder in the directory, in the order of its cards, and every game that keeps saves enters through its profile', () => {
     const page = fs.readFileSync('index.html', 'utf8')
-    const config = fs.readFileSync('vite.config.ts', 'utf8')
-    for (const game of SAVING_GAMES) {
-      expect(page, game).toContain(`href="${game}/index.html"`)
-      expect(config, game).toContain(`'${game}'`)
-      expect(fs.readFileSync(`${game}/src/main.tsx`, 'utf8'), game).toContain(`enterGame('${game}')`)
-    }
+    const folders = fs.readdirSync('.', { withFileTypes: true }).filter((d) => d.isDirectory() && d.name !== 'profiles' && fs.existsSync(`${d.name}/src/main.tsx`)).map((d) => d.name)
+    expect([...GAME_FOLDERS].sort()).toEqual(folders.sort())
+    expect([...page.matchAll(/<a class="game [^"]*" href="([^/"]+)\/index.html">/g)].map((m) => m[1])).toEqual([...GAME_FOLDERS])
+    for (const game of SAVING_GAMES) expect(fs.readFileSync(`${game}/src/main.tsx`, 'utf8'), game).toContain(`enterGame('${game}')`)
+    for (const game of GAME_FOLDERS) expect(fs.readFileSync(`${game}/src/main.tsx`, 'utf8'), game).toContain(`startPage('${game}',`)
   })
 
   it("leaves the browser's storage to the profiles: a game keeps what it keeps through its saves", () => {

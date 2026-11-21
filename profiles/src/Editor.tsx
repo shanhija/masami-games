@@ -1,13 +1,16 @@
-import { useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 
 import { PARTS, randomAvatar, type Avatar, type Part } from './avatar'
 import { AvatarPicture } from './Avatar'
-import { addProfile, clearGame, NAME_MOST, removeProfile, savedGames, updateProfile, type Profile, type SavingGame } from './profiles'
+import { DIRECTORY } from './directory'
+import { Flag } from './Flag'
+import { inLang, LANG_NAMES, LANGS, type Lang, type Words } from './lang'
+import { addProfile, clearGame, FIRST_LANG, NAME_MOST, removeProfile, savedGames, updateProfile, type Profile, type SavingGame } from './profiles'
+import { CHOICE_NAMES, EDITOR, GALLERY, TAB_NAMES } from './words'
 
 /** A game as its gallery card shows it: what the editor lists beside its Start over. */
 export interface GalleryGame {
   folder: SavingGame
-  name: string
   /** The card's classes, which give it its colour. */
   className: string
   /** The card's picture, the gallery's own markup. */
@@ -15,71 +18,88 @@ export interface GalleryGame {
 }
 
 /** The tabs of the avatar's parts, in the order the child meets them. */
-const TABS: Record<Part, { icon: string; label: string }> = {
-  skin: { icon: '🙂', label: 'Face' },
-  hair: { icon: '💇', label: 'Hair' },
-  hairColour: { icon: '🖍️', label: 'Hair colour' },
-  eyes: { icon: '👀', label: 'Eyes' },
-  mouth: { icon: '👄', label: 'Mouth' },
-  extra: { icon: '👑', label: 'Fun' },
-  backdrop: { icon: '🎨', label: 'Colour' },
+const TAB_ICONS: Record<Part, string> = {
+  skin: '🙂',
+  hair: '💇',
+  hairColour: '🖍️',
+  eyes: '👀',
+  mouth: '👄',
+  extra: '👑',
+  backdrop: '🎨',
 }
-const TAB_ORDER = Object.keys(TABS) as Part[]
+const TAB_ORDER = Object.keys(TAB_ICONS) as Part[]
 
 /**
- * Making a new player (`profile` null: a surprise avatar to start from) or changing one: the
- * avatar part by part, each choice drawn on the avatar itself, a surprise, the name; for a
- * player already made, the games they have saved in, each with Start over, and Remove player.
- * Start over and Remove ask "Really?" first and happen at the second tap; the avatar and the
- * name are kept at Done, and Back leaves them as they were.
+ * Making a new player (`profile` null: a surprise avatar to start from, in FIRST_LANG) or
+ * changing one: the avatar part by part, each choice drawn on the avatar itself, a surprise,
+ * the name, the language by its flag; for a player already made, the games they have saved in,
+ * each with Start over, and Remove player. Start over and Remove ask "Really?" first and happen
+ * at the second tap; the avatar, the name and the language are kept at Done, and Back leaves
+ * them as they were. The editor speaks the language its flag is at, so a tap on a flag shows
+ * at once what the games will.
  */
 export function Editor({ profile, games, onDone, onBack }: { profile: Profile | null; games: GalleryGame[]; onDone: (profile: Profile) => void; onBack: () => void }) {
   const [avatar, setAvatar] = useState<Avatar>(() => (profile === null ? randomAvatar(Math.random) : profile.avatar))
   const [name, setName] = useState(profile === null ? '' : profile.name)
+  const [lang, setLang] = useState<Lang>(profile === null ? FIRST_LANG : profile.lang)
   const [tab, setTab] = useState<Part>('skin')
   /** What waits for its second tap: a game to start over, or removing the player. */
   const [armed, setArmed] = useState<SavingGame | 'remove' | null>(null)
   const [saved, setSaved] = useState<SavingGame[]>(() => (profile === null ? [] : savedGames(profile.id)))
   const trimmed = name.trim()
+  const say = (words: Words) => inLang(words, lang)
+
+  useLayoutEffect(() => {
+    document.documentElement.lang = lang
+  }, [lang])
 
   const done = () => {
     if (trimmed === '') return
-    if (profile === null) return onDone(addProfile(trimmed, avatar))
-    const changed = { ...profile, name: trimmed, avatar }
+    if (profile === null) return onDone(addProfile(trimmed, avatar, lang))
+    const changed = { ...profile, name: trimmed, avatar, lang }
     updateProfile(changed)
     onDone(changed)
   }
 
   return (
     <div className="profiles-screen editor">
-      <h1>{profile === null ? 'New player' : trimmed === '' ? 'Your player' : trimmed}</h1>
+      <h1>{profile === null ? say(GALLERY.newPlayer) : trimmed === '' ? say(EDITOR.yourPlayer) : trimmed}</h1>
       <div className="editor-top">
         <div className="editor-face">
           <AvatarPicture avatar={avatar} className="avatar huge" />
           <button type="button" className="pill surprise" onClick={() => setAvatar(randomAvatar(Math.random))}>
-            🎲 Surprise me!
+            {say(EDITOR.surprise)}
           </button>
           <label className="name-field">
-            <span>Name</span>
-            <input value={name} maxLength={NAME_MOST} placeholder="Type your name" autoComplete="off" spellCheck={false} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && done()} />
+            <span>{say(EDITOR.name)}</span>
+            <input value={name} maxLength={NAME_MOST} placeholder={say(EDITOR.typeName)} autoComplete="off" spellCheck={false} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && done()} />
           </label>
+          <div className="langs" role="radiogroup" aria-label={say(EDITOR.language)}>
+            {LANGS.map((l) => (
+              <button key={l} type="button" role="radio" aria-checked={lang === l} className={lang === l ? 'lang on' : 'lang'} onClick={() => setLang(l)}>
+                <Flag lang={l} className="flag" />
+                <span lang={l}>{LANG_NAMES[l]}</span>
+              </button>
+            ))}
+          </div>
         </div>
         <div className="editor-parts">
           <div className="tabs" role="tablist">
             {TAB_ORDER.map((part) => (
               <button key={part} type="button" role="tab" aria-selected={tab === part} className={tab === part ? 'tab on' : 'tab'} onClick={() => setTab(part)}>
                 <span className="tab-icon" aria-hidden="true">
-                  {TABS[part].icon}
+                  {TAB_ICONS[part]}
                 </span>
-                {TABS[part].label}
+                {say(TAB_NAMES[part])}
               </button>
             ))}
           </div>
           <div className="choices">
             {PARTS[tab].map((choice) => {
+              const names: Readonly<Record<string, Words>> = CHOICE_NAMES[tab]
               const tried = { ...avatar, [tab]: choice } as Avatar
               return (
-                <button key={choice} type="button" className={avatar[tab] === choice ? 'choice on' : 'choice'} aria-label={choice} onClick={() => setAvatar(tried)}>
+                <button key={choice} type="button" className={avatar[tab] === choice ? 'choice on' : 'choice'} aria-label={say(names[choice]!)} onClick={() => setAvatar(tried)}>
                   <AvatarPicture avatar={tried} className="avatar" />
                 </button>
               )
@@ -89,8 +109,8 @@ export function Editor({ profile, games, onDone, onBack }: { profile: Profile | 
       </div>
       {profile !== null && (
         <section className="saved">
-          <h2>Saved games</h2>
-          {saved.length === 0 && <p className="nothing">Nothing saved yet.</p>}
+          <h2>{say(EDITOR.savedGames)}</h2>
+          {saved.length === 0 && <p className="nothing">{say(EDITOR.nothingSaved)}</p>}
           {games
             .filter((g) => saved.includes(g.folder))
             .map((g) => (
@@ -98,7 +118,7 @@ export function Editor({ profile, games, onDone, onBack }: { profile: Profile | 
                 <span className={`${g.className} mini`}>
                   <span className="picture" aria-hidden="true" dangerouslySetInnerHTML={{ __html: g.picture }} />
                 </span>
-                <span className="saved-name">{g.name}</span>
+                <span className="saved-name">{say(DIRECTORY[g.folder].name)}</span>
                 <button
                   type="button"
                   className={armed === g.folder ? 'pill danger armed' : 'pill danger'}
@@ -109,7 +129,7 @@ export function Editor({ profile, games, onDone, onBack }: { profile: Profile | 
                     setArmed(null)
                   }}
                 >
-                  {armed === g.folder ? 'Really start over?' : 'Start over'}
+                  {armed === g.folder ? say(EDITOR.reallyStartOver) : say(EDITOR.startOver)}
                 </button>
               </div>
             ))}
@@ -117,10 +137,10 @@ export function Editor({ profile, games, onDone, onBack }: { profile: Profile | 
       )}
       <div className="editor-buttons">
         <button type="button" className="pill back" onClick={onBack}>
-          Back
+          {say(EDITOR.back)}
         </button>
         <button type="button" className="pill done" disabled={trimmed === ''} onClick={done}>
-          ✓ Done
+          {say(EDITOR.done)}
         </button>
       </div>
       {profile !== null && (
@@ -133,7 +153,7 @@ export function Editor({ profile, games, onDone, onBack }: { profile: Profile | 
             onBack()
           }}
         >
-          {armed === 'remove' ? `Really remove ${profile.name}?` : 'Remove player'}
+          {armed === 'remove' ? say(EDITOR.reallyRemove(profile.name)) : say(EDITOR.removePlayer)}
         </button>
       )}
     </div>

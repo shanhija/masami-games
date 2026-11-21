@@ -3,15 +3,9 @@ import react from '@vitejs/plugin-react'
 import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 
-// '.js' names plugin.ts (TypeScript allows it), so loading the config warns of no extensionless import.
+// '.js' names the .ts files (TypeScript allows it), so loading the config warns of no extensionless import.
+import { GAME_FOLDERS } from './profiles/src/directory.js'
 import { sillyBilly } from './silly-billy/src/server/plugin.js'
-
-/**
- * One page per game, each its own folder with an index.html and a src/. The root index.html
- * is the game directory; a tap there navigates to a game, so only that game's code loads.
- * A new game goes here and gets a card on the root page.
- */
-const GAMES = ['chase', 'foot-chase', 'castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'monster-lunch', 'digger-town', 'silly-billy'] as const
 
 /**
  * A tablet reaches the dev server by the laptop's own host name: DEV_HOST in the git-ignored
@@ -45,7 +39,9 @@ export default defineConfig(({ command, mode }) => ({
   build: {
     chunkSizeWarningLimit: 2000,
     // Every page is an entry; what the games share (react, three, drei) becomes common chunks.
-    rolldownOptions: { input: ['index.html', ...GAMES.map((game) => `${game}/index.html`)] },
+    // One page per game (profiles/src/directory.ts), each its own folder with an index.html and a src/; the root index.html is
+    // the game directory, and a tap there navigates to a game, so only that game's code loads.
+    rolldownOptions: { input: ['index.html', ...GAME_FOLDERS.map((game) => `${game}/index.html`)] },
   },
   test: { environment: 'node', include: ['*/src/**/*.test.ts'] },
 }))

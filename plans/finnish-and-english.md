@@ -61,14 +61,16 @@ Characters' names stay the same in both languages (Pia, Beep, the kittens Sunny,
 
 ### The check that keeps it so
 
-`profiles/src/lang.test.ts` scans every folder that has a `src/main.tsx`, the same way the localStorage test does, so it keeps working whatever the folders become. Outside `words.ts` it fails on:
+`profiles/src/lang.test.ts` reads the code of every folder that has a `src/main.tsx` (the gallery too), the same way the localStorage test does, so it keeps working whatever the folders become. It parses each file (Vite's `parseAst`) and fails on:
 
-- JSX text with letters in it;
-- a literal `aria-label`, `title`, `placeholder` or `alt` with letters;
-- `fillText` or `strokeText` given a literal with letters;
-- a game whose `main.tsx` does not call `startPage`.
+- JSX text with two letters or more (a key cap such as `W` is fine);
+- literal text in `aria-label`, `title`, `placeholder`, `alt` or `label`, or shown as a JSX child, including either branch of `?:` and the sides of `&&`, `||` and `??`;
+- literal text given to `fillText` or `strokeText`;
+- anywhere else, a literal that reads as words for a person: a capital and a small letter at its start ('Garden', 'Keep going'), or a `!` or `?` after a letter at its end with a space or a capital in it. Key names and codes, names with two capitals and chord names are not words;
+- an empty `en` or `fi`, or an em-dash in any text;
+- a game with no `src/words.ts`.
 
-In every `words.ts`, both texts of every `Words` must be non-empty and free of em-dashes. Text only a developer sees is exempt through a short allow-list kept beside the test. While the games are being converted, the test reads a list of games not yet done. Each game leaves the list in its own commit, and when the list is empty it is deleted.
+Words written as `{ en, fi }` are fine wherever they are; a game keeps its own in `words.ts`, and Silly Billy's content keeps its lines beside the code that says them. What a person never sees is exempt: thrown errors, the console, imports, Silly Billy's `about` texts, and the files in `DEV_ONLY` (the `?sheet` pages, and what only Silly Billy's models read). Each game on the test's `PENDING` list is skipped until it is converted, and leaves the list in its own commit; when the list is empty it is deleted. `profiles/src/profiles.test.ts` checks that `GAME_FOLDERS` (`directory.ts`) names every game folder in its cards' order, and every game's `main.tsx` calls `startPage`.
 
 ## Each game
 
@@ -110,7 +112,7 @@ The size and the hard part of each game, from the survey of 2026-11-21. Every ga
 
 1. **Wait for a still tree.** Done: the work in progress was committed before the rename.
 2. **The rename**, alone in one commit: folders, plans, every path, the saves move and its test. Done on 2026-11-21 (typecheck, tests, build, and each renamed game booting in a headless Chromium).
-3. **The player's language**: `Profile.lang` with its migration, the flags, the gallery's language, `lang.ts`, `directory.ts`, `enterGame` returning `{ saves, lang }`, `playerLang`, `pickVoice`, and the check with every game on its list of games not yet done. The rules change in the same commit:
+3. **The player's language**: `Profile.lang` with its migration, the flags, the gallery's language, `lang.ts`, `directory.ts`, `enterGame` returning `{ saves, lang }`, `playerLang`, `pickVoice`, and the check with every game on its list of games not yet done. Done on 2026-11-21. The rules changed in the same commit:
    - `CLAUDE.md` and `README.md`: every audience-visible word in both languages, in the game's `words.ts`, chosen by the player's flag. A new game is bilingual from its first commit (`magic-house/`, a game coming, included). Its folder gets the kebab-case English name of the game. Its brief stays in the language it was written in, and every other file is English. The folder list uses the new names.
    - `.cursor/rules/coding-style.md`: its audience-text bullet covers Finnish.
 4. **The games, one commit each.** Each commit includes its `words.ts`, ids where logic held English, tests, the check passing for the game, screenshots in both languages (title, play, pause and end cards, at phone and tablet sizes) and a Language line in its plan or README. After step 3 the games are independent of each other, so agents in separate worktrees can do them three or four at a time, sized to fit what is left of the weekly limit (stop at 95%). Order, smallest first:
