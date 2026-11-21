@@ -89,3 +89,7 @@ Silly Billy keeps the children's voice clips, to measure how well different reco
 ```
 docker build -f hosting/Dockerfile -t games . && docker run --rm -p 8080:8080 games   # http://localhost:8080
 ```
+
+## License
+
+The code is [MIT](LICENSE).
