@@ -96,14 +96,14 @@ export const HUD = {
 
 /** The pause card, which is mostly for the parent. */
 export const PAUSE = {
-  keepGoing: { en: 'Keep going', fi: 'Jatketaan' },
+  keepGoing: { en: 'Keep going', fi: 'Jatka' },
   music: { en: 'Music', fi: 'Musiikki' },
   sound: { en: 'Sound', fi: 'Äänet' },
   easy: { en: 'Easy', fi: 'Helppo' },
   pro: { en: 'Pro', fi: 'Pro' },
   paint: { en: 'Paint', fi: 'Maalaa' },
   fullScreen: { en: 'Full screen', fi: 'Koko näyttö' },
-  moreGames: { en: 'More games', fi: 'Lisää pelejä' },
+  moreGames: { en: 'More games', fi: 'Muut pelit' },
   trySaying: { en: 'Try saying', fi: 'Kokeile sanoa' },
   saveTrouble: { en: 'Part of the old save could not be read. A copy is kept.', fi: 'Osaa vanhasta pelistä ei voitu lukea. Siitä on tallessa kopio.' },
   newGame: { en: 'Hold: new game', fi: 'Pidä: uusi peli' },
