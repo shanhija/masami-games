@@ -93,7 +93,7 @@ export const PAUSE = {
   music: { en: 'Music', fi: 'Musiikki' },
   voice: { en: 'Voice', fi: 'Puhe' },
   fullScreen: { en: 'Full screen', fi: 'Koko näyttö' },
-  moreGames: { en: 'More games', fi: 'Lisää pelejä' },
+  moreGames: { en: 'More games', fi: 'Muut pelit' },
   startAgain: { en: 'Start again', fi: 'Aloita alusta' },
   bringBack: { en: 'Bring back', fi: 'Tuo takaisin' },
   forGrownUps: { en: 'For grown-ups', fi: 'Aikuisille' },

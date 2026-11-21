@@ -54,7 +54,7 @@ export const HUD = {
   music: { en: 'Music', fi: 'Musiikki' },
   sound: { en: 'Sound', fi: 'Äänet' },
   fullScreen: { en: 'Full screen', fi: 'Koko näyttö' },
-  moreGames: { en: 'More games', fi: 'Lisää pelejä' },
+  moreGames: { en: 'More games', fi: 'Muut pelit' },
   youFoundThemAll: { en: 'You found them all!', fi: 'Löysit kaikki!' },
 } as const
 

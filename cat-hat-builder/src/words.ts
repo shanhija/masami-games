@@ -21,7 +21,7 @@ export const WORDS = {
   sound: { en: 'Sound', fi: 'Äänet' },
   music: { en: 'Music', fi: 'Musiikki' },
   fullScreen: { en: 'Full screen', fi: 'Koko näyttö' },
-  moreGames: { en: 'More games', fi: 'Lisää pelejä' },
+  moreGames: { en: 'More games', fi: 'Muut pelit' },
   startAgain: { en: 'Start again', fi: 'Aloita alusta' },
   // The cards.
   new: { en: 'New!', fi: 'Uusi!' },

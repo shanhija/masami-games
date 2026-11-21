@@ -19,10 +19,10 @@ export const WORDS = {
   openBox: { en: 'Open the box!', fi: 'Avaa laatikko!' },
   pause: { en: 'Pause', fi: 'Tauko' },
   keepGoing: { en: 'Keep going', fi: 'Jatka' },
-  soundOn: { en: 'Sound on', fi: 'Ääni päällä' },
-  soundOff: { en: 'Sound off', fi: 'Ääni pois' },
+  soundOn: { en: 'Sound on', fi: 'Äänet päällä' },
+  soundOff: { en: 'Sound off', fi: 'Äänet pois' },
   fullScreen: { en: 'Full screen', fi: 'Koko näyttö' },
-  moreGames: { en: 'More games', fi: 'Lisää pelejä' },
+  moreGames: { en: 'More games', fi: 'Muut pelit' },
   /** The jump key's cap on the teaching picture. */
   space: { en: 'Space', fi: 'Välilyönti' },
   steer: { en: 'Steer', fi: 'Ohjaa' },

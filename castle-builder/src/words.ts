@@ -15,7 +15,7 @@ export const WORDS = {
   soundOn: { en: 'Sound on', fi: 'Äänet päällä' },
   soundOff: { en: 'Sound off', fi: 'Äänet pois' },
   fullScreen: { en: 'Full screen', fi: 'Koko näyttö' },
-  moreGames: { en: 'More games', fi: 'Lisää pelejä' },
+  moreGames: { en: 'More games', fi: 'Muut pelit' },
   stormsOn: { en: 'Storms on', fi: 'Myrskyt päällä' },
   stormsOff: { en: 'Storms off', fi: 'Myrskyt pois' },
   newCastle: { en: 'New castle', fi: 'Uusi linna' },
