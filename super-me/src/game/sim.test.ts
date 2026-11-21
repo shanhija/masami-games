@@ -8,7 +8,6 @@ import { buildSpot, createSim, pressBuild, setMove, step } from './sim'
 /** A test level: a gap at columns 10 to 14, a two-high wall at column 18, a ceiling over columns 20 to 22, a trampoline crate, three presents in a row and the arch up out of reach. */
 const LEVEL = parseLevel({
   id: 'garden',
-  name: 'Test',
   rewards: ['hat:crown', 'hat:chef', 'hat:wizard'],
   map: [
     '..............................',

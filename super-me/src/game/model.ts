@@ -29,10 +29,8 @@ export interface Present extends Cell {
 
 /** A level as levels.ts writes it. The map legend is in map.ts. */
 export interface LevelDef {
-  /** Which of Pia Jump's places it is: its look, its tune and its id. */
+  /** Which of Pia Jump's places it is: its look, its tune, its id and its name (words.ts). */
   id: RoomId
-  /** What the child sees on the level's card. */
-  name: string
   map: readonly string[]
   /** The presents' items, in the order map.ts reads the presents (left to right, then top to bottom). */
   rewards: readonly [Reward, Reward, Reward]
@@ -40,7 +38,6 @@ export interface LevelDef {
 
 /** A parsed level, never changed by the sim. The fields of Ground are what Pia Jump's world art draws. */
 export interface Level extends Ground {
-  name: string
   crates: readonly Crate[]
   presents: readonly Present[]
   /** The person's feet start at the bottom centre of this cell. */

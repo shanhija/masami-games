@@ -2,6 +2,8 @@
 
 A game for a five-year-old in two halves that feed each other. In the closet the child makes their own person: face, body, clothes and makeup. Then that person plays a side-view platformer through Pia Jump's five places, the Garden, the Kitchen, the Bath, the Toy Room and the Roof, where jumping alone never gets you through: you pick up crates of blocks and build your own way with planks, cubes, trampolines and ladders. Every level hides three presents with new things to wear, and a present goes on the moment it opens, so the person in the level changes on the spot and the closet has something new to try.
 
+It plays in the player's language, Finnish or English, picked by the flag in their profile: every word is in [`src/words.ts`](src/words.ts), both languages side by side, from the levels' names and the presents' cheers to a name for every part, option and colour in the closet, for the screen reader.
+
 Nothing punishes, as in Pia Jump: no lives, no timer. A fall is a bubble ride back to safe ground (the third fall into the same gap carries you across), and when your hands are empty and every crate is used, all the crates come back.
 
 The brief is [`design.md`](design.md) (in Finnish); the decisions and what is left are in [`plans/super-me.md`](../plans/super-me.md).
@@ -51,4 +53,4 @@ URL switches, read once when the page loads: `?level=<id or 1-5>` starts in that
 
 ## What it shares with Pia Jump
 
-The games stay separate folders, but Super Me imports rather than copies what Pia Jump already has: the running and jumping constants, the room art (backdrops, ground, pits, the five places' looks), the camera, the ink-and-shade drawing helpers, the icons and the synth with its tunes. Super Me's sim (`src/game/sim.ts`) carries its own copy of Pia Jump's hero physics with building and climbing added; [`plans/super-me.md`](../plans/super-me.md) has the open item to share it.
+The games stay separate folders, but Super Me imports rather than copies what Pia Jump already has: the running and jumping constants, the room art (backdrops, ground, pits, the five places' looks, ABC blocks spelling their words in the player's language), the camera, the ink-and-shade drawing helpers, the icons and the synth with its tunes. Super Me's sim (`src/game/sim.ts`) carries its own copy of Pia Jump's hero physics with building and climbing added; [`plans/super-me.md`](../plans/super-me.md) has the open item to share it.

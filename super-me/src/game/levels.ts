@@ -3,13 +3,13 @@ import type { LevelDef } from './model'
 /**
  * The five levels, one in each of Pia Jump's places, each teaching one block and ending
  * with all four. Every level has three presents and the crates to reach them all; the
- * walkthroughs in levels.test.ts prove it. The legend is in map.ts.
+ * walkthroughs in levels.test.ts prove it. The legend is in map.ts; each level's name is
+ * its place's, in words.ts.
  */
 
 /** Planks. Two make a bridge over the first gap and three the second; one more lifts her up the pillar to the butterfly and one up to the shelf with the rain boots. */
 const GARDEN: LevelDef = {
   id: 'garden',
-  name: 'Garden',
   rewards: ['paint:butterfly', 'shoes:rainboots', 'hat:flowers'],
   map: [
     '............................................................',
@@ -33,7 +33,6 @@ const GARDEN: LevelDef = {
 /** Cubes. One put down under her feet in a jump climbs the counter, one more over it reaches the funny nose, and two stacked climb the tall cupboard. */
 const KITCHEN: LevelDef = {
   id: 'kitchen',
-  name: 'Kitchen',
   rewards: ['nose:clown', 'lips:glitter', 'hat:chef'],
   map: [
     '................g.............................................',
@@ -57,7 +56,6 @@ const KITCHEN: LevelDef = {
 /** Trampolines. One in front of the tub wall throws her over it, one at the water throws her through the rainbow present, and one under the high shelf throws her onto it. */
 const BATH: LevelDef = {
   id: 'bath',
-  name: 'Bath',
   rewards: ['shadow:rainbow', 'eyes:sparkle', 'extra:wings'],
   map: [
     '..............................................................',
@@ -81,7 +79,6 @@ const BATH: LevelDef = {
 /** Ladders. One up the toy shelf, one beside the crayon box to the tutu, and two in a row, the second standing on a shelf, up to the high table. */
 const TOYS: LevelDef = {
   id: 'toys',
-  name: 'Toy Room',
   rewards: ['bottom:tutu', 'blush:hearts', 'hat:crown'],
   map: [
     '..............................................................',
@@ -105,7 +102,6 @@ const TOYS: LevelDef = {
 /** Everything: two planks over the gap, a ladder up the first chimney wall, a trampoline over the second, a cube up the last. */
 const ROOF: LevelDef = {
   id: 'roof',
-  name: 'Roof',
   rewards: ['extra:cape', 'top:stars', 'hat:wizard'],
   map: [
     '................................................................',

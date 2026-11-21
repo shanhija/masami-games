@@ -1,5 +1,5 @@
 import { ROWS, TILE, type Gap, type TileCode } from '../../../pia-jump/src/game/model'
-import { solidTile } from '../../../pia-jump/src/game/room'
+import { isBlockLetter, solidTile } from '../../../pia-jump/src/game/room'
 import type { Cell, Crate, Kind, Level, LevelDef, Present } from './model'
 
 /**
@@ -7,7 +7,8 @@ import type { Cell, Crate, Kind, Level, LevelDef, Present } from './model'
  * strings of equal length, one character per tile:
  *
  *   .  air                          #  ground: the level's floor and earth
- *   A-Z  an ABC block showing that letter
+ *   A-Z, Ä, Ö  an ABC block: a run of them is a word, shown in the player's language
+ *         through Pia Jump's BLOCK_WORDS (its words.ts), as Pia Jump's rooms show theirs
  *   =  shelf: she jumps up through it and stands on it
  *   |  column (a flower pot, a jar, a bottle, a crayon box or a chimney), two wide
  *   p  a crate with a plank          c  a crate with a cube
@@ -46,7 +47,7 @@ export function parseLevel(def: LevelDef): Level {
       const ch = line[col]!
       const i = row * cols + col
       if (ch in TILES) tiles[i] = TILES[ch]!
-      else if (ch >= 'A' && ch <= 'Z') {
+      else if (isBlockLetter(ch)) {
         tiles[i] = TILE.abc
         letters[i] = ch
       } else if (ch in CRATES) crates.push({ col, row, kind: CRATES[ch]! })
@@ -72,5 +73,5 @@ export function parseLevel(def: LevelDef): Level {
     if (last && last.col1 === col) last.col1 = col + 1
     else gaps.push({ col0: col, col1: col + 1 })
   }
-  return { id: def.id, name: def.name, cols, tiles, letters, floor, gaps, crates, presents, start, finish }
+  return { id: def.id, cols, tiles, letters, floor, gaps, crates, presents, start, finish }
 }

@@ -1,7 +1,7 @@
 /**
  * The closet: every part of the person the child makes, the options of each, the colours,
  * and which options are presents to find in the levels. Plain data; the art is
- * draw/person.ts and the screen Closet.tsx.
+ * draw/person.ts, the screen Closet.tsx, and the names of everything words.ts.
  */
 
 /** Every part and its options, in the order the closet shows them. The first option is the one a fresh person wears, except where START_LOOK says otherwise. */
@@ -31,12 +31,12 @@ export const PARTS = Object.keys(OPTIONS) as Part[]
 
 /** The closet's four tabs and the parts under each. */
 export const GROUPS = [
-  { name: 'Face', parts: ['face', 'eyes', 'nose', 'mouth', 'hair'] },
-  { name: 'Body', parts: ['height', 'build', 'skin'] },
-  { name: 'Clothes', parts: ['hat', 'top', 'bottom', 'shoes', 'extra'] },
-  { name: 'Makeup', parts: ['shadow', 'lips', 'blush', 'paint'] },
-] as const satisfies readonly { name: string; parts: readonly Part[] }[]
-export type Group = (typeof GROUPS)[number]['name']
+  { id: 'face', parts: ['face', 'eyes', 'nose', 'mouth', 'hair'] },
+  { id: 'body', parts: ['height', 'build', 'skin'] },
+  { id: 'clothes', parts: ['hat', 'top', 'bottom', 'shoes', 'extra'] },
+  { id: 'makeup', parts: ['shadow', 'lips', 'blush', 'paint'] },
+] as const satisfies readonly { id: string; parts: readonly Part[] }[]
+export type Group = (typeof GROUPS)[number]['id']
 
 /** Clothes colours. */
 export const COLOURS = {
@@ -146,25 +146,6 @@ export const REWARDS = [
   'hat:wizard',
 ] as const
 export type Reward = (typeof REWARDS)[number]
-
-/** What the child hears and reads when a present opens. */
-export const REWARD_WORDS: Record<Reward, string> = {
-  'paint:butterfly': 'A butterfly!',
-  'shoes:rainboots': 'Rain boots!',
-  'hat:flowers': 'Flowers!',
-  'nose:clown': 'A funny nose!',
-  'lips:glitter': 'Shiny lips!',
-  'hat:chef': 'A chef hat!',
-  'shadow:rainbow': 'Rainbow eyes!',
-  'eyes:sparkle': 'Sparkly eyes!',
-  'extra:wings': 'Wings!',
-  'bottom:tutu': 'A tutu!',
-  'blush:hearts': 'Heart cheeks!',
-  'hat:crown': 'A crown!',
-  'extra:cape': 'A cape!',
-  'top:stars': 'A star dress!',
-  'hat:wizard': 'A magic hat!',
-}
 
 /** The part and option a present holds. */
 export function rewardPart(r: Reward): { part: Part; option: string } {

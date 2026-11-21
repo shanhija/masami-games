@@ -3,9 +3,11 @@ import './closet.css'
 import { useEffect, useRef, useState } from 'react'
 
 import { INK } from '../../pia-jump/src/draw/look'
+import { inLang, type Lang, type Words } from '../../profiles/src/lang'
 import { Doll } from './Doll'
 import type { Act } from './draw/person'
-import { COLOURED, COLOURS, GROUPS, HAIR_COLOURS, OPTIONS, canWear, rewardOf, surprise, takesColour, withOption, type Group, type Look, type Part, type Reward } from './game/closet'
+import { COLOURED, COLOURS, GROUPS, HAIR_COLOURS, OPTIONS, canWear, rewardOf, surprise, takesColour, withOption, type Colour, type Group, type HairColour, type Look, type Part, type Reward } from './game/closet'
+import { CLOSET, COLOUR_NAMES, GROUP_NAMES, OPTION_NAMES, PART_NAMES } from './words'
 
 /** How long the person waves after a change, and dances after putting on a fresh present, in ms. */
 const WAVE_MS = 1500
@@ -23,9 +25,11 @@ function showcase(look: Look, part: Part): Look {
  * `fresh` are presents found since the closet last showed: they sparkle. onTap is the tap sound
  * for every pick, onLocked the "not yet" sound for a present still hidden in a level, onPlay
  * the big Play button. The person waits on a big stage at the left; at the right, four group
- * tabs, the open group's part tabs, the open part's options and its colours.
+ * tabs, the open group's part tabs, the open part's options and its colours, every one named
+ * in `lang`.
  */
-export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }: {
+export function Closet({ lang, look, found, fresh, onChange, onPlay, onTap, onLocked }: {
+  lang: Lang
   look: Look
   found: ReadonlySet<Reward>
   fresh: ReadonlySet<Reward>
@@ -40,6 +44,9 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
   // The locked tile tapped last, and a count that remounts it so its wobble plays again.
   const [wobble, setWobble] = useState({ option: '', n: 0 })
   const timer = useRef(0)
+  const say = (words: Words) => inLang(words, lang)
+  /** The name of `option` of `part`. */
+  const optionName = (p: Part, o: string) => say((OPTION_NAMES[p] as Record<string, Words>)[o]!)
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
   const isFresh = (p: Part, o: string) => {
@@ -63,12 +70,12 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
       <div className="closet-stage">
         <Doll look={look} act={act} animate zoom="all" className="closet-star" />
         <div className="closet-go">
-          <button className="closet-surprise" aria-label="Surprise me" onClick={() => put(surprise(found, (n) => Math.floor(Math.random() * n)), false)}>
+          <button className="closet-surprise" aria-label={say(CLOSET.surpriseMe)} onClick={() => put(surprise(found, (n) => Math.floor(Math.random() * n)), false)}>
             <Dice />
-            <span>Surprise me!</span>
+            <span>{say(CLOSET.surpriseMeShown)}</span>
           </button>
-          <button className="closet-play" aria-label="Play" onClick={onPlay}>
-            <span>Play!</span>
+          <button className="closet-play" aria-label={say(CLOSET.play)} onClick={onPlay}>
+            <span>{say(CLOSET.playShown)}</span>
           </button>
         </div>
       </div>
@@ -76,9 +83,9 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
         <div className="closet-groups">
           {GROUPS.map((g, i) => (
             <button
-              key={g.name}
+              key={g.id}
               className={cls('closet-group', i === group && 'open', g.parts.some((p) => partFresh(p)) && 'news')}
-              aria-label={g.name}
+              aria-label={say(GROUP_NAMES[g.id])}
               aria-pressed={i === group}
               onClick={() => {
                 onTap()
@@ -86,8 +93,8 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
                 setPart(g.parts[0])
               }}
             >
-              <GroupPicture name={g.name} />
-              <span>{g.name}</span>
+              <GroupPicture group={g.id} />
+              <span>{say(GROUP_NAMES[g.id])}</span>
             </button>
           ))}
         </div>
@@ -96,7 +103,7 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
             <button
               key={p}
               className={cls('closet-part', p === part && 'open', partFresh(p) && 'news')}
-              aria-label={p}
+              aria-label={say(PART_NAMES[p])}
               aria-pressed={p === part}
               onClick={() => {
                 onTap()
@@ -113,7 +120,7 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
               <button
                 key={o}
                 className={cls('closet-tile', look[part] === o && 'worn', isFresh(part, o) && 'fresh')}
-                aria-label={`${part} ${o}`}
+                aria-label={optionName(part, o)}
                 aria-pressed={look[part] === o}
                 onClick={() => put(withOption(look, part, o), isFresh(part, o))}
               >
@@ -123,7 +130,7 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
               <button
                 key={`${o}:${wobble.option === o ? wobble.n : 0}`}
                 className={cls('closet-tile', 'locked', wobble.option === o && 'wobble')}
-                aria-label="A present to find"
+                aria-label={say(CLOSET.presentToFind)}
                 onClick={() => {
                   onLocked()
                   setWobble((w) => ({ option: o, n: w.n + 1 }))
@@ -141,7 +148,7 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
                 key={name}
                 className={cls('closet-swatch', look[field] === name && 'worn')}
                 style={{ background: hex }}
-                aria-label={name}
+                aria-label={say(COLOUR_NAMES[name as Colour | HairColour])}
                 aria-pressed={look[field] === name}
                 onClick={() => put({ ...look, [field]: name }, false)}
               />
@@ -154,10 +161,10 @@ export function Closet({ look, found, fresh, onChange, onPlay, onTap, onLocked }
 }
 
 /** The pictures on the four group tabs: a face, a little person, a T-shirt, a lipstick. */
-function GroupPicture({ name }: { name: Group }) {
+function GroupPicture({ group }: { group: Group }) {
   const line = { stroke: INK, strokeWidth: 3, strokeLinejoin: 'round', strokeLinecap: 'round' } as const
-  switch (name) {
-    case 'Face':
+  switch (group) {
+    case 'face':
       return (
         <svg viewBox="0 0 48 48" aria-hidden>
           <circle cx="24" cy="26" r="17" fill="#F3C9A6" {...line} />
@@ -169,7 +176,7 @@ function GroupPicture({ name }: { name: Group }) {
           <path d="M19.5 35q4.5 4.5 9 0" fill="none" {...line} strokeWidth={2.6} />
         </svg>
       )
-    case 'Body':
+    case 'body':
       return (
         <svg viewBox="0 0 48 48" aria-hidden>
           <path d="M18 36v8M30 36v8M16 24l-6 9M32 24l6 9" fill="none" {...line} strokeWidth={8} />
@@ -178,13 +185,13 @@ function GroupPicture({ name }: { name: Group }) {
           <circle cx="24" cy="12" r="8.5" fill="#F3C9A6" {...line} />
         </svg>
       )
-    case 'Clothes':
+    case 'clothes':
       return (
         <svg viewBox="0 0 48 48" aria-hidden>
           <path d="M17 8 5.5 15l4.5 9.5 5-2.5v19h18V22l5 2.5 4.5-9.5L31 8c-1 4-3.5 6-7 6s-6-2-7-6z" fill="#F7C843" {...line} />
         </svg>
       )
-    case 'Makeup':
+    case 'makeup':
       return (
         <svg viewBox="0 0 48 48" aria-hidden>
           <rect x="14" y="28" width="18" height="16" rx="3" fill="#8B5CC9" {...line} />

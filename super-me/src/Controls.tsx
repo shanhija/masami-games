@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
 import { ChevronIcon } from '../../pia-jump/src/Icons'
+import { inLang, type Lang } from '../../profiles/src/lang'
 import { drawIcon } from './draw/blocks'
 import type { Game } from './game/game'
 import { Picture } from './Picture'
+import { HUD } from './words'
 
 /** Inside this share of the pad's width either side of its centre a thumb keeps the direction it had. */
 const DEAD = 0.12
@@ -16,9 +18,9 @@ const noMenu = (e: { preventDefault: () => void }) => e.preventDefault()
  * direction), the right half is the jump, held while any finger is on it. The build button
  * sits above the jump and shows the block it puts down. Everything is see-through outlines,
  * and lets go on pointerup, pointercancel, a lost capture, the window losing focus or the
- * page hiding.
+ * page hiding. The build button is named in `lang`.
  */
-export function Controls({ game }: { game: Game }) {
+export function Controls({ game, lang }: { game: Game; lang: Lang }) {
   const pad = useRef<HTMLDivElement>(null)
   const steerers = useRef<{ id: number; x: number }[]>([])
   const jumpers = useRef(new Set<number>())
@@ -118,7 +120,7 @@ export function Controls({ game }: { game: Game }) {
       <div className="zone leap" onPointerDown={jumpDown} onPointerUp={jumpUp} onPointerCancel={jumpUp} onLostPointerCapture={jumpUp} onContextMenu={noMenu} />
       <button
         className={`build${holding ? '' : ' empty'}${learn(game.used.build || !holding)}`}
-        aria-label="Build"
+        aria-label={inLang(HUD.build, lang)}
         onPointerDown={(e) => {
           if (e.button !== 0) return
           e.preventDefault()

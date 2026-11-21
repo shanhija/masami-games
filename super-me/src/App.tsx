@@ -13,7 +13,7 @@ function Play({ saves, lang }: { saves: Saves; lang: Lang }) {
   return (
     <>
       <Stage game={game} lang={lang} />
-      <Hud game={game} />
+      <Hud game={game} lang={lang} />
     </>
   )
 }
