@@ -1,0 +1,12 @@
+rakennustyömaakonepeli
+- 3d, tee hahmot itse
+- erilaisia koneita, joita voi ohjata ja käyttää
+- rekkoja, kaivureita, trukkeja, nostureita, yms. työmaakoneita. katujyrä jne
+- materiaalit liikkuu ja muuttuu työkoneiden ansiosta.
+- hiekkaa voi kaivaa ja nostaa kippiauton lavalle
+- puskutarktori työntää hiekkaa
+- kippiautoa pystyy ohjaamaan ja kippaamaan.
+- uusia tehtäviä tulee koko ajan
+- 4v lapselle, joten yksinkertaiset ohjaukset, mutta valintana hiiri ja näppäimistö, jos haluaa mutkikaampaa.
+- keksi tarinan kaari ja tavoite, pisteytykset jne.
+- käytä pienempiä llm-malleja, aina kun mahdollista.
