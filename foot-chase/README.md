@@ -25,6 +25,8 @@ What turns a chase around: the surprise crates. A crate is blue with a star for 
 
 It is golden hour in a toy town: a violet-to-orange sky with the sun going down behind a city skyline, windows coming on, a ferris wheel turning at the fair across the yards, tall dark trees behind the houses, street lamps already lit along the sidewalk and fireflies in the yards. Long warm shadows, a haze over the far town.
 
+It plays in the language of whoever is picked in the gallery, Finnish or English; it keeps nothing, so it only asks `playerLang()`. Every word is in `src/words.ts`, both languages side by side; a key is written in brackets there (`[W]`) and shown as a key cap, so each language keeps its own word order around it. What a runner shouts is an id from `shoutFor` (`game.ts`), which the HUD turns into words and colours.
+
 Vite, React, TypeScript, react-three-fiber and drei, vitest: the same scaffolding as [`chase/`](../chase/README.md), which is where the toon shading, the camera and the pure sim come from. The design brief is [`design.md`](design.md).
 
 ```
@@ -55,7 +57,7 @@ src/
     sim.test.ts   runs the sim for minutes with a player who hops everything and one who never
                   presses, in both seats; then every rule on its own on an empty street
     game.ts       the running game: sim + sounds + pause/restart + a version the HUD subscribes
-                  to; the two-player input hook
+                  to; each runner's shout as an id; the two-player input hook
     sounds.ts     every sound is synthesised (boing, bark, honk, whistle, the propeller's drone)
   scene/
     Stage.tsx     the one Canvas: frame driver, camera that frames both runners and shakes on a
@@ -70,7 +72,8 @@ src/
     Effects.tsx   dizzy stars, confetti, spilled coins, dust, sparkles
     Synced.tsx    one component per item in a sim list, keyed by id
     look.ts       the toon gradient and the palette
-  Hud.tsx         the words over the picture
+  Hud.tsx         the words over the picture, in the player's language
+  words.ts        every word of it in Finnish and English
 ```
 
 ## How it hangs together

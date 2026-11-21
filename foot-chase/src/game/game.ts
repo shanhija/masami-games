@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
 import { mulberry32 } from './random'
-import { ROLES, TURBO_BOLTS, TURBO_MAX, createSim, dogOn, flying, pressJump, resetSim, setThrottle, tick, type Item, type Role, type Runner, type Sim, type SimEvent } from './sim'
+import { ROLES, TURBO_BOLTS, TURBO_MAX, createSim, dogOn, flying, pressJump, resetSim, setThrottle, tick, type CrashKind, type Item, type Role, type Runner, type Sim, type SimEvent } from './sim'
 import { Sounds, type SoundKind } from './sounds'
 
 /**
@@ -116,30 +116,25 @@ function soundFor(e: SimEvent): SoundKind {
 /** The sprint tank in whole bolts, as the HUD shows it. */
 export const bolts = (r: Runner) => Math.min(TURBO_BOLTS, Math.floor((r.turbo / TURBO_MAX) * TURBO_BOLTS + 1e-6))
 
-const ITEM_SHOUT: Record<Item, string> = {
-  dog: 'POLICE DOG!',
-  skates: 'SKATES!',
-  whistle: 'STOP, POLICE!',
-  magnet: 'MAGNET!',
-  propeller: 'PROPELLER!',
-  banana: 'BANANA!',
-  springs: 'BOING BOING!',
-  bone: 'A BONE!',
-}
-
 /**
- * The word over this runner right now, or an empty string: what it just got out of a box,
- * what it just ran into, or the dog that just got hold of it. Each lasts a moment.
+ * What a runner shouts for a moment: the item it just got out of a box, the crash it just had
+ * (a bonk, a car's honk, a slip on a peel), the dog that just got hold of it, or the whistle's
+ * stop. The HUD has the words for each (words.ts).
  */
-export function shoutFor(s: Sim, role: Role): string {
+export type Shout = Item | 'bonk' | 'honk' | 'slip' | 'woof' | 'stop'
+
+const CRASH_SHOUT: Record<CrashKind, Shout> = { bonk: 'bonk', car: 'honk', banana: 'slip' }
+
+/** The shout over this runner right now, or null. Each lasts a moment. */
+export function shoutFor(s: Sim, role: Role): Shout | null {
   const r = s[role]
   const t = s.time
-  if (r.gotAt >= 0 && t - r.gotAt < 1.3) return ITEM_SHOUT[r.got!]
-  if (r.crashedAt >= 0 && t - r.crashedAt < 0.8) return r.crashKind === 'car' ? 'BEEP BEEP!' : r.crashKind === 'banana' ? 'WHOOPS!' : 'BONK!'
+  if (r.gotAt >= 0 && t - r.gotAt < 1.3) return r.got!
+  if (r.crashedAt >= 0 && t - r.crashedAt < 0.8) return CRASH_SHOUT[r.crashKind]
   const dog = dogOn(s, role)
-  if (dog && t - dog.latchedAt < 0.9) return 'WOOF!'
-  if (role === 'robber' && t < r.frozenUntil) return 'STOP!'
-  return ''
+  if (dog && t - dog.latchedAt < 0.9) return 'woof'
+  if (role === 'robber' && t < r.frozenUntil) return 'stop'
+  return null
 }
 
 /** Re-renders the caller when the HUD-visible state changes; returns the sim to read from. */
