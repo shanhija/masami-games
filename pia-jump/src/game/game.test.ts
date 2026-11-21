@@ -363,11 +363,11 @@ describe('shouts', () => {
   it('shouts on a stomp chain of 3 or more, a spring, a hit and the kitten, and on nothing else', () => {
     const at = { x: 0, y: 0 }
     expect(shoutFor({ kind: 'stomp', ...at, n: 2 })).toBeNull()
-    expect(shoutFor({ kind: 'stomp', ...at, n: 3 })).toBe('Wow!')
-    expect(shoutFor({ kind: 'spring', ...at, n: 0 })).toBe('Boing!')
-    expect(shoutFor({ kind: 'hurt', ...at, n: 0 })).toBe('Oops!')
-    expect(shoutFor({ kind: 'shrink', ...at, n: 0 })).toBe('Oops!')
-    expect(shoutFor({ kind: 'kitten', ...at, n: 0 })).toBe('Yay!')
+    expect(shoutFor({ kind: 'stomp', ...at, n: 3 })).toBe('wow')
+    expect(shoutFor({ kind: 'spring', ...at, n: 0 })).toBe('boing')
+    expect(shoutFor({ kind: 'hurt', ...at, n: 0 })).toBe('oops')
+    expect(shoutFor({ kind: 'shrink', ...at, n: 0 })).toBe('oops')
+    expect(shoutFor({ kind: 'kitten', ...at, n: 0 })).toBe('yay')
     expect(shoutFor({ kind: 'fall', ...at, n: 0 })).toBeNull()
     expect(HOME.say).toBe(1.5)
   })

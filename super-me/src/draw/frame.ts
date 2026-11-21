@@ -1,3 +1,4 @@
+import type { Lang } from '../../../profiles/src/lang'
 import { Camera } from '../../../pia-jump/src/draw/camera'
 import { COLOR, bubbleBall, groundShadow, pen, toPoint, toWorld, type Rim, type View } from '../../../pia-jump/src/draw/look'
 import { ROOM_LOOK, drawBackdrop, drawPits, drawTerrain } from '../../../pia-jump/src/draw/world'
@@ -80,6 +81,7 @@ export class Renderer {
   constructor(
     private ctx: CanvasRenderingContext2D,
     private makeCanvas: () => HTMLCanvasElement,
+    private lang: Lang,
   ) {}
 
   /** The canvas is now `width` by `height` device pixels: a new tile size, and a chunk pool to match. */
@@ -274,7 +276,7 @@ export class Renderer {
     g.beginPath()
     g.rect(k * CHUNK, 0, CHUNK, ROWS)
     g.clip()
-    drawTerrain(g, level, k * CHUNK - 1, k * CHUNK + CHUNK + 1)
+    drawTerrain(g, level, this.lang, k * CHUNK - 1, k * CHUNK + CHUNK + 1)
     g.restore()
     c.k = k
   }

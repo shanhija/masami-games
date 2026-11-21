@@ -8,6 +8,8 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import { LANGS, inLang, type Lang } from '../../../profiles/src/lang'
+import { BLOCK_WORDS, KITTEN_NAMES, ROOM_NAMES } from '../words'
 import { drive, solve, type BotPlan } from './bot'
 import { ROOMS } from './levels'
 import {
@@ -26,14 +28,14 @@ import {
   type EnemyKind,
   type EventKind,
   type Form,
-  type KittenName,
+  type Kitten,
   type LiftDef,
   type Room,
   type RoomDef,
   type RoomId,
   type Sim,
 } from './model'
-import { parseRoom, solidTile } from './room'
+import { isBlockLetter, parseRoom, solidTile } from './room'
 import { createSim, heroBox, pressBubble, pressJump, releaseBubble, releaseJump, setMove, step } from './sim'
 
 /** Seeded PRNG (mulberry32), copied from chase/src/game/random.ts: the fuzz plays the same hands every run. */
@@ -53,8 +55,7 @@ function mulberry32(seed: number) {
 
 /** What one room may ask of her, and what it brings. */
 interface Rules {
-  name: string
-  kitten: KittenName
+  kitten: Kitten
   /** The room's width in columns. */
   cols: readonly [number, number]
   /** The widest gap she must jump, the most its far side may be higher, and the tallest rise she must climb. */
@@ -73,11 +74,11 @@ interface Rules {
 }
 
 const RULES: Record<RoomId, Rules> = {
-  garden: { name: 'Garden', kitten: 'Sunny', cols: [110, 120], gap: 2, farUp: 1, rise: 2, group: 1, lifts: [], arcs: true, enemies: { grumble: 6 }, newKind: 'grumble' },
-  kitchen: { name: 'Kitchen', kitten: 'Coco', cols: [125, 135], gap: 2, farUp: 1, rise: 3, group: 2, lifts: [], arcs: true, enemies: { grumble: 8, snail: 4 }, newKind: 'snail' },
-  bath: { name: 'Bath', kitten: 'Mochi', cols: [135, 145], gap: 3, farUp: 2, rise: 3, group: 2, lifts: ['ferry'], arcs: false, enemies: { grumble: 6, snail: 3, bee: 5 }, newKind: 'bee' },
-  toys: { name: 'Toy Room', kitten: 'Lulu', cols: [145, 155], gap: 3, farUp: 2, rise: 3, group: 3, lifts: ['ferry', 'loop'], arcs: false, enemies: { grumble: 10, snail: 5, bee: 4 }, newKind: null },
-  roof: { name: 'Roof', kitten: 'Pepper', cols: [158, 170], gap: 3, farUp: 2, rise: 3, group: 3, lifts: ['ferry', 'loop'], arcs: false, enemies: { grumble: 10, snail: 4, bee: 5, boss: 1 }, newKind: null },
+  garden: { kitten: 'sunny', cols: [110, 120], gap: 2, farUp: 1, rise: 2, group: 1, lifts: [], arcs: true, enemies: { grumble: 6 }, newKind: 'grumble' },
+  kitchen: { kitten: 'coco', cols: [125, 135], gap: 2, farUp: 1, rise: 3, group: 2, lifts: [], arcs: true, enemies: { grumble: 8, snail: 4 }, newKind: 'snail' },
+  bath: { kitten: 'mochi', cols: [135, 145], gap: 3, farUp: 2, rise: 3, group: 2, lifts: ['ferry'], arcs: false, enemies: { grumble: 6, snail: 3, bee: 5 }, newKind: 'bee' },
+  toys: { kitten: 'lulu', cols: [145, 155], gap: 3, farUp: 2, rise: 3, group: 3, lifts: ['ferry', 'loop'], arcs: false, enemies: { grumble: 10, snail: 5, bee: 4 }, newKind: null },
+  roof: { kitten: 'pepper', cols: [158, 170], gap: 3, farUp: 2, rise: 3, group: 3, lifts: ['ferry', 'loop'], arcs: false, enemies: { grumble: 10, snail: 4, bee: 5, boss: 1 }, newKind: null },
 }
 
 /** Enemies at least this far apart are not a group. */
@@ -142,6 +143,9 @@ const SPRING_RISE = SPRING_V ** 2 / (2 * G_LOW)
 const FUZZ_SEEDS = [1, 2, 3]
 const FUZZ_SECONDS = 120
 
+/** A room's English name, for the tests' titles and messages. */
+const named = (def: RoomDef) => ROOM_NAMES[def.id].en
+
 /** The map around (row, col), with the row marked and a caret under the column. */
 function around(def: RoomDef, row: number, col: number): string {
   const c0 = Math.max(0, col - 12)
@@ -169,8 +173,8 @@ function lint(def: RoomDef): string[] {
   const spanned = (g: { col0: number; col1: number }) =>
     ferries.some((l) => Math.min(l.col, l.col + l.dx) <= g.col0 && Math.max(l.col, l.col + l.dx) + l.width >= g.col1)
 
-  // The map: names, length, rows 0 and 1 empty.
-  if (def.name !== rules.name || def.kitten !== rules.kitten) say(0, 0, `is named ${def.name} with ${def.kitten}, not ${rules.name} with ${rules.kitten}`)
+  // The map: its kitten, length, rows 0 and 1 empty.
+  if (def.kitten !== rules.kitten) say(0, 0, `has ${def.kitten}, not ${rules.kitten}`)
   if (cols < rules.cols[0] || cols > rules.cols[1]) say(0, cols - 1, `is ${cols} columns wide, not ${rules.cols[0]} to ${rules.cols[1]}`)
   for (const r of [0, 1]) for (let c = 0; c < cols; c++) if (glyph(c, r) !== '.') say(r, c, 'rows 0 and 1 are under the HUD: keep them empty')
 
@@ -339,6 +343,24 @@ function lint(def: RoomDef): string[] {
     }
   })
 
+  // The ABC blocks: every word they spell is in BLOCK_WORDS, as long in both languages, so they stand in the same places in both. `shown` is the map with the words as each language shows them.
+  const shown: Record<Lang, string[]> = { en: [...def.map], fi: [...def.map] }
+  for (let r = 0; r < ROWS; r++) {
+    const letters = Array.from({ length: cols }, (_, c) => room.letters[r * cols + c] || '.').join('')
+    for (const run of letters.matchAll(/[^.]+/g)) {
+      const words = BLOCK_WORDS[run[0]]
+      if (!words) {
+        say(r, run.index, `the blocks spell ${run[0]}, which BLOCK_WORDS in words.ts does not have`)
+        continue
+      }
+      for (const lang of LANGS) {
+        const word = inLang(words, lang)
+        if (word.length !== run[0].length) say(r, run.index, `${run[0]} is ${word} in ${lang}: write it as long in both languages`)
+        else shown[lang][r] = shown[lang][r]!.slice(0, run.index) + word + shown[lang][r]!.slice(run.index + word.length)
+      }
+    }
+  }
+
   // The ending: flat tiles, a short staircase of ABC blocks spelling the kitten, the pole, the bed on flat floor, floor after it.
   const pole = room.pole
   const base = pole.row + 1
@@ -356,9 +378,11 @@ function lint(def: RoomDef): string[] {
     top = Math.min(top, floor[c]!)
   }
   if (base - top > STAIRS_MAX) say(top, last, `a staircase ${base - top} high: keep it short, at most ${STAIRS_MAX}`)
-  const name = def.kitten.toUpperCase()
-  const rows = Array.from({ length: base - top }, (_, k) => def.map[top + k]!.slice(firstStep, last + 1))
-  if (!rows.some((line) => line.includes(name))) say(top, firstStep, `the staircase does not spell ${name}`)
+  for (const lang of LANGS) {
+    const name = inLang(KITTEN_NAMES[def.kitten], lang).toUpperCase()
+    const rows = Array.from({ length: base - top }, (_, k) => shown[lang][top + k]!.slice(firstStep, last + 1))
+    if (!rows.some((line) => line.includes(name))) say(top, firstStep, `the staircase does not spell ${name} in ${lang}`)
+  }
   for (let c = firstStep - FLAT_BEFORE_STAIRS; c < firstStep; c++) if (floor[c] !== base) say(base, c, `${FLAT_BEFORE_STAIRS} flat tiles before the staircase`)
   if (room.bed.col !== pole.col + BED_AFTER_POLE || room.bed.row !== pole.row) say(room.bed.row, room.bed.col, `the bed stands ${BED_AFTER_POLE} columns after the pole, on its floor`)
   if (cols < room.bed.col + FLOOR_AFTER_BED + 1) say(room.bed.row, room.bed.col, `${FLOOR_AFTER_BED} columns of floor after the bed`)
@@ -467,11 +491,18 @@ function lint(def: RoomDef): string[] {
 
 describe('the rooms', () => {
   it('are the five rooms in order, each with its kitten', () => {
-    expect(ROOMS.map((r) => [r.id, r.name, r.kitten])).toEqual(Object.entries(RULES).map(([id, r]) => [id, r.name, r.kitten]))
+    expect(ROOMS.map((r) => [r.id, r.kitten])).toEqual(Object.entries(RULES).map(([id, r]) => [id, r.kitten]))
+  })
+
+  it('take the letters of both languages on their ABC blocks', () => {
+    expect([...'AZÄÖ'].map(isBlockLetter)).toEqual([true, true, true, true])
+    expect([...'aÅ.#'].map(isBlockLetter)).toEqual([false, false, false, false])
+    const room = parseRoom({ ...ROOMS[0]!, map: ROOMS[0]!.map.map((line, r) => (r === 2 ? 'ÄÖ' + line.slice(2) : line)) })
+    expect(room.letters.slice(2 * room.cols, 2 * room.cols + 2)).toEqual(['Ä', 'Ö'])
   })
 
   for (const def of ROOMS) {
-    it(`the ${def.name} parses and follows every design rule`, () => {
+    it(`the ${named(def)} parses and follows every design rule`, () => {
       const problems = lint(def)
       expect(problems, `\n${problems.join('\n\n')}\n`).toEqual([])
     })
@@ -488,12 +519,12 @@ function stuck(def: RoomDef, plan: BotPlan): string {
   const c0 = Math.max(0, col - 6)
   const c1 = Math.min(def.map[0]!.length, col + 11)
   const lines = def.map.map((line, r) => `  ${String(r).padStart(2)} ${r === row ? line.slice(c0, col) + '@' + line.slice(col + 1, c1) : line.slice(c0, c1)}`)
-  return `the bot got stuck in the ${def.name} at column ${col} (${plan.expansions} decisions tried):\n${lines.join('\n')}`
+  return `the bot got stuck in the ${named(def)} at column ${col} (${plan.expansions} decisions tried):\n${lines.join('\n')}`
 }
 
 describe('the bot', () => {
   for (const def of ROOMS) {
-    it(`finishes the ${def.name} as small Pia with no hit and no fall, and its plan replays to the same tick`, () => {
+    it(`finishes the ${named(def)} as small Pia with no hit and no fall, and its plan replays to the same tick`, () => {
       const room = parseRoom(def)
       const plan = solve(room)
       expect(plan.ok, stuck(def, plan)).toBe(true)
@@ -521,7 +552,7 @@ describe('the bot', () => {
 
 describe('the third fall', () => {
   for (const def of ROOMS) {
-    it(`carries her across every gap in the ${def.name}`, () => {
+    it(`carries her across every gap in the ${named(def)}`, () => {
       const room = parseRoom(def)
       room.gaps.forEach((g, i) => {
         // Falling into the gap's middle with HELP_AFTER - 1 falls already counted there.
@@ -661,7 +692,7 @@ function fuzz(def: RoomDef, seed: number, seconds: number): FuzzStats {
 
 describe('a child at the controls', () => {
   ROOMS.forEach((def, i) => {
-    it(`keeps every promise in the ${def.name}: ${FUZZ_SEEDS.length} seeds of ${FUZZ_SECONDS} s of random hands`, () => {
+    it(`keeps every promise in the ${named(def)}: ${FUZZ_SEEDS.length} seeds of ${FUZZ_SECONDS} s of random hands`, () => {
       const runs = FUZZ_SEEDS.map((seed) => fuzz(def, seed * 10 + i, FUZZ_SECONDS))
       // The hands got into trouble, so the checks on falls and hits were really made.
       expect(runs.reduce((n, r) => n + r.falls, 0)).toBeGreaterThan(0)
@@ -727,7 +758,8 @@ describe('the lints', () => {
     ['a ferry lift: this room has none', edit(() => {}, [{ kind: 'ferry', col: gap.col0, row: 13, width: 2, dx: 0, dy: -3 }])],
     ['stars: about one per two columns', edit((m) => m.forEach((line) => line.forEach((ch, c) => ch === '*' && (line[c] = '.'))))],
     ['no arc of stars over it', edit((m) => m.forEach((line) => line.forEach((ch, c) => ch === '*' && c >= gap.col0 - 1 && c <= gap.col1 && (line[c] = '.'))))],
-    ['the staircase does not spell SUNNY', edit((m) => m.forEach((line) => line.forEach((ch, c) => ch === 'Y' && (line[c] = 'I'))))],
+    ['the staircase does not spell SUNNY in en', edit((m) => m.forEach((line) => line.forEach((ch, c) => ch === 'Y' && (line[c] = 'I'))))],
+    ['which BLOCK_WORDS in words.ts does not have', edit((m) => put(m, 12, 1, 'HI.'))],
     ['the bed stands 4 columns after the pole', edit((m) => (put(m, parsed.bed.row, parsed.bed.col, '.'), put(m, parsed.bed.row, parsed.bed.col + 1, 'h')))],
     ['the Big Grumble and its gate belong to the Roof', edit((m) => put(m, 12, quiet, 'k'))],
     ['flower pots one and two tall', edit((m) => swap(m, '|', '#'))],

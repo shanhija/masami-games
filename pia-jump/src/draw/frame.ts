@@ -1,3 +1,4 @@
+import type { Lang } from '../../../profiles/src/lang'
 import type { Frame, Game } from '../game/game'
 import { ROOMS } from '../game/levels'
 import { RISE_FOR, ROWS, RUN, STEP, STOMP_PAD, TILE, since, ticks, type Room, type Sim } from '../game/model'
@@ -134,7 +135,8 @@ function party(room: Room): Party {
 
 /**
  * Draws the game on one canvas. `makeCanvas` gives a fresh offscreen canvas for the chunk
- * pool (allocated on resize only); `debug` turns on the overlay.
+ * pool (allocated on resize only); `lang` is the player's, for the ABC blocks' words;
+ * `debug` turns on the overlay.
  */
 export class Renderer {
   private view: View = { width: 1, height: 1, tile: 1, left: 0, top: 0 }
@@ -172,6 +174,7 @@ export class Renderer {
   constructor(
     private ctx: CanvasRenderingContext2D,
     private makeCanvas: () => HTMLCanvasElement,
+    private lang: Lang,
     private debug: boolean,
   ) {}
 
@@ -455,7 +458,7 @@ export class Renderer {
     g.beginPath()
     g.rect(k * CHUNK, 0, CHUNK, ROWS)
     g.clip()
-    drawTerrain(g, room, k * CHUNK - 1, k * CHUNK + CHUNK + 1)
+    drawTerrain(g, room, this.lang, k * CHUNK - 1, k * CHUNK + CHUNK + 1)
     g.restore()
     c.k = k
   }

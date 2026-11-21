@@ -1,5 +1,7 @@
+import { inLang, type Lang } from '../../../profiles/src/lang'
 import { ROWS, TILE, type Gap, type Ground, type RoomId } from '../game/model'
 import { tileAt } from '../game/room'
+import { BLOCK_WORDS } from '../words'
 import { COLOR, INK, LINE, LINE_DETAIL, LINE_EDGE, SHADE_BLOCK, inkPart, lw, pen, roundRectPath, sparklePath, type View } from './look'
 
 /**
@@ -384,12 +386,12 @@ function bandPath(ctx: CanvasRenderingContext2D, x: number, y: number, dy: numbe
 }
 
 /**
- * The room's static tiles (ground, ABC blocks with their letters, columns, shelves) in
- * the columns [col0, col1), with the context in world units and the room's top-left at
- * the origin. It is baked into chunk canvases, so it draws only what never changes, and
- * nothing it draws for a cell reaches more than half a tile past that cell.
+ * The room's static tiles (ground, ABC blocks with their letters in `lang`, columns,
+ * shelves) in the columns [col0, col1), with the context in world units and the room's
+ * top-left at the origin. It is baked into chunk canvases, so it draws only what never
+ * changes, and nothing it draws for a cell reaches more than half a tile past that cell.
  */
-export function drawTerrain(ctx: CanvasRenderingContext2D, room: Ground, col0: number, col1: number): void {
+export function drawTerrain(ctx: CanvasRenderingContext2D, room: Ground, lang: Lang, col0: number, col1: number): void {
   const look = ROOM_LOOK[room.id]
   const from = Math.max(0, col0)
   const to = Math.min(room.cols, col1)
@@ -430,7 +432,7 @@ export function drawTerrain(ctx: CanvasRenderingContext2D, room: Ground, col0: n
   ctx.restore()
   if (ground.length > 0) drawGround(ctx, room, look, ground)
   for (const c of columns) COLUMN_ART[room.id](ctx, look, c)
-  if (abc.length > 0) drawAbc(ctx, room, abc)
+  if (abc.length > 0) drawAbc(ctx, room, lang, abc)
   for (const s of shelves) SHELF_ART[room.id](ctx, look, s)
   ctx.restore()
 }
@@ -589,8 +591,27 @@ const MARKS: Record<RoomId, (ctx: CanvasRenderingContext2D, look: RoomLook, grou
   },
 }
 
-/** ABC blocks: toy blocks in four colours, each with a white inset square and its letter, crisp in device pixels. */
-function drawAbc(ctx: CanvasRenderingContext2D, room: Ground, abc: readonly { col: number; row: number }[]) {
+/**
+ * The letter the ABC block at (col, row) shows in `lang`. The map writes each run of blocks
+ * in a row as a word's id, and BLOCK_WORDS (words.ts) has the word in both languages, as
+ * long as the run. Throws on a run it does not have, or a word of another length.
+ */
+export function blockLetter(room: Ground, col: number, row: number, lang: Lang): string {
+  const at = (c: number) => room.letters[row * room.cols + c]!
+  let c0 = col
+  while (c0 > 0 && at(c0 - 1) !== '') c0 -= 1
+  let c1 = col + 1
+  while (c1 < room.cols && at(c1) !== '') c1 += 1
+  const id = Array.from({ length: c1 - c0 }, (_, k) => at(c0 + k)).join('')
+  const words = BLOCK_WORDS[id]
+  if (!words) throw new Error(`room ${room.id}, row ${row}, column ${c0}: the blocks spell ${id}, which BLOCK_WORDS in words.ts does not have`)
+  const word = inLang(words, lang)
+  if (word.length !== id.length) throw new Error(`BLOCK_WORDS in words.ts: ${id} is ${word} in ${lang}, not ${id.length} letters long`)
+  return word[col - c0]!
+}
+
+/** ABC blocks: toy blocks in four colours, each with a white inset square and its letter in `lang`, crisp in device pixels. */
+function drawAbc(ctx: CanvasRenderingContext2D, room: Ground, lang: Lang, abc: readonly { col: number; row: number }[]) {
   for (const a of abc) {
     const [lit, shade] = ABC_FACES[(a.col + a.row) % ABC_FACES.length]
     inkPart(ctx, (k) => roundRectPath(k, a.col, a.row, 1, 1, ABC_R), lit, shade, SHADE_BLOCK, LINE, null)
@@ -614,8 +635,9 @@ function drawAbc(ctx: CanvasRenderingContext2D, room: Ground, abc: readonly { co
   ctx.strokeStyle = INK
   ctx.fillStyle = '#FFFFFF'
   for (const a of abc) {
-    const letter = room.letters[a.row * room.cols + a.col]
-    const box = ctx.measureText(letter)
+    const letter = blockLetter(room, a.col, a.row, lang)
+    // Centred on the letter without its dots, so Ä and Ö stand where A and O do and their dots rise above.
+    const box = ctx.measureText(letter.normalize('NFD')[0]!)
     const cx = a.col + 0.5
     const cy = a.row + 0.5
     ctx.setTransform(1, 0, 0, 1, Math.round(m.a * cx + m.c * cy + m.e), Math.round(m.b * cx + m.d * cy + m.f))

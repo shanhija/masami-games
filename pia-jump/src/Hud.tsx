@@ -1,12 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 
+import { DIRECTORY } from '../../profiles/src/directory'
+import { inLang, type Lang, type Words } from '../../profiles/src/lang'
 import { Controls } from './Controls'
 import { ROOM_LOOK } from './draw/world'
-import { HOME, homeTimes, toggleFullscreen, useGameView, type Game, type Homecoming, type Shout } from './game/game'
+import { HOME, homeTimes, toggleFullscreen, useGameView, type Game, type Homecoming } from './game/game'
 import { ROOMS } from './game/levels'
 import { HOLD_FOR } from './game/sounds'
 import { BackIcon, FullScreenIcon, HouseIcon, MusicIcon, PadlockIcon, PauseIcon, PlayIcon, RestartIcon, SoundIcon } from './Icons'
 import { Portrait, type Picture } from './Portrait'
+import { HUD, KITTEN_NAMES, ROOM_NAMES, SHOUTS, YOU_FOUND } from './words'
 
 const STAR: Picture = { kind: 'star' }
 /** A press on a locked card shorter than this is a tap, answered with a "nuh-uh" and a shake. */
@@ -14,7 +17,6 @@ const TAP_FOR = 0.3
 /** The ring around a holding finger: its radius in CSS px, and its length. */
 const RING_R = 46
 const RING_LENGTH = 2 * Math.PI * RING_R
-const SHOUT_CLASS: Record<Shout, string> = { 'Wow!': 'wow', 'Boing!': 'boing', 'Oops!': 'oops', 'Yay!': 'yay' }
 
 const noFocus = (e: { preventDefault: () => void }) => e.preventDefault()
 
@@ -167,7 +169,8 @@ function Flights({ home, from, to, onLand }: { home: Homecoming; from: () => HTM
 }
 
 /** The start screen: the title, the five room cards, the star jar, the parent's buttons, and the homecoming when a kitten has just been found. */
-function RoomsScreen({ game, keyboard }: { game: Game; keyboard: boolean }) {
+function RoomsScreen({ game, lang, keyboard }: { game: Game; lang: Lang; keyboard: boolean }) {
+  const say = (words: Words) => inLang(words, lang)
   const hold = useHold(game)
   const home = game.homecoming
   const next = game.nextRoom()
@@ -183,16 +186,17 @@ function RoomsScreen({ game, keyboard }: { game: Game; keyboard: boolean }) {
         {/* "You found Sunny!" takes the title's place for a moment, so the cards stay in view. */}
         {home && game.saying ? (
           <h1 className="title say" key={`say${home.at}`}>
-            You found {ROOMS[home.index]!.kitten}!
+            {say(YOU_FOUND[ROOMS[home.index]!.kitten])}
           </h1>
         ) : (
-          <h1 className="title">Pia Jump</h1>
+          <h1 className="title">{say(DIRECTORY['pia-jump'].name)}</h1>
         )}
         <div className="cards">
           {ROOMS.map((r, i) => {
             const open = game.isOpen(i)
             const opening = home !== null && home.opened === i
             const found = game.save.found.includes(r.id)
+            const name = say(ROOM_NAMES[r.id])
             const cls = ['room', (!open || opening) && 'locked', opening && 'opening', i === next && 'next', keyboard && i === game.highlight && 'lit', home !== null && home.index === i && 'home']
             const style = { '--card': ROOM_LOOK[r.id].card, '--open-at': `${times.padlockAt}s` } as CSSProperties
             const lockedTap = {
@@ -217,7 +221,7 @@ function RoomsScreen({ game, keyboard }: { game: Game; keyboard: boolean }) {
                 }}
                 type="button"
                 tabIndex={-1}
-                aria-label={r.name}
+                aria-label={name}
                 className={cls.filter(Boolean).join(' ')}
                 style={style}
                 onMouseDown={noFocus}
@@ -226,8 +230,10 @@ function RoomsScreen({ game, keyboard }: { game: Game; keyboard: boolean }) {
               >
                 {/* The button stays still for the finger; the face inside it breathes and shakes. */}
                 <span className="face">
-                  <span className="name">{r.name}</span>
-                  <Portrait picture={found ? { kind: 'kitten', name: r.kitten, pose: 'sit' } : { kind: 'bed', index: i }} animate={i === next} className="pic" />
+                  <span className="name" style={{ '--letters': name.length } as CSSProperties}>
+                    {name}
+                  </span>
+                  <Portrait picture={found ? { kind: 'kitten', kitten: r.kitten, pose: 'sit' } : { kind: 'bed', index: i }} animate={i === next} className="pic" />
                   <span className="best">
                     <Portrait picture={STAR} animate={false} className="star" />
                     {game.save.best[r.id]}
@@ -248,18 +254,18 @@ function RoomsScreen({ game, keyboard }: { game: Game; keyboard: boolean }) {
         <span className="count">{jarShown}</span>
       </div>
       <div className="corner">
-        <Btn className="round" label="Music" onTap={() => game.toggleMusic()}>
+        <Btn className="round" label={say(HUD.music)} onTap={() => game.toggleMusic()}>
           <MusicIcon on={game.save.music} />
         </Btn>
-        <Btn className="round" label="Sound" onTap={() => game.toggleSound()}>
+        <Btn className="round" label={say(HUD.sound)} onTap={() => game.toggleSound()}>
           <SoundIcon on={game.save.sound} />
         </Btn>
         {document.fullscreenEnabled && (
-          <Btn className="round" label="Full screen" onTap={toggleFullscreen}>
+          <Btn className="round" label={say(HUD.fullScreen)} onTap={toggleFullscreen}>
             <FullScreenIcon />
           </Btn>
         )}
-        <Btn className="round" label="More games" onTap={() => location.assign('../index.html')}>
+        <Btn className="round" label={say(HUD.moreGames)} onTap={() => location.assign('../index.html')}>
           <BackIcon />
         </Btn>
       </div>
@@ -275,7 +281,7 @@ function RoomsScreen({ game, keyboard }: { game: Game; keyboard: boolean }) {
         onPointerCancel={() => hold.end() >= 0 && game.holding(false)}
         onLostPointerCapture={() => hold.end() >= 0 && game.holding(false)}
       >
-        Hold to start fresh
+        {say(HUD.holdToStartFresh)}
       </button>
       {home && (
         <Flights
@@ -324,7 +330,8 @@ function Ribbon({ game }: { game: Game }) {
   )
 }
 
-function PauseMenu({ game }: { game: Game }) {
+function PauseMenu({ game, lang }: { game: Game; lang: Lang }) {
+  const say = (words: Words) => inLang(words, lang)
   const kitten = game.room.kitten
   return (
     <div
@@ -335,41 +342,41 @@ function PauseMenu({ game }: { game: Game }) {
     >
       <div className="card menu">
         <div className="top">
-          <h1>Paused</h1>
-          <Portrait picture={{ kind: 'kitten', name: kitten, pose: 'sit' }} animate={false} className="pic" />
+          <h1>{say(HUD.paused)}</h1>
+          <Portrait picture={{ kind: 'kitten', kitten, pose: 'sit' }} animate={false} className="pic" />
         </div>
-        <Btn className="primary" label="Keep going" onTap={() => game.resume()}>
+        <Btn className="primary" label={say(HUD.keepGoing)} onTap={() => game.resume()}>
           <PlayIcon />
-          Keep going
+          {say(HUD.keepGoing)}
         </Btn>
         <div className="pair">
-          <Btn className="secondary" label="Start again" onTap={() => game.restart()}>
+          <Btn className="secondary" label={say(HUD.startAgain)} onTap={() => game.restart()}>
             <RestartIcon />
-            Start again
+            {say(HUD.startAgain)}
           </Btn>
-          <Btn className="secondary" label="Rooms" onTap={() => game.toRooms()}>
+          <Btn className="secondary" label={say(HUD.rooms)} onTap={() => game.toRooms()}>
             <HouseIcon />
-            Rooms
+            {say(HUD.rooms)}
           </Btn>
         </div>
         <div className="row">
-          <Btn className={`small${game.save.music ? '' : ' off'}`} label="Music" onTap={() => game.toggleMusic()}>
+          <Btn className={`small${game.save.music ? '' : ' off'}`} label={say(HUD.music)} onTap={() => game.toggleMusic()}>
             <MusicIcon on={game.save.music} />
-            Music
+            {say(HUD.music)}
           </Btn>
-          <Btn className={`small${game.save.sound ? '' : ' off'}`} label="Sound" onTap={() => game.toggleSound()}>
+          <Btn className={`small${game.save.sound ? '' : ' off'}`} label={say(HUD.sound)} onTap={() => game.toggleSound()}>
             <SoundIcon on={game.save.sound} />
-            Sound
+            {say(HUD.sound)}
           </Btn>
           {document.fullscreenEnabled && (
-            <Btn className="small" label="Full screen" onTap={toggleFullscreen}>
+            <Btn className="small" label={say(HUD.fullScreen)} onTap={toggleFullscreen}>
               <FullScreenIcon />
-              Full screen
+              {say(HUD.fullScreen)}
             </Btn>
           )}
-          <Btn className="small" label="More games" onTap={() => location.assign('../index.html')}>
+          <Btn className="small" label={say(HUD.moreGames)} onTap={() => location.assign('../index.html')}>
             <BackIcon />
-            More games
+            {say(HUD.moreGames)}
           </Btn>
         </div>
       </div>
@@ -378,7 +385,7 @@ function PauseMenu({ game }: { game: Game }) {
 }
 
 /** In a room: the star counter, the ribbon, pause and sound, the shouts, the start card, the thumbs' controls and the pause menu. */
-function PlayScreen({ game, touch }: { game: Game; touch: boolean }) {
+function PlayScreen({ game, lang, touch }: { game: Game; lang: Lang; touch: boolean }) {
   const kitten = game.room.kitten
   const shout = game.shouting
   return (
@@ -391,38 +398,38 @@ function PlayScreen({ game, touch }: { game: Game; touch: boolean }) {
       </div>
       <Ribbon game={game} />
       <div className="corner">
-        <Btn className="round" label="Pause" onTap={() => game.pause()}>
+        <Btn className="round" label={inLang(HUD.pause, lang)} onTap={() => game.pause()}>
           <PauseIcon />
         </Btn>
-        <Btn className="round" label="Sound" onTap={() => game.toggleSound()}>
+        <Btn className="round" label={inLang(HUD.sound, lang)} onTap={() => game.toggleSound()}>
           <SoundIcon on={game.save.sound} />
         </Btn>
       </div>
       {shout && (
-        <div className={`shout ${SHOUT_CLASS[shout]}`} key={game.shout!.at}>
-          {shout}
+        <div className={`shout ${shout}`} key={game.shout!.at}>
+          {inLang(SHOUTS[shout], lang)}
         </div>
       )}
       {game.startCard && (
         <div className="card start">
-          <Portrait picture={{ kind: 'kitten', name: kitten, pose: 'sit' }} animate className="pic" />
-          <p>Find {kitten}!</p>
+          <Portrait picture={{ kind: 'kitten', kitten, pose: 'sit' }} animate className="pic" />
+          <p>{inLang(HUD.find(KITTEN_NAMES[kitten]), lang)}</p>
         </div>
       )}
       {touch && !game.paused && !game.ending && <Controls game={game} ghost={game.ghost} />}
-      {game.paused && <PauseMenu game={game} />}
+      {game.paused && <PauseMenu game={game} lang={lang} />}
     </>
   )
 }
 
 /** After the fifth kitten: the stage has the picnic, the HUD the words and every kitten dancing. */
-function PicnicScreen() {
+function PicnicScreen({ lang }: { lang: Lang }) {
   return (
     <div className="picnic">
-      <h1 className="words">You found them all!</h1>
+      <h1 className="words">{inLang(HUD.youFoundThemAll, lang)}</h1>
       <div className="kittens">
         {ROOMS.map((r) => (
-          <Portrait key={r.id} picture={{ kind: 'kitten', name: r.kitten, pose: 'dance' }} animate className="pic" />
+          <Portrait key={r.id} picture={{ kind: 'kitten', kitten: r.kitten, pose: 'dance' }} animate className="pic" />
         ))}
       </div>
     </div>
@@ -431,15 +438,16 @@ function PicnicScreen() {
 
 /**
  * Everything drawn in the DOM over the canvas: the room cards, the in-room HUD, the menus.
- * Few words and big; the rest is pictures from the game's own draw functions and icons.
+ * Few words and big, in the player's language; the rest is pictures from the game's own
+ * draw functions and icons.
  */
-export function Hud({ game }: { game: Game }) {
+export function Hud({ game, lang }: { game: Game; lang: Lang }) {
   useGameView(game)
   const touch = useTouchScreen()
   const keyboard = useKeyboardMode()
   return (
     <div className={`hud ${game.screen}`}>
-      {game.screen === 'rooms' ? <RoomsScreen game={game} keyboard={keyboard} /> : game.screen === 'play' ? <PlayScreen game={game} touch={touch} /> : <PicnicScreen />}
+      {game.screen === 'rooms' ? <RoomsScreen game={game} lang={lang} keyboard={keyboard} /> : game.screen === 'play' ? <PlayScreen game={game} lang={lang} touch={touch} /> : <PicnicScreen lang={lang} />}
     </div>
   )
 }

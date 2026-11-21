@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 
+import type { Lang } from '../../../profiles/src/lang'
 import { ROOMS } from '../game/levels'
 import { parseRoom } from '../game/room'
 import { pen } from './look'
@@ -17,7 +18,7 @@ const LABEL = 22
  * &t=<seconds> to freeze time (otherwise it animates), &px=<css px per tile> (default 80).
  * A dashed line marks each cell's feet line, where a standing thing's feet belong.
  */
-export function Sheet() {
+export function Sheet({ lang }: { lang: Lang }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -84,14 +85,14 @@ export function Sheet() {
         ctx.rect(p.x, p.y, w, h)
         ctx.clip()
         ctx.setTransform(px, 0, 0, px, p.x + w / 2, p.y + h - px * 0.5)
-        c.draw(ctx, room, t)
+        c.draw(ctx, room, t, lang)
         ctx.restore()
       })
       if (frozen === null) raf = requestAnimationFrame(frame)
     }
     raf = requestAnimationFrame(frame)
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [lang])
   // The game's page never scrolls (styles.css), so the sheet scrolls in a box of its own.
   return (
     <div style={{ position: 'fixed', inset: 0, overflow: 'auto' }}>

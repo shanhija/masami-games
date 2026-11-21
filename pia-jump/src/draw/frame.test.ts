@@ -61,8 +61,7 @@ function canvases() {
 /** A room with one of everything the rooms may not have yet: cookie blocks, gift boxes, a gate, a spring, a gap. */
 const TEST_ROOM = parseRoom({
   id: 'kitchen',
-  name: 'Test',
-  kitten: 'Coco',
+  kitten: 'coco',
   map: [
     ...Array.from({ length: 9 }, () => '.'.repeat(40)),
     '.....cccc.....x.....?$pr................',
@@ -187,7 +186,7 @@ describe('the renderer', { timeout: 30_000 }, () => {
     SIZES.forEach(([width, height, scale], size) => {
       const pool = canvases()
       const { ctx, depth } = fakeContext()
-      const r = new Renderer(ctx, pool.make, true)
+      const r = new Renderer(ctx, pool.make, 'fi', true)
       r.resize(width, height, scale)
       // A pool of ceil(viewCols / 8) + 2 canvases, all of one chunk's size.
       const tile = Math.floor(Math.min(height / ROWS, width / 20))
@@ -220,7 +219,7 @@ describe('the renderer', { timeout: 30_000 }, () => {
   it('bakes each chunk the camera passes about once, and at most one ahead of it a frame', () => {
     const room = ROOM_LIST[0]!
     const pool = canvases()
-    const r = new Renderer(fakeContext().ctx, pool.make, false)
+    const r = new Renderer(fakeContext().ctx, pool.make, 'en', false)
     r.resize(2146, 1491, 1.82)
     const sim = createSim(room)
     const game: Scene = { room, sim, generation: 1, screen: 'play', paused: false }
@@ -243,7 +242,7 @@ describe('the renderer', { timeout: 30_000 }, () => {
   it('draws nothing new while paused, until something changes', () => {
     const room = ROOM_LIST[0]!
     const { ctx, counts } = fakeContext()
-    const r = new Renderer(ctx, canvases().make, false)
+    const r = new Renderer(ctx, canvases().make, 'en', false)
     r.resize(1180, 820, 1)
     const game: Scene = { room, sim: createSim(room), generation: 1, screen: 'play', paused: false }
     const f: Frame = { steps: 0, alpha: 0, events: [] }

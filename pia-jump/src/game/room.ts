@@ -5,7 +5,8 @@ import { ROWS, TILE, type BlockDef, type Cell, type Gap, type Gift, type Ground,
  * strings of equal length, one character per tile:
  *
  *   .  air                          #  ground: the room's floor and earth
- *   A-Z  an ABC block showing that letter (so words read straight off the map)
+ *   A-Z, Ä, Ö  an ABC block: a run of them is a word, shown in the player's language
+ *         through BLOCK_WORDS in words.ts (so the map reads as its English)
  *   =  shelf: she jumps up through it and stands on it
  *   |  column: a flower pot, jar, bottle, crayon box or chimney, two wide
  *   c  cookie block: big Pia breaks it from below, small Pia bumps it
@@ -25,6 +26,9 @@ import { ROWS, TILE, type BlockDef, type Cell, type Gap, type Gift, type Ground,
 const GIFTS: Record<string, Gift> = { '?': 'star', $: 'stars', p: 'power', r: 'ball' }
 const ENEMIES: Record<string, Spawn['kind']> = { g: 'grumble', s: 'snail', b: 'bee', k: 'boss' }
 const TILES: Record<string, TileCode> = { '.': TILE.air, '#': TILE.ground, '=': TILE.shelf, '|': TILE.column }
+
+/** Whether a map's character is an ABC block's letter: A to Z, and the Finnish Ä and Ö. */
+export const isBlockLetter = (ch: string) => /^[A-ZÄÖ]$/.test(ch)
 
 /** Static tiles that stop everything from every side. A shelf only stops from above, and blocks are the sim's business. */
 export const solidTile = (code: number) => code === TILE.ground || code === TILE.abc || code === TILE.column
@@ -69,7 +73,7 @@ export function parseRoom(def: RoomDef): Room {
       const ch = line[col]!
       const i = row * cols + col
       if (ch in TILES) tiles[i] = TILES[ch]!
-      else if (ch >= 'A' && ch <= 'Z') {
+      else if (isBlockLetter(ch)) {
         tiles[i] = TILE.abc
         letters[i] = ch
       } else if (ch in GIFTS) {
@@ -101,7 +105,7 @@ export function parseRoom(def: RoomDef): Room {
     if (last && last.col1 === col) last.col1 = col + 1
     else gaps.push({ col0: col, col1: col + 1 })
   }
-  return { id: def.id, name: def.name, kitten: def.kitten, cols, tiles, letters, blocks, blockAt, stars, spawns, springs, lifts: def.lifts, start, pole, bed, floor, gaps }
+  return { id: def.id, kitten: def.kitten, cols, tiles, letters, blocks, blockAt, stars, spawns, springs, lifts: def.lifts, start, pole, bed, floor, gaps }
 }
 
 /** The static tile at (col, row): left and right of the room is ground (a wall), above and below is air. */

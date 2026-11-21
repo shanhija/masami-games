@@ -1,4 +1,4 @@
-import { BOSS_BOX, HZ, SHELL_PEEK, type Enemy, type EnemyKind, type EnemyState, type Form, type KittenName, type Room, type Sim } from '../game/model'
+import { BOSS_BOX, HZ, SHELL_PEEK, type Enemy, type EnemyKind, type EnemyState, type Form, type Kitten, type Room, type Sim } from '../game/model'
 import { createSim, heroBox } from '../game/sim'
 import { drawEnemy, drawKitten, type KittenPose } from './critters'
 import { drawHero, hugAt } from './hero'
@@ -8,7 +8,7 @@ import { drawBed, drawPole } from './things'
 import { ROOM_LOOK } from './world'
 
 const NIGHT: Rim = { colour: COLOR.nightRim, width: 0.05 }
-const KITTENS: readonly KittenName[] = ['Sunny', 'Coco', 'Mochi', 'Lulu', 'Pepper']
+const KITTENS: readonly Kitten[] = ['sunny', 'coco', 'mochi', 'lulu', 'pepper']
 
 /** Draws a character twice on a night room (or when asked): the moonlight rim first, then the character. */
 function lit(room: Room, night: boolean, draw: (rim: Rim) => void) {
@@ -155,7 +155,7 @@ function foe(label: string, kind: EnemyKind, state: EnemyState, hp: number, age:
 }
 
 /** A kitten in a pose, drawn at the sheet's time (or at `at(t)`). */
-function kitten(name: KittenName, pose: KittenPose, label: string, at: (t: number) => number, night: boolean): SheetCell {
+function kitten(name: Kitten, pose: KittenPose, label: string, at: (t: number) => number, night: boolean): SheetCell {
   return { label, w: 1.3, h: pose === 'hug' ? 1.9 : 1.5, draw: (ctx, room, t) => lit(room, night, (rim) => drawKitten(ctx, name, pose, at(t), rim)) }
 }
 
@@ -235,6 +235,6 @@ export const HERO_SHEET: readonly SheetCell[] = [
   foe('night: snail walk', 'snail', 'walk', 1, 1, 1.5, 1.7, true),
   foe('night: bee buzz', 'bee', 'walk', 1, 1, 1.3, 1.4, true),
   foe('night: boss 1 walk', 'boss', 'walk', 1, 1, 2, 2.6, true),
-  kitten('Pepper', 'sit', 'night: Pepper sit', now, true),
-  kitten('Mochi', 'dance', 'night: Mochi dance', now, true),
+  kitten('pepper', 'sit', 'night: pepper sit', now, true),
+  kitten('mochi', 'dance', 'night: mochi dance', now, true),
 ]

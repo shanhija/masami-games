@@ -1,3 +1,4 @@
+import type { Lang } from '../../../profiles/src/lang'
 import { BALL_BOUNCE, BUBBLE_R, BUMP_FOR, POLE_HEIGHT, ROWS, STEP, type BlockDef, type Item, type ItemKind, type Room, type RoomId, type Sim } from '../game/model'
 import { parseRoom } from '../game/room'
 import { createSim } from '../game/sim'
@@ -24,7 +25,7 @@ const SWATCH_MAP = [
   '............?c$pr.......x...',
   '..===...................x...',
   '..........||............x...',
-  'CAT......#||..@.....!...x.h.',
+  'SUN......#||..@.....!...x.h.',
   '####..######################',
   '####..######################',
 ]
@@ -43,21 +44,21 @@ const swatches = new Map<RoomId, Room>()
 function swatch(room: Room): Room {
   const known = swatches.get(room.id)
   if (known) return known
-  const parsed = parseRoom({ id: room.id, name: room.name, kitten: room.kitten, map: SWATCH_MAP, lifts: [] })
+  const parsed = parseRoom({ id: room.id, kitten: room.kitten, map: SWATCH_MAP, lifts: [] })
   swatches.set(room.id, parsed)
   return parsed
 }
 
-/** A cell drawn by `draw` at sheet time t, with the swatch room and a fresh sim of it; the context comes back as it was. */
-function cell(label: string, w: number, h: number, draw: (ctx: CanvasRenderingContext2D, t: number, room: Room, s: Sim) => void): SheetCell {
+/** A cell drawn by `draw` at sheet time t, with the swatch room, a fresh sim of it and the player's language; the context comes back as it was. */
+function cell(label: string, w: number, h: number, draw: (ctx: CanvasRenderingContext2D, t: number, room: Room, s: Sim, lang: Lang) => void): SheetCell {
   return {
     label,
     w,
     h,
-    draw: (ctx, room, t) => {
+    draw: (ctx, room, t, lang) => {
       const r = swatch(room)
       ctx.save()
-      draw(ctx, t, r, createSim(r))
+      draw(ctx, t, r, createSim(r), lang)
       ctx.restore()
     },
   }
@@ -154,7 +155,7 @@ export const WORLD_SHEET: readonly SheetCell[] = [
     }),
   ),
   cell('picnic', 7.6, 4.4, (ctx, t) => drawPicnic(ctx, t)),
-  cell('terrain', SWATCH_W, SWATCH_H, (ctx, t, r) => {
+  cell('terrain', SWATCH_W, SWATCH_H, (ctx, t, r, _, lang) => {
     // The backdrop behind it at the same scale, as the stage draws it.
     const m = ctx.getTransform()
     const px = m.a
@@ -164,7 +165,7 @@ export const WORLD_SHEET: readonly SheetCell[] = [
     ctx.restore()
     ctx.translate(-SWATCH_W / 2, 0.5 - ROWS)
     drawPits(ctx, r, 0, SWATCH_W, t)
-    drawTerrain(ctx, r, 0, SWATCH_W)
+    drawTerrain(ctx, r, lang, 0, SWATCH_W)
   }),
   cell('backdrop', 12, 4.5, (ctx, t, r) => {
     // The whole room's height in the strip, scrolled into the room a little.

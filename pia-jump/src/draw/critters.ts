@@ -1,4 +1,4 @@
-import { BEE_BOX, BOSS_BOX, GRUMBLE_BOX, POOF_FOR, SHELL_BOX, SHELL_PEEK, SHELL_WAKE, SNAIL_BOX, YAWN_FOR, since, type Enemy, type KittenName } from '../game/model'
+import { BEE_BOX, BOSS_BOX, GRUMBLE_BOX, POOF_FOR, SHELL_BOX, SHELL_PEEK, SHELL_WAKE, SNAIL_BOX, YAWN_FOR, since, type Enemy, type Kitten } from '../game/model'
 import { INK, LINE, LINE_DETAIL, blob, bubbleBall, inkPart, lw, pen, type Rim } from './look'
 import { DEG, TAU, arch, clamp01, flatPart, ink, lidPath, mix, smooth, spiralPath, tube, wavePath, zeePath } from './parts'
 
@@ -714,8 +714,8 @@ const ORANGE = '#FFA24C'
 const CHARCOAL = '#4A4458'
 
 /** Five plain kittens wearing nothing, told apart by their coats only. */
-const COATS: Record<KittenName, Coat> = {
-  Sunny: {
+const COATS: Record<Kitten, Coat> = {
+  sunny: {
     fur: '#FFB054',
     light: '#FFF1DC',
     ears: ['#FFB054', '#FFB054'],
@@ -728,7 +728,7 @@ const COATS: Record<KittenName, Coat> = {
     head: [],
     body: [[0, -0.12, 0.12, '#FFF1DC']],
   },
-  Coco: {
+  coco: {
     fur: '#A8735A',
     light: '#F5DCC8',
     ears: ['#7A4E3E', '#7A4E3E'],
@@ -741,7 +741,7 @@ const COATS: Record<KittenName, Coat> = {
     head: [],
     body: [[0, -0.12, 0.12, '#F5DCC8']],
   },
-  Mochi: {
+  mochi: {
     fur: WHITE,
     light: WHITE,
     ears: [GREY, WHITE],
@@ -754,7 +754,7 @@ const COATS: Record<KittenName, Coat> = {
     head: [[-0.19, -0.7, 0.13, GREY]],
     body: [[0.16, -0.26, 0.12, GREY]],
   },
-  Lulu: {
+  lulu: {
     fur: WHITE,
     light: WHITE,
     ears: [CHARCOAL, ORANGE],
@@ -773,7 +773,7 @@ const COATS: Record<KittenName, Coat> = {
       [0.19, -0.07, 0.09, CHARCOAL],
     ],
   },
-  Pepper: {
+  pepper: {
     fur: CHARCOAL,
     light: '#FFFFFF',
     ears: [CHARCOAL, CHARCOAL],
@@ -860,8 +860,8 @@ function kittenEar(ctx: CanvasRenderingContext2D, x: number, y: number, a: numbe
 }
 
 /** A kitten, told apart from the others only by its coat. */
-export function drawKitten(ctx: CanvasRenderingContext2D, name: KittenName, pose: KittenPose, t: number, rim: Rim): void {
-  const coat = COATS[name]
+export function drawKitten(ctx: CanvasRenderingContext2D, kitten: Kitten, pose: KittenPose, t: number, rim: Rim): void {
+  const coat = COATS[kitten]
   ctx.save()
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'

@@ -6,8 +6,9 @@
  */
 import { describe, expect, it } from 'vitest'
 
+import { LANGS } from '../../../profiles/src/lang'
 import { ROOMS } from '../game/levels'
-import { STEP, type EnemyState, type Form, type KittenName, type Phase, type Room, type Sim } from '../game/model'
+import { STEP, type EnemyState, type Form, type Kitten, type Phase, type Room, type Sim } from '../game/model'
 import { parseRoom } from '../game/room'
 import { createSim, heroBox } from '../game/sim'
 import { drawEnemy, drawKitten, type KittenPose } from './critters'
@@ -139,7 +140,7 @@ const RIMS: Rim[] = [null, { colour: COLOR.nightRim, width: 0.05 }]
 const FORMS: Form[] = ['small', 'big', 'bubble']
 const PHASES: Phase[] = ['play', 'freeze', 'rescue', 'pole', 'walk', 'found', 'done']
 const ENEMY_STATES: EnemyState[] = ['asleep', 'yawn', 'walk', 'shell', 'slide', 'poof', 'knocked', 'trapped', 'dizzy', 'bunny', 'gone']
-const KITTENS: KittenName[] = ['Sunny', 'Coco', 'Mochi', 'Lulu', 'Pepper']
+const KITTENS: Kitten[] = ['sunny', 'coco', 'mochi', 'lulu', 'pepper']
 const POSES: KittenPose[] = ['hidden', 'sit', 'hop', 'hug', 'dance']
 
 /** A sim five seconds into a visit, so stamps can be fresh (a few ticks ago) or stale. */
@@ -259,8 +260,10 @@ describe('every draw function on a fake context', { timeout: 30_000 }, () => {
         pen.px = tile
         const v: View = { width: 1600, height: 1000, tile, left: 10.25, top: 20 }
         for (const t of TIMES) {
-          check(`${room.id} terrain at ${tile}`, () => drawTerrain(ctx, room, 0, room.cols), 'allowed')
-          check(`${room.id} terrain chunk at ${tile}`, () => drawTerrain(ctx, room, 8, 16), 'allowed')
+          for (const lang of LANGS) {
+            check(`${room.id} terrain in ${lang} at ${tile}`, () => drawTerrain(ctx, room, lang, 0, room.cols), 'allowed')
+            check(`${room.id} terrain chunk in ${lang} at ${tile}`, () => drawTerrain(ctx, room, lang, 8, 16), 'allowed')
+          }
           check(`${room.id} backdrop at ${tile}`, () => drawBackdrop(ctx, room, v, t), 'allowed')
           check(`${room.id} pits at ${tile}`, () => drawPits(ctx, room, 0, room.cols, t), 'none')
         }
@@ -270,6 +273,6 @@ describe('every draw function on a fake context', { timeout: 30_000 }, () => {
 
   it('every cell of both sprite sheets', () => {
     const { ctx, check } = fakeContext()
-    for (const room of ROOM_LIST) for (const c of [...HERO_SHEET, ...WORLD_SHEET]) for (const t of TIMES) check(`${room.id} sheet ${c.label}`, () => c.draw(ctx, room, t), 'allowed')
+    for (const room of ROOM_LIST) for (const c of [...HERO_SHEET, ...WORLD_SHEET]) for (const t of TIMES) for (const lang of LANGS) check(`${room.id} sheet ${c.label} in ${lang}`, () => c.draw(ctx, room, t, lang), 'allowed')
   })
 })

@@ -12,15 +12,17 @@ import { join } from './room'
  * Each room brings in one new thing, shows it alone, then with a twist, then with
  * something known, then gives a breather with stars, and ends on a few flat tiles, a short
  * staircase of ABC blocks spelling its kitten, the ribbon pole and the kitten's bed.
+ *
+ * The ABC blocks' words are written here in English; BLOCK_WORDS in words.ts has each in
+ * both languages, as long in Finnish as in English, so the blocks stand in the same places.
  */
 
 /** The Garden at sunrise: running, tap jumps, stars, grumbles, gift boxes, flower pots, a bench and two-tile gaps. */
 const GARDEN: RoomDef = {
   id: 'garden',
-  name: 'Garden',
-  kitten: 'Sunny',
+  kitten: 'sunny',
   map: join(
-    // Columns 0 to 17. Sunrise, and a HI on the way in. Run right for the stars; the first box gives the cupcake.
+    // Columns 0 to 17. Sunrise, and a HEY on the way in. Run right for the stars; the first box gives the cupcake.
     [
       '..................',
       '..................',
@@ -34,7 +36,7 @@ const GARDEN: RoomDef = {
       '.............p....',
       '..................',
       '..................',
-      '.HI....@.***...*.*',
+      '.HEY...@.***...*.*',
       '##################',
       '##################',
     ],
@@ -171,8 +173,7 @@ const GARDEN: RoomDef = {
 /** The Kitchen in the morning: holding the jump for the tall jars, snails and their shells, cookie blocks and the bubble wand. */
 const KITCHEN: RoomDef = {
   id: 'kitchen',
-  name: 'Kitchen',
-  kitten: 'Coco',
+  kitten: 'coco',
   map: join(
     // Columns 0 to 17. Morning on the worktop. The first box gives the cupcake.
     [
@@ -307,10 +308,9 @@ const KITCHEN: RoomDef = {
 /** The Bath at noon: bath-water pits, sponge ferries over wide water, bees and a many-stars box. */
 const BATH: RoomDef = {
   id: 'bath',
-  name: 'Bath',
-  kitten: 'Mochi',
+  kitten: 'mochi',
   map: join(
-    // Columns 0 to 14. Noon in the bathroom, a TUB on the way in. The first box gives the cupcake.
+    // Columns 0 to 14. Noon in the bathroom, a BATH on the way in. The first box gives the cupcake.
     [
       '...............',
       '...............',
@@ -324,7 +324,7 @@ const BATH: RoomDef = {
       '............p..',
       '...............',
       '...............',
-      '.TUB...@.***..*',
+      'BATH...@.***..*',
       '###############',
       '###############',
     ],
@@ -466,8 +466,7 @@ const BATH: RoomDef = {
 /** The Toy Room in the afternoon: springs to high shelves, lifts that move by themselves, the rainbow ball, shell bowling and three-tile gaps. */
 const TOYS: RoomDef = {
   id: 'toys',
-  name: 'Toy Room',
-  kitten: 'Lulu',
+  kitten: 'lulu',
   map: join(
     // Columns 0 to 15. Afternoon among the toys, FUN on the way in. The first box gives the cupcake.
     [
@@ -623,8 +622,7 @@ const TOYS: RoomDef = {
 /** The Roof at night: a gentler remix of everything, then the Big Grumble in its arena behind a gate. */
 const ROOF: RoomDef = {
   id: 'roof',
-  name: 'Roof',
-  kitten: 'Pepper',
+  kitten: 'pepper',
   map: join(
     // Columns 0 to 18. Night on the roof, under the MOON. The first box gives the cupcake.
     [

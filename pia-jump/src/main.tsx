@@ -11,5 +11,5 @@ import { App } from './App'
 const entry = enterGame('pia-jump')
 if (entry !== null) {
   startPage('pia-jump', entry.lang)
-  createRoot(document.getElementById('root')!).render(<App saves={entry.saves} />)
+  createRoot(document.getElementById('root')!).render(<App saves={entry.saves} lang={entry.lang} />)
 }

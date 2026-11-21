@@ -94,13 +94,13 @@ function flatRoom(cols: number, marks: readonly Mark[] = [], lifts: readonly Lif
   write(12, cols - 6, '!')
   write(12, cols - 3, 'h')
   for (const [r, c, text] of marks) write(r, c, text)
-  return parseRoom({ id: 'garden', name: 'Test', kitten: 'Sunny', map: rows.map((r) => r.join('')), lifts })
+  return parseRoom({ id: 'garden', kitten: 'sunny', map: rows.map((r) => r.join('')), lifts })
 }
 
 /** A room from the bottom rows of a map; rows of air on top make it ROWS tall. */
 function mapRoom(lines: readonly string[], lifts: readonly LiftDef[] = []): Room {
   const air = Array.from({ length: ROWS - lines.length }, () => '.'.repeat(lines[0]!.length))
-  return parseRoom({ id: 'garden', name: 'Test', kitten: 'Sunny', map: [...air, ...lines], lifts })
+  return parseRoom({ id: 'garden', kitten: 'sunny', map: [...air, ...lines], lifts })
 }
 
 /** Steps n times, calling `before` ahead of each step (the test's hands on the controls). Returns the events of those steps, stamped with the tick each step ran at. */

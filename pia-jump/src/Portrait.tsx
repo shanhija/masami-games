@@ -5,11 +5,11 @@ import { drawHero } from './draw/hero'
 import { pen } from './draw/look'
 import { drawBed, drawStar } from './draw/things'
 import { roomAt } from './game/game'
-import type { KittenName, Sim } from './game/model'
+import type { Kitten, Sim } from './game/model'
 import { createSim } from './game/sim'
 
 /** What a portrait shows: the collectible star, a kitten in a pose, room `index`'s bed with its kitten's eyes in the doorway, or Pia's head. */
-export type Picture = { kind: 'star' } | { kind: 'kitten'; name: KittenName; pose: KittenPose } | { kind: 'bed'; index: number } | { kind: 'head' }
+export type Picture = { kind: 'star' } | { kind: 'kitten'; kitten: Kitten; pose: KittenPose } | { kind: 'bed'; index: number } | { kind: 'head' }
 
 /** The world box each picture is fitted into, centred: [centre x, centre y, width, height] in tiles, origin at the thing's feet. */
 const BOX: Record<Picture['kind'], readonly [number, number, number, number]> = {
@@ -34,7 +34,7 @@ function drawPicture(ctx: CanvasRenderingContext2D, p: Picture, t: number) {
       drawStar(ctx, t, 0)
       return
     case 'kitten':
-      drawKitten(ctx, p.name, p.pose, t, null)
+      drawKitten(ctx, p.kitten, p.pose, t, null)
       return
     case 'bed': {
       const room = roomAt(p.index)

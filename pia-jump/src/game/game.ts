@@ -28,8 +28,8 @@ export interface Frame {
 export type Source = 'keys' | 'touch'
 const SOURCES: readonly Source[] = ['keys', 'touch']
 
-/** The words that pop up on a moment, and nothing else. */
-export type Shout = 'Wow!' | 'Boing!' | 'Oops!' | 'Yay!'
+/** What pops up on a moment, and nothing else: its words are in words.ts, its colour in the HUD's styles. */
+export type Shout = 'wow' | 'boing' | 'oops' | 'yay'
 
 /** At most this much real time a frame, so a stall never fast-forwards the room; 12 steps at 120 Hz. */
 const MAX_FRAME = 0.1
@@ -140,18 +140,18 @@ function placeHero(s: Sim, room: Room, col: number | null, form: Form | null) {
   }
 }
 
-/** The word a moment shouts, if it shouts one: a stomp chain of 3 or more, a spring, a hit, the kitten. */
+/** What a moment shouts, if it shouts: a stomp chain of 3 or more, a spring, a hit, the kitten. */
 export function shoutFor(e: SimEvent): Shout | null {
   switch (e.kind) {
     case 'stomp':
-      return e.n >= 3 ? 'Wow!' : null
+      return e.n >= 3 ? 'wow' : null
     case 'spring':
-      return 'Boing!'
+      return 'boing'
     case 'hurt':
     case 'shrink':
-      return 'Oops!'
+      return 'oops'
     case 'kitten':
-      return 'Yay!'
+      return 'yay'
     default:
       return null
   }

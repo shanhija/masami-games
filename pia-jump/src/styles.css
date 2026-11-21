@@ -209,7 +209,8 @@ body,
 
 .room .name {
   color: #fff;
-  font-size: calc(var(--w) * 0.15);
+  /* A long name ("Leikkihuone", 11 letters) shrinks a little to keep inside its card. */
+  font-size: calc(var(--w) * min(0.15, 1.45 / var(--letters)));
   line-height: 1;
   white-space: nowrap;
   -webkit-text-stroke: 5px var(--ink);
@@ -696,7 +697,8 @@ body,
 
 /* ------------------------------------------------------------------ a bad URL switch */
 
-.oops {
+/* Only the message's <pre>: the "Oops!" shout is a div with the class oops too. */
+pre.oops {
   position: fixed;
   inset: 0;
   margin: 0;

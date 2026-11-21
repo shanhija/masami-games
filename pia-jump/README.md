@@ -2,6 +2,8 @@
 
 A platformer that plays like Super Mario, for a five-year-old, drawn in true 2D on the browser's canvas. Pia, a girl with a pink cat-ear headband, runs and jumps through five rooms of an ordinary house over one day, from the Garden at sunrise to the Roof at night, to find a kitten asleep in its bed at the end of each. She stomps grumbles, kicks snail shells, bumps gift boxes from below, eats a cupcake to grow big, blows bubbles with a wand and bounces off springs. After the fifth kitten everyone has a picnic under the moon.
 
+It plays in the player's language, Finnish or English, picked by the flag in their profile: every word is in [`src/words.ts`](src/words.ts), both languages side by side. The kittens' names are the same in both.
+
 Nothing punishes. There are no lives, no timer and no game over, and the star count only goes up. A hit takes one form away (bubble Pia to big, big to small) or makes small Pia dizzy for half a second; a fall into a hole is a bubble ride back to safe ground, and the third fall into the same hole carries her across it. Kicked shells never hurt her, and the Big Grumble at the end never hurts her either: it only pushes her back.
 
 The brief is [`design.md`](design.md); the decisions and what is left are in [`plans/pia-jump.md`](../plans/pia-jump.md). It shares only the repo's tech with the other games: the one Vite + React project at the repo root, a pure numeric sim under vitest, synthesised sounds and a DOM HUD. It draws on the plain canvas 2D context with its own sim instead of a game engine, so a bot can clone and step the whole game thousands of times a second to prove every room can be finished.
@@ -42,7 +44,9 @@ npm run build                  # typecheck + static build of every game in dist/
 | Toy Room | afternoon | Lulu | springs up to high shelves, swings, the rainbow ball, shell bowling, 3-tile gaps | 150 |
 | Roof | night | Pepper | a remix of everything, then the Big Grumble: three stomps (or bubbles) and it hops away as a bunny and the gate sinks | 170 |
 
-Every room starts with Pia small and a cupcake in its first box, and ends on a staircase of ABC blocks that spells its kitten, the ribbon pole and the kitten's bed. Enemies sleep until she comes within 13 tiles, and yawn before they move.
+Every room starts with Pia small and a cupcake in its first box, and ends on a staircase of ABC blocks that spells its kitten, the ribbon pole and the kitten's bed.
+
+The ABC blocks spell a word near the start of each room, in the player's language: HEY or HEI and SUN or PUU in the Garden, YUM or NAM in the Kitchen, BATH or AMME in the Bath, FUN or ILO in the Toy Room, MOON or ILTA on the Roof. The blocks are tiles she stands on, so each word is as long in Finnish as in English. Enemies sleep until she comes within 13 tiles, and yawn before they move.
 
 The rooms open one by one: a room is open once the kitten of the room before it is found. The rooms screen shows each room's card (its bed with eyes in the doorway, or the kitten once found), the best stars for that room, and the star jar with every star ever found. Finishing a room brings the kitten home to its card and counts the stars into the jar.
 
@@ -85,7 +89,7 @@ So from a standstill at the edge she clears a 1.7-tile gap with a tap and 3.3 wi
 
 ## Adding or changing a room
 
-1. The rooms are in [`src/game/levels.ts`](src/game/levels.ts). A room is 15 rows of text, written a screen at a time with `join(...)`, one character per tile. The legend is at the top of [`src/game/room.ts`](src/game/room.ts): `#` ground, `=` shelf, `|` column, capitals are ABC blocks, `c` cookie block, `?` `$` `p` `r` gift boxes, `x` gate, `*` star, `^` spring, `@` start, `!` the pole, `h` the bed, `g` `s` `b` `k` enemies. Lifts are listed beside the map.
+1. The rooms are in [`src/game/levels.ts`](src/game/levels.ts). A room is 15 rows of text, written a screen at a time with `join(...)`, one character per tile. The legend is at the top of [`src/game/room.ts`](src/game/room.ts): `#` ground, `=` shelf, `|` column, capitals (A to Z, Ä and Ö) are ABC blocks, `c` cookie block, `?` `$` `p` `r` gift boxes, `x` gate, `*` star, `^` spring, `@` start, `!` the pole, `h` the bed, `g` `s` `b` `k` enemies. Lifts are listed beside the map. A run of ABC blocks is a word, written in English: `BLOCK_WORDS` in [`src/words.ts`](src/words.ts) needs it in both languages, each as long as the run (the lints say so if not).
 2. Run `npx vitest run pia-jump/src/game/levels.test.ts`. Its lints check the design rules (gap widths, run-ups and landings, rises, holes, headroom, box heights, where enemies may stand, bees and springs, the ending) and name the room, row and column with the map around it. Then the bot plays the room as small Pia with no hit and no fall; if it gets stuck, the test prints the map around the furthest column it reached.
 3. Look at it: `?room=<id>` and walk, `&x=<column>` to start near the change, `?autoplay` to watch the bot.
 
@@ -101,6 +105,7 @@ src/
                     homecoming, the picnic, the parent gate's ring
   Controls.tsx      the touch pad, the jump button and the bubble button
   Portrait.tsx      a small canvas showing a real draw function: the star, a kitten, a bed, Pia's head
+  words.ts          every word in Finnish and English: rooms, kittens, shouts, the HUD, the ABC blocks' words
   Icons.tsx         the ink-style SVG icons
   styles.css        the HUD's look
   game/

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 
+import type { Lang } from '../../../profiles/src/lang'
 import type { Game } from '../game/game'
 import { Renderer } from './frame'
 
@@ -11,11 +12,11 @@ const MAX_FRAME = 0.1
 const LETTERS = '700 48px "Fredoka Variable"'
 
 /** The one canvas and the one animation loop, as in Pia Jump: every frame sizes the canvas to the screen (within a pixel budget), advances the game once and draws it. */
-export function Stage({ game }: { game: Game }) {
+export function Stage({ game, lang }: { game: Game; lang: Lang }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const el = canvas.current!
-    const renderer = new Renderer(el.getContext('2d')!, () => document.createElement('canvas'))
+    const renderer = new Renderer(el.getContext('2d')!, () => document.createElement('canvas'), lang)
     let live = true
     void document.fonts.load(LETTERS).then(() => {
       if (live) renderer.invalidate()
@@ -57,6 +58,6 @@ export function Stage({ game }: { game: Game }) {
       document.removeEventListener('visibilitychange', visibility)
       renderer.dispose()
     }
-  }, [game])
+  }, [game, lang])
   return <canvas ref={canvas} className="stage" />
 }

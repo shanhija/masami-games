@@ -30,7 +30,8 @@ export const EPS = 1e-6
 export const MAX_STEP_MOVE = 0.25
 
 export type RoomId = 'garden' | 'kitchen' | 'bath' | 'toys' | 'roof'
-export type KittenName = 'Sunny' | 'Coco' | 'Mochi' | 'Lulu' | 'Pepper'
+/** The five kittens, by id: the key for each one's coat. Their names are in words.ts. */
+export type Kitten = 'sunny' | 'coco' | 'mochi' | 'lulu' | 'pepper'
 
 // ---------------------------------------------------------------------------------------
 // The room: parsed once from its map (room.ts), never changed by the sim.
@@ -76,10 +77,9 @@ export type LiftDef =
 
 /** A room as levels.ts writes it. The map legend is in room.ts. */
 export interface RoomDef {
+  /** Also the key of the room's name in words.ts. */
   id: RoomId
-  /** What the child sees on the room's card: "Garden". */
-  name: string
-  kitten: KittenName
+  kitten: Kitten
   map: readonly string[]
   lifts: readonly LiftDef[]
 }
@@ -92,12 +92,11 @@ export interface Gap {
 
 export interface Room {
   id: RoomId
-  name: string
-  kitten: KittenName
+  kitten: Kitten
   cols: number
   /** TILE codes, row-major: the tile (col, row) is tiles[row * cols + col]. */
   tiles: Uint8Array
-  /** The letter on each ABC block, by tile index; '' everywhere else. */
+  /** The letter on each ABC block as the map writes it, by tile index; '' everywhere else. A run of them is the id of a word in BLOCK_WORDS (words.ts), which the blocks show in the player's language. */
   letters: readonly string[]
   blocks: readonly BlockDef[]
   /** By tile index, the index into `blocks` of the block in that cell, or -1. */
