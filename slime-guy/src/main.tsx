@@ -12,5 +12,5 @@ import { App } from './App'
 const entry = enterGame('slime-guy')
 if (entry !== null) {
   startPage('slime-guy', entry.lang)
-  createRoot(document.getElementById('root')!).render(<App saves={entry.saves} />)
+  createRoot(document.getElementById('root')!).render(<App saves={entry.saves} lang={entry.lang} />)
 }

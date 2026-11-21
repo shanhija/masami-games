@@ -11,11 +11,9 @@
 
 import type { ItemId } from './closet'
 
-/** The five islands, in the order they open. */
+/** The five islands, in the order they open; their names are in words.ts. */
 export type CourseId = 'park' | 'beach' | 'candy' | 'winter' | 'night'
 export const COURSE_IDS: readonly CourseId[] = ['park', 'beach', 'candy', 'winter', 'night']
-/** What the ready card says over each course. */
-export const COURSE_NAMES: Record<CourseId, string> = { park: 'Park', beach: 'Beach', candy: 'Candy Land', winter: 'Snow Land', night: 'Star Night' }
 
 // ------------------------------------------------------------------ the slime
 

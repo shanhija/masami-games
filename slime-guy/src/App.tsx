@@ -1,5 +1,6 @@
 import { Component, useMemo, type ReactNode } from 'react'
 
+import type { Lang } from '../../profiles/src/lang'
 import type { Saves } from '../../profiles/src/profiles'
 
 import { Controls } from './Controls'
@@ -9,8 +10,8 @@ import { MapHud } from './MapHud'
 import { Stage } from './scene/Stage'
 import { Wardrobe } from './Wardrobe'
 
-/** The game: the one 3D stage, and over it each screen's HUD (each draws only on its own screen) and the touch buttons. */
-function SlimeGuy({ saves }: { saves: Saves }) {
+/** The game: the one 3D stage, and over it each screen's HUD (each draws only on its own screen) and the touch buttons, every word in the player's language. */
+function SlimeGuy({ saves, lang }: { saves: Saves; lang: Lang }) {
   const game = useMemo(() => new Game(saves), [saves])
   useGameInput(game)
   // A tuning visit (any URL switch) leaves the game on the window, for a look from the console and for headless screenshots.
@@ -18,10 +19,10 @@ function SlimeGuy({ saves }: { saves: Saves }) {
   return (
     <>
       <Stage game={game} />
-      <MapHud game={game} />
-      <Wardrobe game={game} />
-      <Hud game={game} />
-      <Controls game={game} />
+      <MapHud game={game} lang={lang} />
+      <Wardrobe game={game} lang={lang} />
+      <Hud game={game} lang={lang} />
+      <Controls game={game} lang={lang} />
     </>
   )
 }
@@ -39,10 +40,10 @@ class Oops extends Component<{ children: ReactNode }, { error: Error | null }> {
   }
 }
 
-export function App({ saves }: { saves: Saves }) {
+export function App({ saves, lang }: { saves: Saves; lang: Lang }) {
   return (
     <Oops>
-      <SlimeGuy saves={saves} />
+      <SlimeGuy saves={saves} lang={lang} />
     </Oops>
   )
 }

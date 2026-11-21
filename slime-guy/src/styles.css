@@ -795,9 +795,11 @@ body,
   animation: twinkle 0.7s ease-in-out infinite alternate;
 }
 
-/* The buttons come once the card has settled, so a tap meant for the box never lands on them. */
+/* The buttons come once the card has settled, so a tap meant for the box never lands on them. Where their words are too long for one row (Finnish on a phone), one goes under the other. */
 .play-hud .tally .buttons {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 3vmin;
   animation: calmIn 0.4s var(--calm) cubic-bezier(0.2, 1.6, 0.4, 1) both;
 }

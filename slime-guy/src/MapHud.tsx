@@ -2,17 +2,18 @@ import './map.css'
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 
+import { DIRECTORY } from '../../profiles/src/directory'
+import { inLang, type Lang, type Words } from '../../profiles/src/lang'
 import { COLOUR_IDS, PATTERNS, SLIME_COLOURS, type Pattern } from './game/closet'
 import { HOP_FOR, useGameView, type Game } from './game/game'
 import { lerp, smoothstep } from './game/math'
-import { COURSE_IDS, COURSE_NAMES } from './game/model'
+import { COURSE_IDS } from './game/model'
 import { JAR_SIZE, isOpen } from './game/progress'
 import { GamesGlyph, SoundGlyph } from './Hud'
 import { ArrowIcon, JarIcon, PatternIcon, SlimeIcon, WardrobeIcon } from './Icons'
 import { TapButton, cls } from './TapButton'
 import { wardrobeNews } from './Wardrobe'
-
-const TITLE = 'Slime Guy'
+import { COURSE_WORDS, WORDS } from './words'
 
 /**
  * The jar's pour, in seconds: it waits for the slime's hop to land, fills over LEG (to the
@@ -121,13 +122,15 @@ function jiggle(el: HTMLElement) {
  * something new waits in it) and the star jar bottom right with the patterns it has opened
  * as little swatches. The Go! button is the slime's own jelly colour.
  */
-export function MapHud({ game }: { game: Game }) {
+export function MapHud({ game, lang }: { game: Game; lang: Lang }) {
   useGameView(game)
   const open = game.screen === 'map'
   const jar = useJar(game, open)
   const news = wardrobeNews(game)
   if (!open) return null
 
+  const say = (words: Words) => inLang(words, lang)
+  const title = say(DIRECTORY['slime-guy'].name)
   const index = game.index
   const course = COURSE_IDS[index]
   const muted = game.audio.muted
@@ -140,8 +143,8 @@ export function MapHud({ game }: { game: Game }) {
   }
   return (
     <div className="map-hud" style={{ '--jelly': jelly.body, '--jelly-deep': jelly.deep, '--jelly-light': jelly.light } as CSSProperties}>
-      <h1 className="map-title" aria-label={TITLE}>
-        {[...TITLE].map((c, i) => (
+      <h1 className="map-title" aria-label={title}>
+        {[...title].map((c, i) => (
           <span key={i} style={{ color: SLIME_COLOURS[COLOUR_IDS[i % COLOUR_IDS.length]].body, animationDelay: `${(i * 0.07).toFixed(2)}s` }}>
             {c === ' ' ? '\u00a0' : c}
           </span>
@@ -149,10 +152,10 @@ export function MapHud({ game }: { game: Game }) {
       </h1>
 
       <div className="map-corner">
-        <TapButton game={game} className="map-round" label={muted ? 'Sound off' : 'Sound on'} sound={null} onTap={() => game.toggleMute()}>
+        <TapButton game={game} className="map-round" label={say(muted ? WORDS.soundOff : WORDS.soundOn)} sound={null} onTap={() => game.toggleMute()}>
           <SoundGlyph on={!muted} />
         </TapButton>
-        <TapButton game={game} className="map-round" label="More games" sound="tap" onTap={() => location.assign('../index.html')}>
+        <TapButton game={game} className="map-round" label={say(WORDS.moreGames)} sound="tap" onTap={() => location.assign('../index.html')}>
           <GamesGlyph />
         </TapButton>
       </div>
@@ -160,27 +163,27 @@ export function MapHud({ game }: { game: Game }) {
       {([-1, 1] as const).map(
         (dir) =>
           canStep(dir) && (
-            <TapButton key={dir} game={game} className={cls('map-step', dir < 0 ? 'left' : 'right')} label={dir < 0 ? 'Island before' : 'Next island'} sound={null} onTap={() => game.stepIsland(dir)}>
+            <TapButton key={dir} game={game} className={cls('map-step', dir < 0 ? 'left' : 'right')} label={say(dir < 0 ? WORDS.islandBefore : WORDS.nextIsland)} sound={null} onTap={() => game.stepIsland(dir)}>
               <ArrowIcon dir={dir} size={80} />
             </TapButton>
           ),
       )}
 
       <div className="map-bottom">
-        <TapButton game={game} className={cls('map-ward', news.things.length + news.patterns.length > 0 && 'news')} label="Wardrobe" sound={null} onTap={() => game.openWardrobe()}>
+        <TapButton game={game} className={cls('map-ward', news.things.length + news.patterns.length > 0 && 'news')} label={say(WORDS.wardrobe)} sound={null} onTap={() => game.openWardrobe()}>
           <WardrobeIcon size={96} />
         </TapButton>
         <div className="map-play">
           {/* Keyed by the island, so a new name pops in as the slime hops there. */}
           <div className="map-name" key={course}>
-            {COURSE_NAMES[course]}
+            {say(COURSE_WORDS[course].name)}
           </div>
-          <TapButton game={game} className="map-go" label={`Go to ${COURSE_NAMES[course]}`} sound={null} onTap={() => game.play()}>
+          <TapButton game={game} className="map-go" label={say(COURSE_WORDS[course].goTo)} sound={null} onTap={() => game.play()}>
             <SlimeIcon colour={look.colour} pattern={look.pattern} size={80} pose="jump" />
-            <span>Go!</span>
+            <span>{say(WORDS.go)}</span>
           </TapButton>
         </div>
-        <TapButton game={game} className={cls('map-jar', jar.full && 'full')} label="Star jar" sound="jar" onTap={jiggle}>
+        <TapButton game={game} className={cls('map-jar', jar.full && 'full')} label={say(WORDS.starJar)} sound="jar" onTap={jiggle}>
           <JarIcon size={96} fill={jar.fill} />
           <span className="map-patterns">
             {PATTERNS.map((p) => (

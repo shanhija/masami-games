@@ -2,18 +2,16 @@ import './map.css'
 
 import { useEffect, useId, useState, type CSSProperties } from 'react'
 
+import { inLang, type Lang, type Words } from '../../profiles/src/lang'
 import { COLOUR_IDS, ITEM_IDS, ITEMS, PATTERNS, SLIME_COLOURS, SLOTS, type ItemId, type Pattern, type SlimeColour, type Slot } from './game/closet'
 import { useLook, useScreenKey, type Game } from './game/game'
 import { ArrowIcon, ItemIcon, PatternIcon, SlimeIcon, SlotIcon } from './Icons'
 import { palette } from './scene/look'
 import { TapButton, cls, wobble } from './TapButton'
+import { COLOUR_WORDS, ITEM_WORDS, PATTERN_WORDS, SLOT_WORDS, WORDS } from './words'
 
 /** Each place's things in ITEMS order, the order the boxes give them: the first island's first. */
 const BY_SLOT = Object.fromEntries(SLOTS.map((slot) => [slot, ITEM_IDS.filter((id) => ITEMS[id].slot === slot)])) as Record<Slot, ItemId[]>
-
-/** What a screen reader says for each tab, and for a thing ("roundGlasses" says "round glasses"). */
-const SLOT_WORDS: Record<Slot, string> = { hat: 'Hats', glasses: 'Glasses', shirt: 'Shirts', skirt: 'Skirts', bag: 'Bags', neck: 'Neck things' }
-const say = (id: string) => id.replace(/[A-Z]/g, (c) => ` ${c.toLowerCase()}`)
 
 /** What is new since the wardrobe last opened: things from the boxes and patterns from the star jar. */
 export interface News {
@@ -58,7 +56,7 @@ interface Visit {
  * the open ones, and the ones the star jar has still to open). It opens on the place of the
  * newest thing from a box, and what is new sparkles. Nothing to read: pictures and sounds.
  */
-export function Wardrobe({ game }: { game: Game }) {
+export function Wardrobe({ game, lang }: { game: Game; lang: Lang }) {
   useScreenKey(game)
   const look = useLook(game)
   const open = game.screen === 'wardrobe'
@@ -76,13 +74,14 @@ export function Wardrobe({ game }: { game: Game }) {
   }, [game, open])
   if (!open) return null
 
+  const say = (words: Words) => inLang(words, lang)
   const { found, patterns } = game.save
   const slot = visit.slot
   const worn = look.outfit[slot]
   const jelly = SLIME_COLOURS[look.colour]
   return (
     <div className="ward" style={{ '--jelly': jelly.body, '--jelly-deep': jelly.deep, '--jelly-light': jelly.light } as CSSProperties}>
-      <TapButton game={game} className="ward-back" label="Back to the map" sound={null} onTap={() => game.closeWardrobe()}>
+      <TapButton game={game} className="ward-back" label={say(WORDS.backToMap)} sound={null} onTap={() => game.closeWardrobe()}>
         <ArrowIcon dir={-1} size={80} />
       </TapButton>
       <div className="ward-panel">
@@ -93,7 +92,7 @@ export function Wardrobe({ game }: { game: Game }) {
                 key={s}
                 game={game}
                 className={cls('ward-tab', s === slot && 'on', visit.news.things.some((id) => ITEMS[id].slot === s) && 'news')}
-                label={SLOT_WORDS[s]}
+                label={say(SLOT_WORDS[s])}
                 sound="select"
                 onTap={() => setVisit((v) => ({ ...v, slot: s }))}
               >
@@ -110,14 +109,14 @@ export function Wardrobe({ game }: { game: Game }) {
                     key={id}
                     game={game}
                     className={cls('ward-tile', id === worn && 'worn', visit.news.things.includes(id) && 'fresh')}
-                    label={say(id)}
+                    label={say(ITEM_WORDS[id].name)}
                     sound={null}
                     onTap={() => game.wear(slot, id === worn ? null : id)}
                   >
                     <ItemIcon item={id} size={140} shadow={false} />
                   </TapButton>
                 ) : (
-                  <TapButton key={id} game={game} className="ward-tile unfound" label="Not found yet" sound="uhuh" onTap={wobble}>
+                  <TapButton key={id} game={game} className="ward-tile unfound" label={say(WORDS.notFoundYet)} sound="uhuh" onTap={wobble}>
                     <ItemIcon item={id} size={140} shadow />
                     <span className="ward-q">?</span>
                   </TapButton>
@@ -133,7 +132,7 @@ export function Wardrobe({ game }: { game: Game }) {
                   game={game}
                   className={cls('ward-swatch', c === look.colour && 'on')}
                   style={{ '--ring': SLIME_COLOURS[c].deep } as CSSProperties}
-                  label={c}
+                  label={say(COLOUR_WORDS[c])}
                   sound={null}
                   onTap={() => game.setColour(c)}
                 >
@@ -142,7 +141,7 @@ export function Wardrobe({ game }: { game: Game }) {
               ))}
             </div>
             <div className="ward-patterns">
-              <TapButton game={game} className={cls('ward-pattern', look.pattern === null && 'on')} label="No pattern" sound={null} onTap={() => game.setPattern(null)}>
+              <TapButton game={game} className={cls('ward-pattern', look.pattern === null && 'on')} label={say(WORDS.noPattern)} sound={null} onTap={() => game.setPattern(null)}>
                 <PlainIcon colour={look.colour} />
               </TapButton>
               {PATTERNS.map((p) =>
@@ -151,14 +150,14 @@ export function Wardrobe({ game }: { game: Game }) {
                     key={p}
                     game={game}
                     className={cls('ward-pattern', look.pattern === p && 'on', visit.news.patterns.includes(p) && 'fresh')}
-                    label={p}
+                    label={say(PATTERN_WORDS[p])}
                     sound={null}
                     onTap={() => game.setPattern(p)}
                   >
                     <PatternIcon pattern={p} size={64} locked={false} />
                   </TapButton>
                 ) : (
-                  <TapButton key={p} game={game} className="ward-pattern locked" label="Not open yet" sound="uhuh" onTap={wobble}>
+                  <TapButton key={p} game={game} className="ward-pattern locked" label={say(WORDS.notOpenYet)} sound="uhuh" onTap={wobble}>
                     <PatternIcon pattern={p} size={64} locked />
                   </TapButton>
                 ),

@@ -1,44 +1,17 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
+import { inLang, type Lang, type Words } from '../../profiles/src/lang'
 import type { ItemId, SlimeLook } from './game/closet'
 import { DONE_CALM, toggleFullscreen, useGameView, useLook, type Game } from './game/game'
 import { clamp, clamp01, mulberry32 } from './game/math'
-import { COURSE_NAMES, type Sim } from './game/model'
+import type { Sim } from './game/model'
 import { progress } from './game/sim'
 import { AnimalIcon, ArrowIcon, BabyIcon, FlagIcon, ItemIcon, KeyIcon, SlimeIcon, StarIcon } from './Icons'
 import { THEMES, palette } from './scene/look'
+import { COURSE_WORDS, ITEM_WORDS, WORDS } from './words'
 
-/** What the done card says about the gift: the thing's own name, in a few words. */
-const GIFT_WORDS: Record<ItemId, string> = {
-  cap: 'A new cap!',
-  tee: 'A new T-shirt!',
-  backpack: 'A backpack!',
-  roundGlasses: 'New glasses!',
-  flowers: 'A flower crown!',
-  denimSkirt: 'A new skirt!',
-  sunhat: 'A sun hat!',
-  sunglasses: 'Sunglasses!',
-  flowerShirt: 'A flower shirt!',
-  shoulderBag: 'A new bag!',
-  flowerSkirt: 'A flower skirt!',
-  bow: 'A big bow!',
-  heartGlasses: 'Heart glasses!',
-  glitterShirt: 'A glitter shirt!',
-  tutu: 'A tutu!',
-  handbag: 'A handbag!',
-  pearls: 'Pearls!',
-  beanie: 'A warm hat!',
-  sweater: 'A sweater!',
-  hoodie: 'A hoodie!',
-  scarf: 'A scarf!',
-  teddyBackpack: 'A teddy bag!',
-  crown: 'A crown!',
-  stripes: 'A stripy shirt!',
-  stripeSkirt: 'A stripy skirt!',
-  partySkirt: 'A party skirt!',
-  kittyBackpack: 'A kitty bag!',
-  bowTie: 'A bow tie!',
-}
+/** What the done card says about the gift: the thing's own name, in a few words, or a cheer when the box had nothing new. */
+const giftWords = (gift: ItemId | null): Words => (gift !== null ? ITEM_WORDS[gift].gift : WORDS.hooray)
 
 /** Confetti for a box with nothing new left in it, and fireworks for a full jar once every pattern is open: laid out once, the same every time. */
 const CONFETTI = (() => {
@@ -306,7 +279,7 @@ function Fireworks() {
 }
 
 /** What the box gave, named: a banner in the middle of the top bar once the big prize has flown up into it. */
-function GiftBanner({ gift, look, size }: { gift: ItemId | null; look: SlimeLook; size: number }) {
+function GiftBanner({ gift, look, size, lang }: { gift: ItemId | null; look: SlimeLook; size: number; lang: Lang }) {
   return (
     <div className="banner">
       <span className="pic">
@@ -315,7 +288,7 @@ function GiftBanner({ gift, look, size }: { gift: ItemId | null; look: SlimeLook
           <Spark size={Math.round(size * 0.42)} />
         </span>
       </span>
-      <span className="says">{gift !== null ? GIFT_WORDS[gift] : 'Hooray!'}</span>
+      <span className="says">{inLang(giftWords(gift), lang)}</span>
     </div>
   )
 }
@@ -326,7 +299,8 @@ function GiftBanner({ gift, look, size }: { gift: ItemId | null; look: SlimeLook
  * so the slime stands in full view in its new thing, where the scene shows it. The run's
  * tally and the two big buttons wait at the bottom.
  */
-function DoneCard({ game, look, vmin }: { game: Game; look: SlimeLook; vmin: number }) {
+function DoneCard({ game, look, vmin, lang }: { game: Game; look: SlimeLook; vmin: number; lang: Lang }) {
+  const say = (words: Words) => inLang(words, lang)
   const s = game.sim
   const news = game.jarNews
   const gift = s.gift
@@ -348,7 +322,7 @@ function DoneCard({ game, look, vmin }: { game: Game; look: SlimeLook; vmin: num
             </span>
           ))}
         </div>
-        <p className="says">{gift !== null ? GIFT_WORDS[gift] : 'Hooray!'}</p>
+        <p className="says">{say(giftWords(gift))}</p>
       </div>
       <div className="tally" style={{ '--calm': `${DONE_CALM}s` } as CSSProperties}>
         <div className="badges">
@@ -377,13 +351,13 @@ function DoneCard({ game, look, vmin }: { game: Game; look: SlimeLook; vmin: num
             ))}
         </div>
         <div className="buttons">
-          <Btn className="big again" label="Again!" onTap={() => game.again()}>
+          <Btn className="big again" label={say(WORDS.again)} onTap={() => game.again()}>
             <AgainGlyph />
-            Again!
+            {say(WORDS.again)}
           </Btn>
-          <Btn className="big home" label="Map" onTap={() => game.toMap()}>
+          <Btn className="big home" label={say(WORDS.map)} onTap={() => game.toMap()}>
             <MapGlyph />
-            Map
+            {say(WORDS.map)}
           </Btn>
         </div>
       </div>
@@ -392,8 +366,10 @@ function DoneCard({ game, look, vmin }: { game: Game; look: SlimeLook; vmin: num
 }
 
 /** The pause menu dims the run and takes every tap; one beside the buttons keeps going. */
-function PauseMenu({ game, look, vmin }: { game: Game; look: SlimeLook; vmin: number }) {
+function PauseMenu({ game, look, vmin, lang }: { game: Game; look: SlimeLook; vmin: number; lang: Lang }) {
+  const say = (words: Words) => inLang(words, lang)
   const sound = game.save.sound
+  const soundSays = say(sound ? WORDS.soundOn : WORDS.soundOff)
   // Only a tap that began on the dim keeps going: a finger already down when the menu came (the window lost focus under it) lifts here too.
   const began = useRef(false)
   return (
@@ -411,28 +387,28 @@ function PauseMenu({ game, look, vmin }: { game: Game; look: SlimeLook; vmin: nu
         <span className="nap">
           <SlimeIcon colour={look.colour} pattern={look.pattern} size={fit(vmin, 14, 64, 120)} pose="hide" />
         </span>
-        <Btn className="big go" label="Keep going" onTap={() => game.resume()}>
+        <Btn className="big go" label={say(WORDS.keepGoing)} onTap={() => game.resume()}>
           <PlayGlyph />
-          Keep going
+          {say(WORDS.keepGoing)}
         </Btn>
-        <Btn className="mid home" label="Map" onTap={() => game.toMap()}>
+        <Btn className="mid home" label={say(WORDS.map)} onTap={() => game.toMap()}>
           <MapGlyph />
-          Map
+          {say(WORDS.map)}
         </Btn>
         <div className="row">
-          <Btn className={`small${sound ? '' : ' off'}`} label={sound ? 'Sound on' : 'Sound off'} onTap={() => game.toggleMute()}>
+          <Btn className={`small${sound ? '' : ' off'}`} label={soundSays} onTap={() => game.toggleMute()}>
             <SoundGlyph on={sound} />
-            {sound ? 'Sound on' : 'Sound off'}
+            {soundSays}
           </Btn>
           {document.fullscreenEnabled && (
-            <Btn className="small" label="Full screen" onTap={toggleFullscreen}>
+            <Btn className="small" label={say(WORDS.fullScreen)} onTap={toggleFullscreen}>
               <FullGlyph />
-              Full screen
+              {say(WORDS.fullScreen)}
             </Btn>
           )}
-          <Btn className="small" label="More games" onTap={() => location.assign('../index.html')}>
+          <Btn className="small" label={say(WORDS.moreGames)} onTap={() => location.assign('../index.html')}>
             <GamesGlyph />
-            More games
+            {say(WORDS.moreGames)}
           </Btn>
         </div>
       </div>
@@ -441,7 +417,8 @@ function PauseMenu({ game, look, vmin }: { game: Game; look: SlimeLook; vmin: nu
 }
 
 /** The HUD of one run, keyed by it so every flourish starts afresh. */
-function PlayHud({ game }: { game: Game }) {
+function PlayHud({ game, lang }: { game: Game; lang: Lang }) {
+  const say = (words: Words) => inLang(words, lang)
   const look = useLook(game)
   const vmin = useVmin()
   const s = game.sim
@@ -469,15 +446,15 @@ function PlayHud({ game }: { game: Game }) {
             </span>
           </div>
         ) : phase === 'done' ? (
-          <GiftBanner gift={s.gift} look={look} size={fit(vmin, 7, 40, 62)} />
+          <GiftBanner gift={s.gift} look={look} size={fit(vmin, 7, 40, 62)} lang={lang} />
         ) : (
           <ProgressLine game={game} look={look} size={fit(vmin, 7, 38, 58)} />
         )}
         <div className="corner">
-          <Btn className="round" label="Pause" onTap={() => game.pause()}>
+          <Btn className="round" label={say(WORDS.pause)} onTap={() => game.pause()}>
             <PauseGlyph />
           </Btn>
-          <Btn className="round" label={game.save.sound ? 'Sound on' : 'Sound off'} onTap={() => game.toggleMute()}>
+          <Btn className="round" label={say(game.save.sound ? WORDS.soundOn : WORDS.soundOff)} onTap={() => game.toggleMute()}>
             <SoundGlyph on={game.save.sound} />
           </Btn>
         </div>
@@ -485,12 +462,12 @@ function PlayHud({ game }: { game: Game }) {
 
       {phase === 'finish' && got && (
         <p key={s.finish.keyAt} className="shout">
-          You got the key!
+          {say(WORDS.gotKey)}
         </p>
       )}
       {phase === 'top' && (
         <p key={s.finish.topAt} className="shout">
-          Open the box!
+          {say(WORDS.openBox)}
         </p>
       )}
 
@@ -498,18 +475,18 @@ function PlayHud({ game }: { game: Game }) {
       {!paused && phase === 'ready' && (
         <div className="ready">
           <div className="title">
-            <h1>{COURSE_NAMES[s.course.id]}</h1>
+            <h1>{say(COURSE_WORDS[s.course.id].name)}</h1>
             <Babies sim={s} size={fit(vmin, 7.5, 40, 64)} cheer={false} />
           </div>
           <div className="start">
-            <Btn className="big go" label="Go!" onTap={() => game.go()}>
-              Go!
+            <Btn className="big go" label={say(WORDS.go)} onTap={() => game.go()}>
+              {say(WORDS.go)}
             </Btn>
           </div>
         </div>
       )}
 
-      {!paused && phase === 'done' && <DoneCard game={game} look={look} vmin={vmin} />}
+      {!paused && phase === 'done' && <DoneCard game={game} look={look} vmin={vmin} lang={lang} />}
 
       {/* Without a touch screen the answer to a teaching moment is a picture and its key; on one, the touch button pulses instead. */}
       {!paused && !game.touch && teach !== null && (
@@ -521,11 +498,11 @@ function PlayHud({ game }: { game: Game }) {
               <SlimeIcon colour={look.colour} pattern={look.pattern} size={fit(vmin, 12, 60, 110)} pose={teach.action === 'jump' ? 'jump' : 'hide'} />
             )}
           </span>
-          <kbd>{teach.action === 'jump' ? 'Space' : <KeyArrow action={teach.action} />}</kbd>
+          <kbd>{teach.action === 'jump' ? say(WORDS.space) : <KeyArrow action={teach.action} />}</kbd>
         </div>
       )}
 
-      {paused && <PauseMenu game={game} look={look} vmin={vmin} />}
+      {paused && <PauseMenu game={game} look={look} vmin={vmin} lang={lang} />}
     </div>
   )
 }
@@ -536,8 +513,8 @@ function PlayHud({ game }: { game: Game }) {
  * sound top right, the ready card, the shouts, the done card, the teaching picture and the
  * pause menu. Only on the play screen; the map and the wardrobe have their own.
  */
-export function Hud({ game }: { game: Game }) {
+export function Hud({ game, lang }: { game: Game; lang: Lang }) {
   useGameView(game)
   if (game.screen !== 'play') return null
-  return <PlayHud key={game.generation} game={game} />
+  return <PlayHud key={game.generation} game={game} lang={lang} />
 }

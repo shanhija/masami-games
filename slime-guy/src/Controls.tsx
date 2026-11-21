@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 
+import { inLang, type Lang } from '../../profiles/src/lang'
 import type { SlimeLook } from './game/closet'
 import { useGameView, useLook, type Game } from './game/game'
 import type { Action } from './game/model'
 import { fit, useVmin } from './Hud'
 import { ArrowIcon, SlimeIcon } from './Icons'
+import { WORDS } from './words'
 
 /** Inside this share of the arrows' width either side of their middle a finger keeps the way it had, so a thumb resting on the seam never flickers. */
 const DEAD = 0.08
@@ -17,14 +19,14 @@ const noMenu = (e: { preventDefault: () => void }) => e.preventDefault()
  * Only the arrows show in the tower, and nothing shows while the run drives itself (the
  * ready card, the finish, the top, the done card), while paused, or while the bot plays.
  */
-export function Controls({ game }: { game: Game }) {
+export function Controls({ game, lang }: { game: Game; lang: Lang }) {
   useGameView(game)
   const look = useLook(game)
   if (game.screen !== 'play' || !game.touch || game.paused || game.switches.autoplay) return null
   const s = game.sim
   const tower = s.phase === 'tower' || s.phase === 'fall'
   if (!tower && s.phase !== 'run' && s.phase !== 'splash') return null
-  return <Thumbs key={game.generation} game={game} look={look} tower={tower} ask={s.teach === null ? null : s.teach.action} />
+  return <Thumbs key={game.generation} game={game} look={look} tower={tower} ask={s.teach === null ? null : s.teach.action} lang={lang} />
 }
 
 /**
@@ -36,7 +38,7 @@ export function Controls({ game }: { game: Game }) {
  * Everything lets go on pointerup, pointercancel, a lost capture, the window losing focus,
  * the page hiding and the buttons going away. The button a teaching moment asks for pulses.
  */
-function Thumbs({ game, look, tower, ask }: { game: Game; look: SlimeLook; tower: boolean; ask: Action | null }) {
+function Thumbs({ game, look, tower, ask, lang }: { game: Game; look: SlimeLook; tower: boolean; ask: Action | null; lang: Lang }) {
   const vmin = useVmin()
   const arrows = useRef<HTMLDivElement>(null)
   /** Fingers in the steering zone, newest last, with where each one is. */
@@ -140,7 +142,7 @@ function Thumbs({ game, look, tower, ask }: { game: Game; look: SlimeLook; tower
   const cls = (base: string, on: boolean, action: Action) => `btn ${base}${on ? ' on' : ''}${ask === action ? ' ask' : ''}`
   return (
     <div className="play-pad" style={{ '--b': `${button}px`, '--j': `${big}px` } as CSSProperties}>
-      <div className="steer" role="group" aria-label="Steer" onPointerDown={steerDown} onPointerMove={steerMove} onPointerUp={steerUp} onPointerCancel={steerUp} onLostPointerCapture={steerUp} onContextMenu={noMenu}>
+      <div className="steer" role="group" aria-label={inLang(WORDS.steer, lang)} onPointerDown={steerDown} onPointerMove={steerMove} onPointerUp={steerUp} onPointerCancel={steerUp} onLostPointerCapture={steerUp} onContextMenu={noMenu}>
         <div className="arrows" ref={arrows}>
           <span className={cls('arrow', dir < 0, 'left')}>
             <ArrowIcon dir={-1} size={Math.round(button * 0.56)} />
@@ -152,10 +154,10 @@ function Thumbs({ game, look, tower, ask }: { game: Game; look: SlimeLook; tower
       </div>
       {!tower && (
         <>
-          <div className={cls('hide', hiding, 'hide')} role="button" aria-label="Hide" {...hide}>
+          <div className={cls('hide', hiding, 'hide')} role="button" aria-label={inLang(WORDS.hide, lang)} {...hide}>
             <SlimeIcon colour={look.colour} pattern={look.pattern} size={Math.round(button * 0.72)} pose="hide" />
           </div>
-          <div className={cls('jump', jumping, 'jump')} role="button" aria-label="Jump" {...jump}>
+          <div className={cls('jump', jumping, 'jump')} role="button" aria-label={inLang(WORDS.jump, lang)} {...jump}>
             <SlimeIcon colour={look.colour} pattern={look.pattern} size={Math.round(big * 0.66)} pose="jump" />
           </div>
         </>
