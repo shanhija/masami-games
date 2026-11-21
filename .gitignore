@@ -27,10 +27,14 @@ Desktop.ini
 .claude/worktrees/
 temp/
 
-# Silly Billy's log of what was said and made (the library's JSON files are kept)
+# The children's words stay on the laptop, never on GitHub: Silly Billy's log of what was said and
+# made (the library's JSON files are kept) and its voice clips, kept for measuring the recognizers
 silly-billy/library/*.jsonl
-# Silly Billy's voice clips, kept on the laptop for measuring the recognizers
 silly-billy/library/voice/
+
+# Each computer's own tool settings
+.claude/settings.local.json
+.serena/
 
 # Python
 __pycache__/

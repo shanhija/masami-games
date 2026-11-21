@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import react from '@vitejs/plugin-react'
+import { loadEnv } from 'vite'
 import { defineConfig } from 'vitest/config'
 
 // '.js' names plugin.ts (TypeScript allows it), so loading the config warns of no extensionless import.
@@ -12,6 +13,14 @@ import { sillyBilly } from './silly-billy/src/server/plugin.js'
  */
 const GAMES = ['chase', 'foot-chase', 'castle-builder', 'pia-jump', 'rakennustyömaat', 'rocket-factory', 'marienpeli', 'limaukkopeli', 'ruokapeli', 'silly-billy'] as const
 
+/**
+ * A tablet reaches the dev server by the laptop's own host name: DEV_HOST in the git-ignored
+ * .env.local (or the environment). Browsers demand real TLS for it (a .dev name is HSTS-preloaded,
+ * and the microphone needs a secure page), so its certificate lives at ~/certs/<DEV_HOST>/.
+ * Without DEV_HOST the dev server is plain http, which the browser trusts on localhost.
+ */
+const DEV_HOST = loadEnv('development', process.cwd(), 'DEV_').DEV_HOST
+
 export default defineConfig(({ command, mode }) => ({
   // Relative asset paths: the build runs from disk.
   base: './',
@@ -20,18 +29,16 @@ export default defineConfig(({ command, mode }) => ({
   // Silly Billy's ./api/ (the Claude Code CLI, Whisper, its library on disk): under `vite` serve only, idle until asked.
   plugins: [react(), sillyBilly()],
   server: {
-    // A tablet reaches the dev server over the VPN as https://dev.example.com:3002. .dev is
-    // HSTS-preloaded, so browsers demand real TLS: a Let's Encrypt cert issued via Bunny DNS-01
-    // (acme.sh) lives at ~/certs/dev.example.com/. Only the dev server reads it: builds and
-    // tests also run in the image build (hosting/Dockerfile), where the laptop's files are not.
+    // Only the dev server reads the certificate: builds and tests also run in the image build
+    // (hosting/Dockerfile), where the laptop's files are not.
     https:
-      command === 'serve' && mode !== 'test'
+      DEV_HOST !== undefined && command === 'serve' && mode !== 'test'
         ? {
-            key: fs.readFileSync(`${process.env.HOME}/certs/dev.example.com/key.pem`),
-            cert: fs.readFileSync(`${process.env.HOME}/certs/dev.example.com/fullchain.pem`),
+            key: fs.readFileSync(`${process.env.HOME}/certs/${DEV_HOST}/key.pem`),
+            cert: fs.readFileSync(`${process.env.HOME}/certs/${DEV_HOST}/fullchain.pem`),
           }
         : undefined,
-    allowedHosts: ['dev.example.com'],
+    allowedHosts: DEV_HOST === undefined ? [] : [DEV_HOST],
     // Silly Billy saves what it makes in silly-billy/library/: saving must not reload the page.
     watch: { ignored: ['**/silly-billy/library/**'] },
   },

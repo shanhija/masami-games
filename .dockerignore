@@ -6,3 +6,4 @@ plans
 .claude
 .serena
 .vscode
+.env.local
