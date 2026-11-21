@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { Saves } from '../../../profiles/src/profiles'
+
 import { HZ, STEP, since, type EventKind as SoundKind } from '../../../pia-jump/src/game/model'
 import { Sounds, type Tune } from '../../../pia-jump/src/game/sounds'
 import { REWARDS, START_LOOK, wear, type Look, type Reward } from './closet'
@@ -132,8 +134,11 @@ export class Game {
   /** What the HUD last saw of the values that change on their own. */
   private seen = { card: false, gift: false, phase: '', hand: '', opened: '' }
 
-  /** `search` is the page's query string: the switches (see Switches). */
-  constructor(search: string) {
+  private readonly saves: Saves
+
+  /** `search` is the page's query string: the switches (see Switches); `saves` are the player's. */
+  constructor(search: string, saves: Saves) {
+    this.saves = saves
     this.switches = readSwitches(search)
     this.save = this.loadSave()
     this.audio.setSound(this.save.sound)
@@ -489,7 +494,7 @@ export class Game {
   private loadSave(): Save {
     // Storage can be missing or throw (private modes, blocked cookies): then the game keeps its save in memory.
     try {
-      return parseSave(localStorage.getItem(SAVE_KEY))
+      return parseSave(this.saves.getItem(SAVE_KEY))
     } catch (e) {
       this.warnStorage(e)
       return parseSave(null)
@@ -500,7 +505,7 @@ export class Game {
   private storeSave() {
     if (this.switches.level !== null || this.switches.all) return
     try {
-      localStorage.setItem(SAVE_KEY, serializeSave(this.save))
+      this.saves.setItem(SAVE_KEY, serializeSave(this.save))
     } catch (e) {
       this.warnStorage(e)
     }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { Game, readSwitches, shoutFor } from './game'
 import { HERO_SPEED, MAX_PICKS } from './model'
 
@@ -10,7 +12,7 @@ function run(game: Game, seconds: number, frame = 0.1) {
 
 describe('the game', () => {
   it('starts on the course cards, the first open and the rest locked', () => {
-    const game = new Game('')
+    const game = new Game('', memorySaves())
     expect(game.screen).toBe('courses')
     expect(game.isOpen(0)).toBe(true)
     expect(game.isOpen(1)).toBe(false)
@@ -20,7 +22,7 @@ describe('the game', () => {
   })
 
   it('goes from a card to the kitchen, a dish, its fillings and onto the course', () => {
-    const game = new Game('')
+    const game = new Game('', memorySaves())
     run(game, 1)
     expect(game.tapCard(0)).toBe(true)
     expect(game.screen).toBe('kitchen')
@@ -45,7 +47,7 @@ describe('the game', () => {
   })
 
   it('walks her by the keys, and toward a finger from where her feet are drawn', () => {
-    const game = new Game('?course=1&dish=burger&fill=cheese')
+    const game = new Game('?course=1&dish=burger&fill=cheese', memorySaves())
     expect(game.screen).toBe('play')
     const x0 = game.sim.hero.x
     game.keyDirection(1, 0)
@@ -73,7 +75,7 @@ describe('the game', () => {
   })
 
   it('never pauses while a finger keeps steering, nor while the stars are up', () => {
-    const game = new Game('?course=1&dish=burger&fill=cheese')
+    const game = new Game('?course=1&dish=burger&fill=cheese', memorySaves())
     const ss = game.screenspace
     ss.tile = 60
     for (let i = 0; i < 700; i++) {
@@ -84,7 +86,7 @@ describe('the game', () => {
       game.advance(0.1)
     }
     expect(game.paused).toBe(false)
-    const feed = new Game('?course=1&dish=burger&fill=cheese&feed&autoplay')
+    const feed = new Game('?course=1&dish=burger&fill=cheese&feed&autoplay', memorySaves())
     let guard = 0
     while (feed.starsAt < 0 && guard++ < 2000) feed.advance(0.1)
     feed.pause()
@@ -92,7 +94,7 @@ describe('the game', () => {
   })
 
   it('starting fresh locks the fillings again, and the kitchen drops the locked ones from the dish', () => {
-    const game = new Game('?all')
+    const game = new Game('?all', memorySaves())
     run(game, 1)
     game.tapCard(0)
     game.pickDish('burger')
@@ -102,7 +104,7 @@ describe('the game', () => {
     game.toggleFilling('onion')
     game.toggleFilling('ketchup')
     expect(game.picks).toEqual(['onion', 'ketchup'])
-    const fresh = new Game('')
+    const fresh = new Game('', memorySaves())
     fresh.dish = 'burger'
     fresh.picks = ['onion', 'ketchup', 'patty']
     fresh.pickDish('burger')
@@ -110,7 +112,7 @@ describe('the game', () => {
   })
 
   it('pauses on request, when the page goes away, and after a minute of nothing', () => {
-    const game = new Game('?course=1&dish=burger&fill=cheese')
+    const game = new Game('?course=1&dish=burger&fill=cheese', memorySaves())
     game.pause()
     expect(game.paused).toBe(true)
     const tick = game.sim.tick
@@ -127,7 +129,7 @@ describe('the game', () => {
   })
 
   it('plays a whole course and its finale by itself with ?autoplay, then brings the monster home', () => {
-    const game = new Game('?course=park&dish=burger&fill=patty,cheese&autoplay')
+    const game = new Game('?course=park&dish=burger&fill=patty,cheese&autoplay', memorySaves())
     let guard = 0
     while (game.screen === 'play' && guard++ < 3000) game.advance(0.1)
     expect(game.screen).toBe('feed')

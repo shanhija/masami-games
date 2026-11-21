@@ -7,6 +7,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { startView } from './camera'
 import { IDLE_MOST, IDLE_PAUSE, SESSION_GAP } from './catalog'
 import { demoState } from './fixtures'
@@ -16,17 +18,10 @@ import { CARDS, type Action } from './model'
 import { OLD_KEY, SAVE_KEY, freshKeep, keepOf, parseKeep, parseOld, serializeKeep } from './progress'
 import { Sounds } from './sounds'
 
-/** An in-memory stand-in for the browser's localStorage. */
-function memoryStorage() {
-  const items = new Map<string, string>()
-  return { items, getItem: (key: string) => items.get(key) ?? null, setItem: (key: string, value: string) => void items.set(key, value) }
-}
-
-let storage: ReturnType<typeof memoryStorage>
+let storage: ReturnType<typeof memorySaves>
 
 beforeEach(() => {
-  storage = memoryStorage()
-  vi.stubGlobal('localStorage', storage)
+  storage = memorySaves()
 })
 
 afterEach(() => {
@@ -61,7 +56,7 @@ function record(g: Game, touches = false) {
 /** A game loaded from the factory's save (not a test run, so it writes), Play pressed. */
 function saved(): Game {
   storage.items.set(SAVE_KEY, serializeKeep(keepOf(demoState('factory', 1))))
-  const g = new Game('', 1)
+  const g = new Game('', 1, storage)
   show(g)
   g.play()
   return g
@@ -78,7 +73,7 @@ describe('the URL switches', () => {
   })
 
   it('plays the page with ?autoplay: the scripted child presses Play by itself', () => {
-    const g = new Game('?nosave&autoplay&seed=2', 2)
+    const g = new Game('?nosave&autoplay&seed=2', 2, storage)
     show(g)
     run(g, 2)
     expect(g.state.playing).toBe(true)
@@ -86,18 +81,18 @@ describe('the URL switches', () => {
 
   it('starts fresh with ?nosave whatever is saved, opens a demo, every card with ?all, and the munchers asked for', { timeout: 30_000 }, () => {
     storage.items.set(SAVE_KEY, serializeKeep(keepOf(demoState('factory', 1))))
-    expect(new Game('?nosave', 1).state.found).toEqual([])
-    expect(new Game('?demo=card-nose', 1).state.found.at(-1)).toBe('nose')
-    const all = new Game('?nosave&all', 1).state
+    expect(new Game('?nosave', 1, storage).state.found).toEqual([])
+    expect(new Game('?demo=card-nose', 1, storage).state.found.at(-1)).toBe('nose')
+    const all = new Game('?nosave&all', 1, storage).state
     expect([...all.found].sort()).toEqual([...CARDS].sort())
     expect(all.choice).toBe('bubbles')
-    expect(new Game('?nosave&munchers=polite', 1).state.switches.munchers).toBe('polite')
+    expect(new Game('?nosave&munchers=polite', 1, storage).state.switches.munchers).toBe('polite')
   })
 
   it('reads the save with a switch, but never writes it', () => {
     const text = serializeKeep(keepOf(demoState('factory', 1)))
     storage.items.set(SAVE_KEY, text)
-    const g = new Game('?seed=7', 1)
+    const g = new Game('?seed=7', 1, storage)
     expect(keepOf(g.state).buildings).toEqual(parseKeep(text).buildings)
     show(g)
     g.play()
@@ -112,17 +107,17 @@ describe('the URL switches', () => {
 
 describe('the clock', () => {
   it('runs whole 1/60 s steps, at most 6 a frame, and ?fast times as many', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     expect(g.advance(0.5).steps).toBe(6)
     expect(g.advance(1 / 60).steps).toBe(1)
     expect(g.advance(0).steps).toBe(0)
-    const fast = new Game('?nosave&fast=4', 1)
+    const fast = new Game('?nosave&fast=4', 1, storage)
     expect(fast.advance(1 / 60).steps).toBe(4)
     expect(fast.advance(0.5).steps).toBe(24)
   })
 
   it('keeps alpha in [0, 1) and loses no time across uneven frames', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     const tick0 = g.state.tick
     let seed = 7
     const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
@@ -141,7 +136,7 @@ describe('the clock', () => {
   })
 
   it("hands the frame every step's events in order, and the sounds the same once a frame", () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const frame = vi.spyOn(g.audio, 'frame')
     const f = g.advance(0.1)
     expect(frame).toHaveBeenCalledTimes(1)
@@ -149,14 +144,14 @@ describe('the clock', () => {
   })
 
   it('runs nothing while paused or while the Good night card is up, and goes on where it was', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     g.openPause()
     const tick = g.state.tick
     expect(g.advance(0.1).steps).toBe(0)
     expect(g.state.tick).toBe(tick)
     g.keepGoing()
     expect(g.advance(0.1).steps).toBe(6)
-    const night = new Game('?demo=night', 1)
+    const night = new Game('?demo=night', 1, storage)
     night.advance(1 / 60)
     expect(night.asleep).toBe(true)
     expect(night.advance(0.1).steps).toBe(0)
@@ -204,16 +199,11 @@ describe('the save in the browser', () => {
   })
 
   it('keeps the game in memory and warns once when the storage throws', () => {
-    vi.stubGlobal('localStorage', {
-      getItem: () => {
-        throw new Error('blocked')
-      },
-      setItem: () => {
-        throw new Error('blocked')
-      },
-    })
+    const blocked = () => {
+      throw new Error('blocked')
+    }
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const g = new Game('', 1)
+    const g = new Game('', 1, { getItem: blocked, setItem: blocked, removeItem: blocked })
     show(g)
     g.play()
     run(g, 5)
@@ -232,7 +222,7 @@ describe('the save in the browser', () => {
     expect(parseOld(storage.items.get(OLD_KEY)!).map((k) => k.buildings)).toEqual([factory.buildings])
     expect(g.old.map((k) => k.buildings)).toEqual([factory.buildings])
     // A Game made now offers it back too.
-    expect(new Game('', 2).old[0]!.buildings).toEqual(factory.buildings)
+    expect(new Game('', 2, storage).old[0]!.buildings).toEqual(factory.buildings)
     const fresh = keepOf(g.state)
     g.state.switches.music = false
     g.openPause()
@@ -264,11 +254,11 @@ describe('the save in the browser', () => {
     expect(g.old.map((k) => k.found.length)).toEqual([factory.found.length + 2, factory.found.length + 1, factory.found.length])
     // An older save held one factory aside, not a list: it is read as one.
     storage.items.set(OLD_KEY, serializeKeep(factory))
-    expect(new Game('', 2).old.map((k) => k.found)).toEqual([factory.found])
+    expect(new Game('', 2, storage).old.map((k) => k.found)).toEqual([factory.found])
   })
 
   it('has nothing to bring back before a Start again', () => {
-    const g = new Game('', 1)
+    const g = new Game('', 1, storage)
     expect(g.old).toEqual([])
     expect(() => g.bringBack(0)).toThrow(/nothing to bring back/)
   })
@@ -279,7 +269,7 @@ describe('the save in the browser', () => {
     a.openPause()
     a.hide()
     // Tab B, the directory opened again, starts a new factory.
-    const b = new Game('', 2)
+    const b = new Game('', 2, storage)
     show(b)
     b.play()
     b.openPause()
@@ -319,7 +309,7 @@ describe('the save in the browser', () => {
   })
 
   it('says it is not saved in a test run and after the storage refused a write, and not otherwise', () => {
-    expect(new Game('?nosave', 1).unsaved).toBe(true)
+    expect(new Game('?nosave', 1, storage).unsaved).toBe(true)
     const g = saved()
     expect(g.unsaved).toBe(false)
     storage.setItem = () => {
@@ -334,7 +324,7 @@ describe('the save in the browser', () => {
 
 describe('pause and sessions', () => {
   it('pauses with the button, Esc and P, holds the band, and keeps going with them, Enter and Space; the rules hear the menu close', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const paused = vi.spyOn(g.audio, 'setPaused')
     const got = record(g)
     g.openPause()
@@ -351,7 +341,7 @@ describe('pause and sessions', () => {
   })
 
   it('starts a new session on a return after SESSION_GAP away, paused or hidden', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     let now = 1_000_000
     vi.spyOn(Date, 'now').mockImplementation(() => now)
     const got = record(g)
@@ -371,7 +361,7 @@ describe('pause and sessions', () => {
     const idle = (g: Game, seconds: number) => {
       for (let i = 0; i < seconds * 10; i++) g.advance(0.1)
     }
-    const start = new Game('?nosave', 1)
+    const start = new Game('?nosave', 1, storage)
     idle(start, IDLE_PAUSE + 1)
     expect(start.paused).toBe(false)
     // Played, with nothing working yet: the start oven has no rocks.
@@ -383,7 +373,7 @@ describe('pause and sessions', () => {
     idle(start, 2)
     expect(start.paused).toBe(true)
     // The factory works on untouched: watching it is play, until IDLE_MOST.
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     idle(g, IDLE_PAUSE + 1)
     expect(g.state.buildings.some((b) => b.batch !== null)).toBe(true)
     expect(g.paused).toBe(false)
@@ -392,7 +382,7 @@ describe('pause and sessions', () => {
   })
 
   it('pauses when the window goes away, puts the sound to sleep while the page is hidden, and wakes it when it shows', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const suspend = vi.spyOn(g.audio, 'suspend')
     const resume = vi.spyOn(g.audio, 'resume')
     g.away()
@@ -405,7 +395,7 @@ describe('pause and sessions', () => {
   })
 
   it('goes to Good night from the menu', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const got = record(g)
     g.openPause()
     g.goodnight()
@@ -413,7 +403,7 @@ describe('pause and sessions', () => {
   })
 
   it('stays asleep at a tap on the Good night card: Beep murmurs and a z floats, and nothing wakes', () => {
-    const night = new Game('?demo=night', 1)
+    const night = new Game('?demo=night', 1, storage)
     night.advance(1 / 60)
     expect(night.asleep).toBe(true)
     const murmur = vi.spyOn(night.audio, 'ui')
@@ -427,7 +417,7 @@ describe('pause and sessions', () => {
   })
 
   it("brings the morning with the menu's Keep going over the sleeping factory, as a new session; Esc or P on the card opens the menu", () => {
-    const night = new Game('?demo=night', 1)
+    const night = new Game('?demo=night', 1, storage)
     night.advance(1 / 60)
     const got = record(night)
     night.keyDown('Escape', false, false)
@@ -439,7 +429,7 @@ describe('pause and sessions', () => {
   it('is a new morning after the still card was left up overnight with the page hidden, and after SESSION_GAP away from a night still falling', () => {
     let now = 1_000_000
     vi.spyOn(Date, 'now').mockImplementation(() => now)
-    const night = new Game('?demo=night', 1)
+    const night = new Game('?demo=night', 1, storage)
     night.advance(1 / 60)
     night.hide()
     expect(night.paused).toBe(true)
@@ -448,7 +438,7 @@ describe('pause and sessions', () => {
     night.keepGoing()
     expect([night.asleep, night.state.night, night.state.sessionAt]).toEqual([false, null, night.state.tick])
     // Put away at dusk, mid tuck-in: back the next day, it is morning, not yesterday's night.
-    const dusk = new Game('?demo=factory', 1)
+    const dusk = new Game('?demo=factory', 1, storage)
     dusk.openPause()
     dusk.goodnight()
     run(dusk, 3)
@@ -460,7 +450,7 @@ describe('pause and sessions', () => {
     dusk.keepGoing()
     expect(got).toEqual([{ kind: 'wake' }, { kind: 'session' }, { kind: 'unpaused' }])
     // A short pause at dusk goes on with the tuck-in.
-    const short = new Game('?demo=factory', 1)
+    const short = new Game('?demo=factory', 1, storage)
     short.openPause()
     short.goodnight()
     run(short, 3)
@@ -473,7 +463,7 @@ describe('pause and sessions', () => {
 
 describe('keys', () => {
   it("sends the board's keys to the rules, takes a held key's repeats and does nothing with them, and leaves other keys to the browser", () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const got = record(g)
     expect(g.keyDown('Digit2', false, false)).toBe(true)
     expect(g.keyDown('Digit2', true, false)).toBe(true)
@@ -484,7 +474,7 @@ describe('keys', () => {
   })
 
   it('presses Play on the start card with Enter or Space, and nothing else there', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     const got = record(g)
     g.keyDown('Digit1', false, false)
     expect(got).toEqual([])
@@ -493,7 +483,7 @@ describe('keys', () => {
   })
 
   it('turns the sound off and on from the menu with M, and nothing else on the board meanwhile', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     g.openPause()
     const got = record(g)
     g.keyDown('KeyM', false, false)
@@ -502,7 +492,7 @@ describe('keys', () => {
   })
 
   it('closes the path with Esc rather than pausing', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     g.openPath()
     g.keyDown('Escape', false, false)
     expect([g.path, g.paused]).toEqual([false, false])
@@ -511,14 +501,14 @@ describe('keys', () => {
 
 describe('pointers', () => {
   it('takes no pointer before the first frame is drawn', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const got = record(g, true)
     g.pointer('down', 1, 400, 400, 'left')
     expect(got).toEqual([])
   })
 
   it('taps what a pointer went down on, through the router, against the view the stage drew', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const v = show(g)
     const got = record(g, true)
     const oven = g.state.buildings.find((b) => b.kind === 'oven' && b.x === 6 && b.y === 6)!
@@ -528,7 +518,7 @@ describe('pointers', () => {
   })
 
   it('drops a drag when the window goes upright or back, and tells the rules nothing of the turn', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const v = show(g)
     const got = record(g, true)
     show(g)
@@ -546,7 +536,7 @@ describe('pointers', () => {
   })
 
   it("picks a tray sticker dragged out over the board and holds its ghost under the finger", () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     const v = show(g)
     const got = record(g)
     const tray = v.hud.tray!
@@ -568,7 +558,7 @@ describe('the sounds and the HUD', () => {
     const sound = vi.spyOn(Sounds.prototype, 'setSound')
     const music = vi.spyOn(Sounds.prototype, 'setMusic')
     const voice = vi.spyOn(Sounds.prototype, 'setVoice')
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     expect([sound.mock.calls.at(-1), music.mock.calls.at(-1), voice.mock.calls.at(-1)]).toEqual([[true], [true], [true]])
     g.dispatch({ kind: 'music', on: false })
     expect(music.mock.calls.at(-1)).toEqual([false])
@@ -576,7 +566,7 @@ describe('the sounds and the HUD', () => {
   })
 
   it('bumps its version when what the HUD shows changes, and only then', () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     show(g)
     g.advance(1 / 60)
     let bumps = 0
@@ -590,7 +580,7 @@ describe('the sounds and the HUD', () => {
   })
 
   it("starts today's cards at the load, and again at each new session", () => {
-    const g = new Game('?demo=factory', 1)
+    const g = new Game('?demo=factory', 1, storage)
     expect(g.hud.today).toEqual([])
     g.state.found.push('bubbles')
     g.advance(1 / 60)
@@ -600,7 +590,7 @@ describe('the sounds and the HUD', () => {
 
 describe('a fresh save', () => {
   it('is the board as it comes', () => {
-    const g = new Game('', 1)
+    const g = new Game('', 1, storage)
     expect(keepOf(g.state)).toEqual({ ...freshKeep(), second: keepOf(g.state).second })
   })
 })

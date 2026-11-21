@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../profiles/src/profiles'
+
 import type { Job } from './brain/contract'
 import type { LibraryData, Status } from './engine/protocol'
 import type { Item, RoomId, World } from './engine/types'
@@ -109,18 +111,14 @@ describe('the rooms save', () => {
 
 // ------------------------------------------------------------------ the whole game, booted without a browser
 
-/** The browser as far as the game reaches it: localStorage, the page's address, and a dev server without Claude or Whisper. */
-function browser(search: string, storage = new Map<string, string>()) {
+/** The browser as far as the game reaches it: the page's address and a dev server without Claude or Whisper; and the player's saves, kept in memory. */
+function browser(search: string) {
   vi.stubGlobal('window', {})
   vi.stubGlobal('location', { search })
-  vi.stubGlobal('localStorage', {
-    getItem: (k: string) => storage.get(k) ?? null,
-    setItem: (k: string, v: string) => void storage.set(k, v),
-  })
   const library: LibraryData = { items: [], actions: [], avatars: [], phrases: [] }
   const status: Status = { claude: false, whisper: 'off', models: { interpret: 'haiku', invent: 'opus' } }
   vi.stubGlobal('fetch', async (url: string) => new Response(JSON.stringify(url.endsWith('status') ? status : url.endsWith('library') ? library : {}), { status: 200 }))
-  return storage
+  return memorySaves()
 }
 
 /** Plays `secs` seconds of frames at 60 a second. */
@@ -134,8 +132,8 @@ describe('the game', () => {
   })
 
   it('boots in the playground, hears ?say= words after starting, and drains what each frame made', async () => {
-    browser('?say=alice%20hypp%C3%A4%C3%A4')
-    const game = new Game()
+    const saves = browser('?say=alice%20hypp%C3%A4%C3%A4')
+    const game = new Game(saves)
     expect(game.world.room).toBe('playground')
     expect(game.world.actors.map((a) => a.id)).toEqual(expect.arrayContaining(['alice', 'steve', 'mike', 'noora', 'mirri']))
     expect(game.world.items.length).toBeGreaterThan(10)
@@ -152,21 +150,21 @@ describe('the game', () => {
   })
 
   it('keeps the rooms every 5 s and gives them back to the next game, without things the library does not know', async () => {
-    const storage = browser('')
-    const first = new Game()
+    const saves = browser('')
+    const first = new Game(saves)
     await first.start()
     first.goTo('pool')
     play(first, 1)
     const ball = first.sim.makeItem('beach-ball', { x: 2, z: 3 })
     play(first, 5.5)
-    const saved = JSON.parse(storage.get('silly-billy-rooms-1')!) as SavedRooms
+    const saved = JSON.parse(saves.items.get('silly-billy-rooms-1')!) as SavedRooms
     expect(saved.room).toBe('pool')
     expect(saved.items.pool.map((i) => i.id)).toContain(ball.id)
     // A thing of a kind that was forgotten since.
     saved.items.forest.push({ ...saved.items.forest[0]!, id: '#i999', kind: 'forgotten-thing' })
-    storage.set('silly-billy-rooms-1', JSON.stringify(saved))
+    saves.items.set('silly-billy-rooms-1', JSON.stringify(saved))
 
-    const second = new Game()
+    const second = new Game(saves)
     expect(second.world.room).toBe('pool')
     expect(second.world.items.map((i) => i.id)).toEqual(saved.items.pool.map((i) => i.id))
     expect(second.world.away.forest.map((i) => i.kind)).toContain('forgotten-thing')
@@ -177,12 +175,12 @@ describe('the game', () => {
   })
 
   it('keeps the settings, and a tap on a face makes that one the addressee', async () => {
-    const storage = browser('')
-    const game = new Game()
+    const saves = browser('')
+    const game = new Game(saves)
     await game.start()
     game.setSettings({ lang: 'en', sound: false })
-    expect(new Game().settings).toEqual({ sound: false, spoken: true, lang: 'en' })
-    expect(JSON.parse(storage.get('silly-billy-settings')!)).toEqual({ sound: false, spoken: true, lang: 'en' })
+    expect(new Game(saves).settings).toEqual({ sound: false, spoken: true, lang: 'en' })
+    expect(JSON.parse(saves.items.get('silly-billy-settings')!)).toEqual({ sound: false, spoken: true, lang: 'en' })
     game.address('noora')
     expect(game.brain.addressee).toBe('noora')
     // Nothing listens here, so holding the button does nothing at all.
@@ -192,8 +190,8 @@ describe('the game', () => {
   })
 
   it('counts a job’s seconds on the HUD', async () => {
-    browser('')
-    const game = new Game()
+    const saves = browser('')
+    const game = new Game(saves)
     await game.start()
     // An invention in flight: the HUD hears of every new second, though nothing else changes.
     let now = 5000
@@ -214,8 +212,8 @@ describe('the game', () => {
   })
 
   it('stands still while paused, and a command typed in the HUD’s box is heard like spoken words', async () => {
-    browser('')
-    const game = new Game()
+    const saves = browser('')
+    const game = new Game(saves)
     await game.start()
     game.pause()
     const t = game.world.t
@@ -233,8 +231,8 @@ describe('the game', () => {
   })
 
   it('tells the HUD when the zoom changes, so its + and − dim at the ends', async () => {
-    browser('')
-    const game = new Game()
+    const saves = browser('')
+    const game = new Game(saves)
     await game.start()
     game.advance(1 / 60)
     const version = game.getVersion()
@@ -247,8 +245,8 @@ describe('the game', () => {
   })
 
   it('plays in the language of the setting: the starting avatars have its names, and a switch renames them at once', async () => {
-    const storage = browser('')
-    const game = new Game()
+    const saves = browser('')
+    const game = new Game(saves)
     expect([game.world.lang, ...game.world.actors.map((a) => a.name)]).toEqual(['fi', 'Aino', 'Eetu', 'Mikko', 'Noora', 'Mirri'])
     await game.start()
     game.type('Eetu, pyöri')
@@ -259,8 +257,8 @@ describe('the game', () => {
     // What was said in Finnish goes with it.
     expect(game.world.actors.map((a) => a.bubble)).toEqual([null, null, null, null, null])
     // The next game starts in English.
-    expect(new Game().world.actors.map((a) => a.name)).toEqual(['Alice', 'Steve', 'Mike', 'Nora', 'Luna'])
-    storage.clear()
+    expect(new Game(saves).world.actors.map((a) => a.name)).toEqual(['Alice', 'Steve', 'Mike', 'Nora', 'Luna'])
+    saves.items.clear()
     // Forgetting says so in both languages, for the pause card to show the one played in.
     await game.forgetNewest()
     expect(game.forgot).toEqual({ en: 'Nothing new to forget.', fi: 'Ei mitään uutta unohdettavaa.' })
@@ -299,11 +297,11 @@ describe('the voices', () => {
     vi.stubGlobal('SpeechSynthesisUtterance', class {
       constructor(readonly text: string) {}
     })
-    browser('')
+    const saves = browser('')
     // The voice is found when the game's modules load.
     vi.resetModules()
     const fresh = await import('./game')
-    const game = new fresh.Game()
+    const game = new fresh.Game(saves)
     await game.start()
     // "alice ja steve sanokaa hei": both say it in the same step.
     game.world.speech.push({ actor: 'alice', text: 'Hei Steve!' }, { actor: 'steve', text: 'Hei Alice!' })

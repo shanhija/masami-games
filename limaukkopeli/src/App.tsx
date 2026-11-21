@@ -1,5 +1,7 @@
 import { Component, useMemo, type ReactNode } from 'react'
 
+import type { Saves } from '../../profiles/src/profiles'
+
 import { Controls } from './Controls'
 import { Game, useGameInput } from './game/game'
 import { Hud } from './Hud'
@@ -8,8 +10,8 @@ import { Stage } from './scene/Stage'
 import { Wardrobe } from './Wardrobe'
 
 /** The game: the one 3D stage, and over it each screen's HUD (each draws only on its own screen) and the touch buttons. */
-function SlimeGuy() {
-  const game = useMemo(() => new Game(), [])
+function SlimeGuy({ saves }: { saves: Saves }) {
+  const game = useMemo(() => new Game(saves), [saves])
   useGameInput(game)
   // A tuning visit (any URL switch) leaves the game on the window, for a look from the console and for headless screenshots.
   if (location.search !== '') (window as unknown as { game: Game }).game = game
@@ -37,10 +39,10 @@ class Oops extends Component<{ children: ReactNode }, { error: Error | null }> {
   }
 }
 
-export function App() {
+export function App({ saves }: { saves: Saves }) {
   return (
     <Oops>
-      <SlimeGuy />
+      <SlimeGuy saves={saves} />
     </Oops>
   )
 }

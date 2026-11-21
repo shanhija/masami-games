@@ -70,6 +70,10 @@ npx vitest run <game>    # one game's tests, e.g. npx vitest run silly-billy
 
 **On a tablet.** The dev server listens on the network on port 3002. A browser lets a page use the microphone only over https, so put a host name the tablet can reach in a file called `.env.local` (`DEV_HOST=games.example.net`, not in git) and its certificate in `~/certs/<DEV_HOST>/key.pem` and `fullchain.pem`. The dev server then speaks https at `https://<DEV_HOST>:3002/`.
 
+## Players
+
+The directory first asks who is playing. Each child has a profile on the device: a name and an avatar they build from parts (face, hair, eyes, mouth, something fun, a colour) or get as a surprise. Every game keeps its progress per profile, so two children never play on each other's castle or factory. The pencil on a player changes the name and the avatar, starts any game they have saved in over (it asks "Really?" first), or removes the player. A tab back from a game shows the games straight away as the same player; the chip above them changes player. The first profile made on a device takes over what was saved before there were profiles. Silly Billy's library of things Claude made lives on the laptop and is everyone's; what the page keeps (the rooms, the settings) is per player. The code is [`profiles/`](profiles/src/profiles.ts): not a game, the directory's own.
+
 ## How Claude is used
 
 Claude is used in two ways.
@@ -80,7 +84,7 @@ Claude is used in two ways.
 
 ## The children's privacy
 
-Silly Billy keeps the children's voice clips, to measure how well different recognizers hear young voices, and a log of everything said and made. Both stay on the computer: they are git-ignored and never pushed. The library of made things is in the repo, and each made thing keeps the one sentence that asked for it. The games keep their saves in the browser, on the device.
+Silly Billy keeps the children's voice clips, to measure how well different recognizers hear young voices, and a log of everything said and made. Both stay on the computer: they are git-ignored and never pushed. The library of made things is in the repo, and each made thing keeps the one sentence that asked for it. The games keep their saves in the browser, on the device, per player.
 
 ## Hosting
 

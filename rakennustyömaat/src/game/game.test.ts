@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { fitThemeCards, handAt, handFor, layerTakes, SETTLE } from '../Cards'
 import { TOOL_ICON_BOX } from '../draw/builder'
 import { canvasEvents } from '../draw/Stage'
@@ -15,17 +17,10 @@ import { freshKeep, parseKeep, SAVE_KEY, serializeKeep } from './progress'
 import { GLANCE } from './rules'
 import { Sounds } from './sounds'
 
-/** An in-memory stand-in for the browser's localStorage. */
-function memoryStorage() {
-  const items = new Map<string, string>()
-  return { items, getItem: (key: string) => items.get(key) ?? null, setItem: (key: string, value: string) => void items.set(key, value) }
-}
-
-let storage: ReturnType<typeof memoryStorage>
+let storage: ReturnType<typeof memorySaves>
 
 beforeEach(() => {
-  storage = memoryStorage()
-  vi.stubGlobal('localStorage', storage)
+  storage = memorySaves()
 })
 
 afterEach(() => {
@@ -65,44 +60,44 @@ describe('the URL switches', () => {
 
   it('throws on a bad value or a bad pair, saying what would do', () => {
     for (const bad of ['?demo=castle', '?demo=', '?seed=ten', '?seed=1.5', '?seed=99999999999', '?road=moon', '?road=', '?autoplay', '?autoplay&seed=3']) expect(() => readSwitches(bad), bad).toThrow(/use/)
-    expect(() => new Game('?road=moon', 1)).toThrow()
-    expect(() => new Game('?autoplay', 1)).toThrow(/nosave/)
+    expect(() => new Game('?road=moon', 1, storage)).toThrow()
+    expect(() => new Game('?autoplay', 1, storage)).toThrow(/nosave/)
   })
 
   it('lets the scripted child play only with ?autoplay', () => {
     const frame = vi.spyOn(Child.prototype, 'frame')
-    run(new Game('?nosave', 1), 1)
+    run(new Game('?nosave', 1, storage), 1)
     expect(frame).not.toHaveBeenCalled()
-    run(new Game('?nosave&autoplay', 1), 1)
+    run(new Game('?nosave&autoplay', 1, storage), 1)
     expect(frame).toHaveBeenCalledTimes(60)
   })
 
   it('starts fresh and unsaved with ?nosave, rich with ?rich, and with every present opened with ?all', () => {
     storage.items.set(SAVE_KEY, serializeKeep({ ...freshKeep(), trips: 5 }))
-    const g = new Game('?nosave&rich&all', 1)
+    const g = new Game('?nosave&rich&all', 1, storage)
     expect(g.state.keep.trips).toBe(0)
     expect(GOODS.every((good) => g.state.keep.goods[good] === 99)).toBe(true)
     expect(g.state.keep.unlocked).toEqual(PRESENTS)
   })
 
   it('opens a demo on its shot', () => {
-    expect(new Game('?demo=mirror', 1).state.shot.kind).toBe('mirror')
-    expect(new Game('?demo=room', 1).state.shot.kind).toBe('room')
-    expect(new Game('?demo=tall', 1).state.shot).toEqual({ kind: 'plot', plot: 0 })
+    expect(new Game('?demo=mirror', 1, storage).state.shot.kind).toBe('mirror')
+    expect(new Game('?demo=room', 1, storage).state.shot.kind).toBe('room')
+    expect(new Game('?demo=tall', 1, storage).state.shot).toEqual({ kind: 'plot', plot: 0 })
   })
 
   it('starts the road asked for at once, from any demo, and on a fresh game as its second trip (the training road is a child\'s own first)', () => {
     for (const search of ['?demo=street&road=beach', '?demo=mirror&road=beach', '?demo=tall&road=beach', '?demo=room&road=beach', '?nosave&road=beach', '?road=beach']) {
-      const g = new Game(search, 1)
+      const g = new Game(search, 1, storage)
       expect(g.state.shot.kind, search).toBe('road')
       expect(g.state.road!.def.kind, search).toBe('beach')
     }
     for (const road of ['forest', 'hills'] as const) {
-      const g = new Game(`?nosave&road=${road}`, 1)
+      const g = new Game(`?nosave&road=${road}`, 1, storage)
       expect(g.state.road!.def).toMatchObject({ kind: road, trip: 2 })
     }
     // Without ?road, a fresh game's first trip is still the training road.
-    const fresh = new Game('?nosave', 1)
+    const fresh = new Game('?nosave', 1, storage)
     fresh.dispatch({ kind: 'go' })
     fresh.dispatch({ kind: 'tap', hit: { kind: 'truck' } })
     expect(fresh.state.road!.def).toMatchObject({ kind: 'forest', trip: 1 })
@@ -111,7 +106,7 @@ describe('the URL switches', () => {
 
 describe('the clock', () => {
   it('runs whole 1/60 s steps, at most 0.1 s of them a frame', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     expect(g.advance(0.5).steps).toBe(6)
     expect(g.advance(1 / 60).steps).toBe(1)
     expect(g.advance(0.1).steps).toBe(6)
@@ -119,7 +114,7 @@ describe('the clock', () => {
   })
 
   it('keeps alpha in [0, 1) and loses no time across uneven frames', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     let seed = 7
     const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647
     let steps = 0
@@ -137,7 +132,7 @@ describe('the clock', () => {
   })
 
   it('runs nothing while paused, and goes on where it was', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     run(g, 1)
     const tick = g.state.tick
     g.pause()
@@ -149,7 +144,7 @@ describe('the clock', () => {
   })
 
   it('holds the music in the pause menu with the sound running for the menu, and puts the sound to sleep only while the page is hidden', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     const held = vi.spyOn(g.audio, 'setPaused')
     const suspend = vi.spyOn(g.audio, 'suspend')
     const resume = vi.spyOn(g.audio, 'resume')
@@ -170,7 +165,7 @@ describe('the clock', () => {
   })
 
   it("hands every step's events to the sounds once a frame", () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     const frame = vi.spyOn(g.audio, 'frame')
     g.dispatch({ kind: 'dice' })
     const f = g.advance(1 / 60)
@@ -180,21 +175,21 @@ describe('the clock', () => {
   })
 
   it('pauses after a minute with no input, and never while the pedal is held', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     run(g, IDLE_PAUSE - 1)
     g.poke()
     run(g, IDLE_PAUSE - 1)
     expect(g.paused).toBe(false)
     run(g, 2)
     expect(g.paused).toBe(true)
-    const road = new Game('?nosave&road=forest', 1)
+    const road = new Game('?nosave&road=forest', 1, storage)
     road.pedal('touch', true)
     run(road, IDLE_PAUSE + 2)
     expect(road.paused).toBe(false)
   })
 
   it('stands still on the Good night card until a tap wakes the street', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     g.dispatch({ kind: 'goodnight' })
     g.state.night!.doneAt = g.state.tick
     run(g, 3)
@@ -212,16 +207,16 @@ describe('the clock', () => {
 
 describe('the save in the browser', () => {
   it('opens a first visit at the mirror, and a saved game on the street', () => {
-    expect(new Game('', 1).state.shot.kind).toBe('mirror')
+    expect(new Game('', 1, storage).state.shot.kind).toBe('mirror')
     storage.items.set(SAVE_KEY, serializeKeep({ ...freshKeep(), trips: 3 }))
-    const g = new Game('', 1)
+    const g = new Game('', 1, storage)
     expect(g.state.shot.kind).toBe('street')
     expect(g.state.keep.trips).toBe(3)
   })
 
   it('writes the keep at most once a second, only when it changed, and at once when the page hides', () => {
     storage.items.set(SAVE_KEY, serializeKeep({ ...freshKeep(), trips: 3 }))
-    const g = new Game('', 1)
+    const g = new Game('', 1, storage)
     const write = vi.spyOn(storage, 'setItem')
     run(g, 2)
     expect(write).not.toHaveBeenCalled()
@@ -242,7 +237,7 @@ describe('the save in the browser', () => {
   it('reads the save but never writes it in a test run', () => {
     storage.items.set(SAVE_KEY, serializeKeep({ ...freshKeep(), trips: 3 }))
     for (const search of ['?seed=4', '?rich', '?all', '?road=forest', '?demo=street', '?nosave']) {
-      const g = new Game(search, 1)
+      const g = new Game(search, 1, storage)
       if (search === '?seed=4') expect(g.state.keep.trips).toBe(3)
       g.dispatch({ kind: 'sound', on: false })
       run(g, 1.5)
@@ -256,9 +251,8 @@ describe('the save in the browser', () => {
     const fail = () => {
       throw new Error('private mode')
     }
-    vi.stubGlobal('localStorage', { getItem: fail, setItem: fail })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const g = new Game('', 1)
+    const g = new Game('', 1, { getItem: fail, setItem: fail, removeItem: fail })
     g.dispatch({ kind: 'sound', on: false })
     run(g, 3)
     expect(g.state.keep.sound).toBe(false)
@@ -269,7 +263,7 @@ describe('the save in the browser', () => {
     storage.items.set(SAVE_KEY, serializeKeep({ ...freshKeep(), trips: 1, music: false }))
     const setSound = vi.spyOn(Sounds.prototype, 'setSound')
     const setMusic = vi.spyOn(Sounds.prototype, 'setMusic')
-    const g = new Game('', 1)
+    const g = new Game('', 1, storage)
     expect(setMusic).toHaveBeenLastCalledWith(false)
     g.dispatch({ kind: 'sound', on: false })
     expect(setSound).toHaveBeenLastCalledWith(false)
@@ -280,7 +274,7 @@ describe('the save in the browser', () => {
 
 describe('pointers on the canvas', () => {
   it('taps what the finger went down on, once it comes up without dragging', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'street', x: 30 })
     const got = record(g)
     const [x, y] = middle(g, rect(12 + 2.3, -2.6, 2.4, 2.6))
@@ -293,7 +287,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('pans the street with a drag, and then taps nothing', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'street', x: 60 })
     const got = record(g)
     const ppm = g.view!.ppm
@@ -312,7 +306,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('starts a drag from where the street really shows, when the rules put the shot past a pan limit', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     // The hint's glide to the truck in the garage asks for its middle, past the garage wall's limit.
     showing(g, { kind: 'street', x: TRUCK_HOME_X })
     const lo = W / g.view!.ppm / 2
@@ -326,7 +320,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('presses a ghost spot, follows the finger to another, and places the room where it lifts', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     // Plot 2 is a tall house with a wide room on the ground and a small room on it: small rooms fit at (2, 0), (1, 1) and (0, 2).
     showing(g, { kind: 'plot', plot: 2 })
     g.state.shape = 'small'
@@ -348,7 +342,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('lets go of the press when the finger slides off every spot, and places nothing there', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'plot', plot: 2 })
     g.state.shape = 'small'
     const got = record(g)
@@ -363,7 +357,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('takes one finger at a time, none while the camera moves, and none while paused', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'street', x: 30 })
     const got = record(g)
     g.pointer('down', 300, 400, 1)
@@ -385,7 +379,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('never acts on a question that opened under a held finger: lifting it neither closes the question nor taps', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'plot', plot: 2 })
     g.state.shape = 'small'
     const rooms = g.state.keep.plots[2]!.rooms
@@ -411,7 +405,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('tells the rules a finger is on the canvas from its down to its lift, however it lifts', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'street', x: 30 })
     const got = record(g, true)
     const touch = (down: boolean) => ({ kind: 'touch', down }) as const
@@ -438,7 +432,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('never moves the camera under a finger held still on the street: the glance comes a beat after it lifts', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'street', x: 70 })
     const s = g.state
     run(g, 1 / 60)
@@ -457,7 +451,7 @@ describe('pointers on the canvas', () => {
   })
 
   it('lets go of a pressed spot when the pointer is cancelled', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'plot', plot: 2 })
     g.state.shape = 'small'
     const got = record(g)
@@ -471,7 +465,7 @@ describe('pointers on the canvas', () => {
 
 describe('keys and the pedal', () => {
   it('holds the pedal while any pedal key or finger holds it, and lets go when the last one does', () => {
-    const g = new Game('?nosave&road=forest', 1)
+    const g = new Game('?nosave&road=forest', 1, storage)
     const got = record(g)
     g.keyDown('Space', false)
     g.keyDown('KeyD', false)
@@ -487,7 +481,7 @@ describe('keys and the pedal', () => {
   })
 
   it('honks with H, goes home with B, and hits the rock with the pedal keys at a boulder', () => {
-    const g = new Game('?nosave&road=forest', 1)
+    const g = new Game('?nosave&road=forest', 1, storage)
     const road = g.state.road!
     road.stop = road.def.things.findIndex((t) => t.kind === 'boulder')
     g.advance(0)
@@ -501,7 +495,7 @@ describe('keys and the pedal', () => {
   })
 
   it('lets go of the pedal on a pause, and resumes with Space', () => {
-    const g = new Game('?nosave&road=forest', 1)
+    const g = new Game('?nosave&road=forest', 1, storage)
     const got = record(g)
     g.keyDown('Space', false)
     g.keyDown('Escape', false)
@@ -518,7 +512,7 @@ describe('keys and the pedal', () => {
 
   it('drives the truck with a pedal key or a finger already held as the road appears', () => {
     for (const hold of [(g: Game) => g.keyDown('Space', false), (g: Game) => g.pedal('touch', true)]) {
-      const g = new Game('?demo=street', 1)
+      const g = new Game('?demo=street', 1, storage)
       hold(g)
       g.dispatch({ kind: 'tap', hit: { kind: 'truck' } })
       expect(g.state.ask).toEqual({ kind: 'road' })
@@ -531,7 +525,7 @@ describe('keys and the pedal', () => {
   })
 
   it('lets go of a finger on the pedal on a pause: the pedal looks up, and the next press drives', () => {
-    const g = new Game('?nosave&road=forest', 1)
+    const g = new Game('?nosave&road=forest', 1, storage)
     const v = g.getVersion()
     g.pedal('touch', true)
     expect(g.holds('touch')).toBe(true)
@@ -548,7 +542,7 @@ describe('keys and the pedal', () => {
   })
 
   it('pans the street with the arrows while they are held', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'street', x: 60 })
     g.keyDown('ArrowRight', false)
     run(g, 1)
@@ -562,7 +556,7 @@ describe('keys and the pedal', () => {
   })
 
   it('pans with the arrows from where the street really shows, when the rules put the shot past a pan limit', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     showing(g, { kind: 'street', x: TRUCK_HOME_X })
     const lo = W / g.view!.ppm / 2
     g.keyDown('ArrowRight', false)
@@ -571,7 +565,7 @@ describe('keys and the pedal', () => {
   })
 
   it('closes a question with B, the room question leaving the room empty', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     g.state.ask = { kind: 'road' }
     const got = record(g)
     g.keyDown('KeyB', false)
@@ -581,7 +575,7 @@ describe('keys and the pedal', () => {
   })
 
   it('takes only its own keys', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     expect(g.keyDown('KeyQ', false)).toBe(false)
     expect(g.keyDown('Tab', false)).toBe(false)
     expect(g.keyDown('Space', false)).toBe(true)
@@ -590,7 +584,7 @@ describe('keys and the pedal', () => {
 
 describe('the HUD', () => {
   it('bumps its version when what it shows changes, and only then', () => {
-    const g = new Game('?nosave', 1)
+    const g = new Game('?nosave', 1, storage)
     run(g, 0.1)
     const v = g.getVersion()
     run(g, 1)
@@ -605,9 +599,9 @@ describe('the HUD', () => {
   })
 
   it('sends the back button where it leads: the mirror on the street, home on the road, back elsewhere', () => {
-    const street = new Game('?demo=street', 1)
-    const road = new Game('?nosave&road=forest', 1)
-    const room = new Game('?demo=room', 1)
+    const street = new Game('?demo=street', 1, storage)
+    const road = new Game('?nosave&road=forest', 1, storage)
+    const room = new Game('?demo=room', 1, storage)
     const got = [record(street), record(road), record(room)]
     street.backButton()
     road.backButton()
@@ -622,7 +616,7 @@ describe('the canvas', () => {
   const pointerEvent = (type: string, button: number, x: number, y: number) => Object.assign(new Event(type, { cancelable: true }), { button, clientX: x, clientY: y, pointerId: 7, pointerType: 'mouse' })
 
   it('takes only the primary button, cancels the click after a touch, and lets the browser give a lost context back', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     const pointer = vi.spyOn(g, 'pointer').mockImplementation(() => {})
     const el = fakeCanvas()
     const lost = vi.fn()
@@ -675,7 +669,7 @@ describe('the HUD over the canvas', () => {
   })
 
   it('points the hint hand at what shows of a plot on the street, an empty one\'s sign or a house\'s rooms, never at the sky over them', () => {
-    const g = new Game('?demo=street', 1)
+    const g = new Game('?demo=street', 1, storage)
     const plots = g.state.keep.plots
     /** The screen rect of a world rect on the view drawn. */
     const onScreen = (r: Rect) => {
@@ -821,12 +815,12 @@ describe('the HUD on every screen', () => {
   it('gives a phone on its side a picture big enough to play, the road clear of the pedal', () => {
     for (const [w, h] of PHONES) {
       const at = `${w}x${h}`
-      const room = new Game('?demo=room', 1)
+      const room = new Game('?demo=room', 1, storage)
       expect(viewAt(room.state, simTime(room.state) + 1, w, h, 1).ppm, at).toBeGreaterThanOrEqual(40)
-      const tall = new Game('?demo=tall', 1)
+      const tall = new Game('?demo=tall', 1, storage)
       expect(viewAt(tall.state, simTime(tall.state) + 1, w, h, 1).ppm, at).toBeGreaterThanOrEqual(15)
       // The road's front edge, about 0.8 m in front of the ground line under the truck, stays above the 88 px pedal 10 px off the bottom.
-      const road = new Game('?road=forest&nosave', 1)
+      const road = new Game('?road=forest&nosave', 1, storage)
       const v = viewAt(road.state, simTime(road.state) + 1, w, h, 1)
       const [, front] = toScreen(v, road.state.road!.x, groundAt(road.state.road!.def, road.state.road!.x) + 0.8)
       expect(front, at).toBeLessThanOrEqual(h - 10 - 88)

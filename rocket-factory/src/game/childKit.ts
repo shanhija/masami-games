@@ -1,5 +1,6 @@
 import { vi } from 'vitest'
 
+import type { Saves } from '../../../profiles/src/profiles'
 import { startView } from './camera'
 import type { Child, Finger, Kid, Screen } from './child'
 import { Game } from './game'
@@ -8,16 +9,9 @@ import type { SimEvent } from './model'
 
 /**
  * The page for the tests that play scripted children on a real Game (child.test.ts,
- * fingers.test.ts): an in-memory localStorage, the view the stage draws at a screen, and a
+ * fingers.test.ts): the view the stage draws at a screen, a page opened on given saves, and a
  * frame as the page runs one. Never used by the game itself.
  */
-
-/** An in-memory stand-in for the browser's localStorage, in place until vi.unstubAllGlobals: its items. */
-export function memoryStorage(): Map<string, string> {
-  const items = new Map<string, string>()
-  vi.stubGlobal('localStorage', { getItem: (key: string) => items.get(key) ?? null, setItem: (key: string, value: string) => void items.set(key, value) })
-  return items
-}
 
 /** The view the stage draws for the game's frame at screen sc on a touch screen, handed to the game (Stage.tsx). */
 export function stage(g: Game, sc: Screen): View {
@@ -34,10 +28,10 @@ export function frame(g: Game, sc: Screen, child: Child | null, dt: number): Sim
   return events
 }
 
-/** A page opened at a screen with its first view drawn. Its document has no full screen to ask for, as a page in a frame has none: the Play and Keep going of a touch screen ask for none. */
-export function open(search: string, seed: number, sc: Screen): Game {
+/** A page opened at a screen on `saves`, with its first view drawn. Its document has no full screen to ask for, as a page in a frame has none: the Play and Keep going of a touch screen ask for none. */
+export function open(search: string, seed: number, sc: Screen, saves: Saves): Game {
   vi.stubGlobal('document', { fullscreenEnabled: false, fullscreenElement: null })
-  const g = new Game(search, seed)
+  const g = new Game(search, seed, saves)
   stage(g, sc)
   return g
 }

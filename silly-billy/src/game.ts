@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { Saves } from '../../profiles/src/profiles'
+
 import { Brain } from './brain/brain'
 import type { Job, Link } from './brain/contract'
 import { createLink } from './brain/link'
@@ -105,19 +107,19 @@ export function restoreRooms(world: World, saved: SavedRooms) {
   world.nextId = saved.nextId
 }
 
-/** localStorage, which a private window or blocked site data makes throw: then nothing is kept. */
-function load(key: string): string | null {
+/** The player's saves, which a full or refusing storage makes throw: then nothing is kept. */
+function load(saves: Saves, key: string): string | null {
   try {
-    return localStorage.getItem(key)
+    return saves.getItem(key)
   } catch (e) {
     console.warn(`cannot read ${key}:`, e)
     return null
   }
 }
 
-function keep(key: string, value: string) {
+function keep(saves: Saves, key: string, value: string) {
   try {
-    localStorage.setItem(key, value)
+    saves.setItem(key, value)
   } catch (e) {
     console.warn(`cannot keep ${key}:`, e)
   }
@@ -169,10 +171,14 @@ export class Game implements SceneSource {
   /** When each job was first seen, in real ms (performance.now). */
   private readonly jobsSeen = new WeakMap<Job, number>()
 
-  constructor() {
-    this.settings = readSettings(load(SETTINGS_KEY))
+  private readonly saves: Saves
+
+  /** `saves` are the player's: the rooms and the settings. What is made lives in the library, which is everyone's. */
+  constructor(saves: Saves) {
+    this.saves = saves
+    this.settings = readSettings(load(saves, SETTINGS_KEY))
     this.library = new Library({ items: BUILTIN_ITEMS, actions: BUILTIN_ACTIONS })
-    const text = load(ROOMS_KEY)
+    const text = load(saves, ROOMS_KEY)
     const saved = text === null ? null : readRooms(text)
     const lang = this.settings.lang
     const world = createWorld({ room: saved === null ? 'playground' : saved.room, actors: makeCast(lang), layouts: LAYOUTS, seed: Date.now() >>> 0, lang })
@@ -293,7 +299,7 @@ export class Game implements SceneSource {
 
   save() {
     this.savedAt = this.sim.world.t
-    keep(ROOMS_KEY, JSON.stringify(roomsOf(this.sim.world)))
+    keep(this.saves, ROOMS_KEY, JSON.stringify(roomsOf(this.sim.world)))
   }
 
   /** Every touch and key (useGame listens on the window): the first one starts the sound and lets the avatars speak (iOS). */
@@ -369,7 +375,7 @@ export class Game implements SceneSource {
   setSettings(change: Partial<Settings>) {
     const world = this.sim.world
     this.settings = { ...this.settings, ...change }
-    keep(SETTINGS_KEY, JSON.stringify(this.settings))
+    keep(this.saves, SETTINGS_KEY, JSON.stringify(this.settings))
     if (this.settings.lang !== world.lang) {
       useLang(world, this.settings.lang)
       for (const a of world.actors) a.bubble = null

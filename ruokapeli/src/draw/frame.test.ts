@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { fakeContext } from '../../../rakennustyömaat/src/draw/fakeContext'
 import { Game } from '../game/game'
 import { COURSES } from '../game/model'
@@ -11,7 +13,7 @@ function setup(search: string) {
   const makeCanvas = () => ({ width: 0, height: 0, getContext: () => fakeContext().ctx }) as unknown as HTMLCanvasElement
   const renderer = new Renderer(ctx, makeCanvas, true)
   renderer.resize(2360, 1640, 2)
-  const game = new Game(search)
+  const game = new Game(search, memorySaves())
   /** Advances the game by `seconds` and draws it, checking the frame leaves the context as it found it. */
   const frame = (what: string, seconds: number) => check(what, () => renderer.draw(game, game.advance(seconds), seconds), 'allowed')
   return { game, renderer, frame }

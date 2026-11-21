@@ -17,13 +17,15 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { whereWanted } from './beep'
 import { add, cell, emptyBoard, put } from './beltKit'
 import { cellOf } from './board'
 import { rebuild } from './belts'
 import { BLOCKED_HINT, STACK } from './catalog'
 import { Child, FINGER, PureChild, screenNamed } from './child'
-import { frame, memoryStorage, open } from './childKit'
+import { frame, open } from './childKit'
 import { demoState, type Demo } from './fixtures'
 import { brokeBetween, firstStep, nextSteps, reachOf, type Ranked } from './hint'
 import { openParts } from './machines'
@@ -38,7 +40,6 @@ const CAREFUL = { pace: 'eager', behaviour: 'careful' } as const
 const LAYOUT: ReadonlySet<Step['kind']> = new Set(['place', 'link', 'free', 'bottleneck', 'defend', 'refill', 'oops'])
 
 beforeEach(() => {
-  memoryStorage()
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -340,7 +341,7 @@ describe('the chaos child, then the careful child following the hint', () => {
   for (const moment of MOMENTS)
     it(`from ${moment}: three minutes of taps, strokes, stickers, peels and Oops anywhere, then the hint leads ${LONG ? 'to the launch' : 'to the next two cards'}`, { timeout: LONG ? 600_000 : 60_000 }, () => {
       for (const seed of SEEDS) {
-        const g = open(`?demo=${moment}&seed=1`, 1, sc)
+        const g = open(`?demo=${moment}&seed=1`, 1, sc, memorySaves())
         const chaos = new Child({ play: 'chaos', finger: FINGER, mm: () => sc.mm, thumb: null, frantic: false, bedtime: Infinity }, seed)
         const from = g.state.tick
         while (g.state.tick - from < 3 * 3600 || !chaos.idle || g.state.drag !== null) frame(g, sc, chaos, 2 / 60)

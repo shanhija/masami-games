@@ -8,14 +8,15 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { Child, FINGER, PureChild, screenNamed, type Screen } from './child'
-import { frame, memoryStorage, open } from './childKit'
+import { frame, open } from './childKit'
 import { CARDS, ticks, type CardId, type SimEvent, type State } from './model'
 import { act, newGame } from './rules'
 import { lintNet } from './strokes'
 
 beforeEach(() => {
-  memoryStorage()
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -54,7 +55,7 @@ function pure(seed: number, last: Milestone): Partial<Record<Milestone, number>>
 
 /** Game seconds from Play to each milestone of the careful child with the finger at screen sc, up to `last`, the lint checked every game second. A resting thumb in one seed in five, as on the page. */
 function fingers(sc: Screen, seed: number, last: Milestone): Partial<Record<Milestone, number>> {
-  const g = open(`?demo=start&seed=${seed}`, seed, sc)
+  const g = open(`?demo=start&seed=${seed}`, seed, sc, memorySaves())
   const child = new Child({ play: CAREFUL, finger: FINGER, mm: () => sc.mm, thumb: seed % 5 === 0 ? 'edge' : null, frantic: false, bedtime: Infinity }, seed)
   const at: Partial<Record<Milestone, number>> = {}
   let start = -1

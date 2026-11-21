@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { Saves } from '../../../profiles/src/profiles'
+
 import { botStep, createBot, type Bot } from './bot'
 import { SLOTS, type ItemId, type Pattern, type SlimeColour, type SlimeLook, type Slot } from './closet'
 import { courseById } from './courses'
@@ -142,7 +144,7 @@ export class Game {
   /** What the HUDs last saw, all of it in one string. */
   private shown = ''
   /** Counts every new save, so the snapshot sees any change to it. */
-  private saves = 0
+  private savesMade = 0
   private listeners = new Set<() => void>()
   private lastInputAt = 0
   /** The page is hidden or the window has lost focus: every loop stays silent until it is back. */
@@ -157,7 +159,10 @@ export class Game {
   private bot: Bot | null = null
   private storageWarned = false
 
-  constructor() {
+  private readonly saves: Saves
+
+  constructor(saves: Saves) {
+    this.saves = saves
     this.switches = readSwitches(location.search)
     const sw = this.switches
     const saved = sw.fresh ? FRESH : this.loadSave()
@@ -566,13 +571,13 @@ export class Game {
   /** A new save: kept, written at once (never on a tuning visit), and a new look when what the slime wears changed. */
   private keep(save: Save) {
     this.save = save
-    this.saves += 1
+    this.savesMade += 1
     const l = this.look
     if (save.colour !== l.colour || save.pattern !== l.pattern || SLOTS.some((slot) => save.outfit[slot] !== l.outfit[slot])) this.look = { colour: save.colour, pattern: save.pattern, outfit: save.outfit }
     const sw = this.switches
     if (sw.course !== null || sw.fresh || sw.all) return
     try {
-      localStorage.setItem(SAVE_KEY, serializeSave(save))
+      this.saves.setItem(SAVE_KEY, serializeSave(save))
     } catch (e) {
       this.warnStorage(e)
     }
@@ -581,7 +586,7 @@ export class Game {
   private loadSave(): Save {
     // Storage can be missing or throw (private modes, blocked cookies): then the game keeps its save in memory.
     try {
-      return parseSave(localStorage.getItem(SAVE_KEY))
+      return parseSave(this.saves.getItem(SAVE_KEY))
     } catch (e) {
       this.warnStorage(e)
       return parseSave(null)
@@ -605,7 +610,7 @@ export class Game {
       const f = s.finish
       run = `${s.phase}|${f.keyAt >= 0}|${f.measureAt >= 0 ? f.animal : -1}|${babies}|${s.stars}|${s.teach === null ? '' : s.teach.action}|${s.checkpoint}`
     }
-    const snapshot = `${this.screenKey}|${this.paused}|${this.touch}|${this.index}|${this.saves}|${this.hopAt}|${this.locked === null ? -1 : this.locked.at}|${this.jarNews === null ? -1 : this.jarNews.at}|${run}`
+    const snapshot = `${this.screenKey}|${this.paused}|${this.touch}|${this.index}|${this.savesMade}|${this.hopAt}|${this.locked === null ? -1 : this.locked.at}|${this.jarNews === null ? -1 : this.jarNews.at}|${run}`
     if (snapshot === this.shown) return
     this.shown = snapshot
     this.version += 1

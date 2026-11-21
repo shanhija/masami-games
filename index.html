@@ -8,6 +8,8 @@
   </head>
   <body>
     <div class="sun" aria-hidden="true"></div>
+    <!-- Who is playing, the player editor and the player's chip (profiles/src): each game keeps its saves per player. -->
+    <div id="profiles"></div>
     <main class="directory">
       <h1>Pick a game!</h1>
       <div class="games">
@@ -185,5 +187,6 @@
         </a>
       </div>
     </main>
+    <script type="module" src="./profiles/src/main.tsx"></script>
   </body>
 </html>

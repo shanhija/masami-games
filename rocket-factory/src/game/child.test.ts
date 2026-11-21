@@ -10,10 +10,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { choose } from './brain'
 import { FLOWER_OF, GROUND, PAD_RING, inCorner, xOf, yOf } from './board'
 import { BEDTIME, Child, FINGER, FRANTIC_EVERY, PHONE_MM, SCREENS, STEADY, intentsOf, screenNamed, trayButton, type Kid, type Screen } from './child'
-import { carefulAt, frame, memoryStorage, open } from './childKit'
+import { carefulAt, frame, open } from './childKit'
 import type { Demo } from './fixtures'
 import type { Game } from './game'
 import type { Ranked } from './hint'
@@ -22,7 +24,6 @@ import { act, cloneState } from './rules'
 import { lintNet } from './strokes'
 
 beforeEach(() => {
-  memoryStorage()
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -79,7 +80,7 @@ function judge(kind: Step['kind'], pure: { s: State; answers: string[] }, events
  * script. Stops once a step of kind `until` was judged, or after `most` game seconds.
  */
 function play(sc: Screen, demo: Demo, kid: Kid, seed: number, until: Step['kind'] | null, most: number, crafted: (s: State) => Ranked[]): Taken[] {
-  const g = open(`?demo=${demo}&seed=${SEED}`, SEED, sc)
+  const g = open(`?demo=${demo}&seed=${SEED}`, SEED, sc, memorySaves())
   const child = new Child(kid, seed)
   const out: Taken[] = []
   let queue: Ranked[] | null = null
@@ -162,7 +163,7 @@ const CASES: readonly { demo: Demo; until: Step['kind']; most: number; crafted: 
 
 describe('the gestures', () => {
   it('turn a script into a tray tap, a carry from the tray, a tap, a dig, a tickle, a stroke and the HUD calls, and throw on what no finger makes', () => {
-    const s = open('?demo=factory&seed=3', 3, screenNamed('1180x820')).state
+    const s = open('?demo=factory&seed=3', 3, screenNamed('1180x820'), memorySaves()).state
     expect(intentsOf(s, [{ kind: 'tool', tool: { kind: 'sticker', sticker: 'oven' } }, { kind: 'hold', x: 3, y: 9 }, { kind: 'release', commit: true }])).toEqual([{ kind: 'carry', sticker: 'oven', x: 3, y: 9 }])
     expect(intentsOf(s, [{ kind: 'tool', tool: { kind: 'peel' } }, { kind: 'drag', cells: [1, 2] }, { kind: 'release', commit: true }, { kind: 'oops' }])).toEqual([{ kind: 'tool', tool: { kind: 'peel' } }, { kind: 'trace', cells: [1, 2] }, { kind: 'oops' }])
     expect(intentsOf(s, [{ kind: 'dig', cell: 67, down: true }, { kind: 'dig', cell: 67, down: false }, { kind: 'tickle', id: 4 }, { kind: 'choose', card: 'bubbles' }, { kind: 'card' }])).toEqual([{ kind: 'dig', cell: 67 }, { kind: 'tickle', id: 4 }, { kind: 'choose', card: 'bubbles' }, { kind: 'card' }])
@@ -172,7 +173,7 @@ describe('the gestures', () => {
 
   it('finds every tray sticker inside the tray band, in arrival order, on every screen', { timeout: 30_000 }, () => {
     for (const sc of SCREENS) {
-      const g = open('?demo=busy&seed=3', 3, sc)
+      const g = open('?demo=busy&seed=3', 3, sc, memorySaves())
       const f = g.view!.hud
       if (f.tray === null) continue
       let last = -Infinity
@@ -229,8 +230,8 @@ describe('a touch aimed at a muncher', () => {
     let touches = 0
     for (const sc of SCREENS)
       for (const demo of ['sitting', 'napping', 'nibbling'] as const) {
-        for (const tool of tools(open(`?demo=${demo}&seed=${SEED}`, SEED, sc))) {
-          const g = open(`?demo=${demo}&seed=${SEED}`, SEED, sc)
+        for (const tool of tools(open(`?demo=${demo}&seed=${SEED}`, SEED, sc, memorySaves()))) {
+          const g = open(`?demo=${demo}&seed=${SEED}`, SEED, sc, memorySaves())
           if (!sameTool(g.state.tool, tool)) g.button({ kind: 'tool', tool }, 'pick')
           const sent = vi.spyOn(g, 'dispatch')
           const child = new Child(carefulAt(sc, FINGER), touches)
@@ -271,7 +272,7 @@ describe('a thumb resting on the glass', () => {
 describe('the frantic tapper', () => {
   it('taps at the munchers out every FRANTIC_EVERY while the visit lasts, only ever tickling, and plays on when they have gone home', { timeout: 30_000 }, () => {
     const sc = screenNamed('1180x820')
-    const g = open(`?demo=napping&seed=${SEED}`, SEED, sc)
+    const g = open(`?demo=napping&seed=${SEED}`, SEED, sc, memorySaves())
     const child = new Child({ ...carefulAt(sc, FINGER), frantic: true }, 5)
     const pointer = g.pointer.bind(g)
     const downs: number[] = []
@@ -307,7 +308,7 @@ describe('the chaos and belts-everywhere children', () => {
         ['busy', '750x320'],
       ] as const) {
         const sc = screenNamed(name)
-        const g = open(`?demo=${demo}&seed=${SEED}`, SEED, sc)
+        const g = open(`?demo=${demo}&seed=${SEED}`, SEED, sc, memorySaves())
         const child = new Child({ play: kind, finger: FINGER, mm: () => sc.mm, thumb: null, frantic: false, bedtime: Infinity }, 11)
         const edits = new Set<EventKind>()
         // Frames of two steps, as a busy iPad draws: the finger's way is still sent every sixtieth of a second.
@@ -325,9 +326,9 @@ describe('the chaos and belts-everywhere children', () => {
 
 describe('?autoplay', () => {
   it('plays the page by itself: Play, the hint, Good night at bedtime and the morning after, never writing the save', { timeout: 60_000 }, () => {
-    const items = memoryStorage()
+    const saves = memorySaves()
     const sc = screenNamed('1180x820')
-    const g = open('?nosave&autoplay&seed=4&fast=20', 4, sc)
+    const g = open('?nosave&autoplay&seed=4&fast=20', 4, sc, saves)
     let slept = false
     for (let i = 0; ; i++) {
       // At ?fast=20 a frame is a third of a game second: bedtime, the tuck-in and the still card's wait.
@@ -338,6 +339,6 @@ describe('?autoplay', () => {
     }
     expect(g.state.night).toBeNull()
     expect(g.state.found.length).toBeGreaterThan(4)
-    expect(items.size).toBe(0)
+    expect(saves.items.size).toBe(0)
   })
 })

@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { GameSaves, Saves } from '../../../profiles/src/profiles'
+
 import type { StageGame } from '../draw/Stage'
 import { working } from './band'
 import { CORNER } from './board'
@@ -23,7 +25,7 @@ if (import.meta.hot) import.meta.hot.accept(() => location.reload())
  * pause and sessions; Engineering). The clock and its fixed 60 Hz step, the canvas's pointers
  * through the pointer router (touch.ts) against the view the stage drew, the tray's
  * pointers, keys through touch.ts keyAction, the pause and the automatic pause, sessions and
- * the morning after Good night, the save in localStorage (and another tab's), Start again's
+ * the morning after Good night, the save in the player's saves (and another tab's), Start again's
  * old factories and a copy kept as a file, the URL switches, the sounds' lifecycle, full
  * screen, and the HUD's version. Every HUD button is an Action through `dispatch`; nothing here
  * changes the state but act and step (and a load, which makes one).
@@ -165,8 +167,11 @@ export class Game implements StageGame {
   /** Pointers pressed on a tray sticker, whose moves the page forwards (the button keeps them, not the canvas). */
   private readonly trays = new Set<number>()
 
-  /** `search` is the page's query string (see UrlSwitches); `seed` seeds the random numbers unless ?seed does. */
-  constructor(search: string, seed: number) {
+  private readonly saves: Saves
+
+  /** `search` is the page's query string (see UrlSwitches); `seed` seeds the random numbers unless ?seed does; `saves` are the player's. */
+  constructor(search: string, seed: number, saves: Saves) {
+    this.saves = saves
     const w = (this.url = readSwitches(search))
     this.test = isTest(w)
     this.seed = w.seed ?? seed
@@ -584,7 +589,7 @@ export class Game implements StageGame {
   /** The text stored under `key`, or null. Storage can be missing or throw (private modes, blocked site data): then the game keeps its keep in memory. */
   private read(key: string): string | null {
     try {
-      return localStorage.getItem(key)
+      return this.saves.getItem(key)
     } catch (e) {
       this.warnStorage(e)
       return null
@@ -595,7 +600,7 @@ export class Game implements StageGame {
   private write(key: string, text: string): boolean {
     if (this.test) return false
     try {
-      localStorage.setItem(key, text)
+      this.saves.setItem(key, text)
       return true
     } catch (e) {
       this.writeFailed = true
@@ -680,7 +685,7 @@ export function toggleFullscreen(): void {
  * over the game, and Ctrl with the wheel or a pinch never zooms the page. No wake lock: the
  * iPad may sleep.
  */
-export function useGameInput(game: Game): void {
+export function useGameInput(game: Game, saves: GameSaves): void {
   useEffect(() => {
     const session = (navigator as { audioSession?: { type: string } }).audioSession
     if (session) session.type = 'playback'
@@ -699,9 +704,6 @@ export function useGameInput(game: Game): void {
     }
     const pageshow = (e: PageTransitionEvent) => {
       if (e.persisted) game.away()
-    }
-    const storage = (e: StorageEvent) => {
-      if (e.storageArea === localStorage) game.otherTab(e.key, e.newValue)
     }
     const gesture = () => game.gesture()
     const pressed = (e: PointerEvent) => {
@@ -725,7 +727,7 @@ export function useGameInput(game: Game): void {
     window.addEventListener('blur', away)
     window.addEventListener('pagehide', pagehide)
     window.addEventListener('pageshow', pageshow)
-    window.addEventListener('storage', storage)
+    const unwatch = saves.watch((key, text) => game.otherTab(key, text))
     window.addEventListener('pointerdown', pressed, true)
     window.addEventListener('pointermove', trayMove)
     window.addEventListener('pointerup', trayUp)
@@ -742,7 +744,7 @@ export function useGameInput(game: Game): void {
       window.removeEventListener('blur', away)
       window.removeEventListener('pagehide', pagehide)
       window.removeEventListener('pageshow', pageshow)
-      window.removeEventListener('storage', storage)
+      unwatch()
       window.removeEventListener('pointerdown', pressed, true)
       window.removeEventListener('pointermove', trayMove)
       window.removeEventListener('pointerup', trayUp)
@@ -755,5 +757,5 @@ export function useGameInput(game: Game): void {
       document.removeEventListener('fullscreenchange', fullscreen)
       document.removeEventListener('contextmenu', noMenu)
     }
-  }, [game])
+  }, [game, saves])
 }

@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { Saves } from '../../../profiles/src/profiles'
+
 import { simTime, streetX, tweening, type View } from './camera'
 import { PRESENTS } from './catalog'
 import { BEDTIME, Child } from './child'
@@ -18,7 +20,7 @@ if (import.meta.hot) import.meta.hot.accept(() => location.reload())
 /**
  * The running game: the browser glue around the pure state. The clock and its fixed-step
  * accumulator, keys and pointers turned into Actions (a canvas pointer goes through the
- * camera's view and layout.hitTest), the save in localStorage, the sounds' lifecycle, pause,
+ * camera's view and layout.hitTest), the save in the player's saves, the sounds' lifecycle, pause,
  * the URL switches and the HUD's version.
  */
 
@@ -132,8 +134,11 @@ export class Game {
    */
   private finger: { id: number; x0: number; y0: number; hit: Hit; drag: boolean; from: number; spot: Hit | null } | null = null
 
-  /** `search` is the page's query string (see Switches); `seed` seeds the random numbers unless ?seed does. */
-  constructor(search: string, seed: number) {
+  private readonly saves: Saves
+
+  /** `search` is the page's query string (see Switches); `seed` seeds the random numbers unless ?seed does; `saves` are the player's. */
+  constructor(search: string, seed: number, saves: Saves) {
+    this.saves = saves
     const w = (this.switches = readSwitches(search))
     this.test = isTest(w)
     this.child = w.autoplay ? new Child(w.seed ?? seed, BEDTIME) : null
@@ -460,7 +465,7 @@ export class Game {
   private load(): string | null {
     // Storage can be missing or throw (private modes, blocked site data): then the game keeps its keep in memory.
     try {
-      return localStorage.getItem(SAVE_KEY)
+      return this.saves.getItem(SAVE_KEY)
     } catch (e) {
       this.warnStorage(e)
       return null
@@ -474,7 +479,7 @@ export class Game {
     const text = serializeKeep(this.state.keep)
     if (text === this.saved) return
     try {
-      localStorage.setItem(SAVE_KEY, text)
+      this.saves.setItem(SAVE_KEY, text)
       this.saved = text
     } catch (e) {
       this.warnStorage(e)

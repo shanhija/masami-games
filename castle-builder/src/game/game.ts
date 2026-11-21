@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { Saves } from '../../../profiles/src/profiles'
+
 import { mulberry32 } from './random'
 import {
   GOODS,
@@ -37,7 +39,7 @@ const SAVE_KEY = 'castle-builder'
 const SAVE_EVERY = 5
 
 /**
- * The running game: the sim, the sounds, the pause, the save in the browser, and the
+ * The running game: the sim, the sounds, the pause, the save in the player's saves, and the
  * one thing the DOM needs to know, a version that bumps when anything the HUD shows
  * has changed. The scene reads the sim directly every frame and sends taps here; the
  * HUD subscribes to the version.
@@ -53,12 +55,14 @@ export class Game {
   /** What the HUD last saw, all of it in one string; anything else changing is the scene's business. */
   private shown = ''
   private savedAt = 0
+  private readonly saves: Saves
 
-  constructor() {
+  constructor(saves: Saves) {
+    this.saves = saves
     this.sim = createSim(mulberry32(Date.now() >>> 0))
-    const saved = localStorage.getItem(SAVE_KEY)
+    const saved = saves.getItem(SAVE_KEY)
     // Text that is not a castle this game can read leaves the fresh island standing, and goes.
-    if (saved !== null && !restore(this.sim, saved)) localStorage.removeItem(SAVE_KEY)
+    if (saved !== null && !restore(this.sim, saved)) saves.removeItem(SAVE_KEY)
     this.savedAt = this.sim.time
   }
 
@@ -144,7 +148,7 @@ export class Game {
   /** A fresh island, and the old castle forgotten. */
   newCastle() {
     resetSim(this.sim, mulberry32(Date.now() >>> 0))
-    localStorage.removeItem(SAVE_KEY)
+    this.saves.removeItem(SAVE_KEY)
     this.savedAt = 0
     this.generation += 1
     this.paused = false
@@ -181,7 +185,7 @@ export class Game {
     })
     if (s.phase === 'play' && s.time - this.savedAt >= SAVE_EVERY) {
       this.savedAt = s.time
-      localStorage.setItem(SAVE_KEY, serialize(s))
+      this.saves.setItem(SAVE_KEY, serialize(s))
     }
     this.bump()
   }

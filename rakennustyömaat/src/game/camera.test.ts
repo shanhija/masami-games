@@ -1,15 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
 import { buildRect, insets, roadZoom, shownRect, simTime, toScreen, toWorld, viewAt, type View } from './camera'
 import { Game } from './game'
 import { CELL, TRUCK, groundAt, houseRect, roofRect, roomRect, validSpots, type Rect } from './layout'
 import { SHOT_TWEEN, type Shot } from './model'
 import { makeRoad, startRoad, stopX } from './road'
-
-beforeEach(() => {
-  const items = new Map<string, string>()
-  vi.stubGlobal('localStorage', { getItem: (key: string) => items.get(key) ?? null, setItem: (key: string, value: string) => void items.set(key, value) })
-})
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -44,7 +40,7 @@ const UPRIGHT = [
 describe('the camera on every screen', () => {
   it("fits a phone on its side's build view to a house's floors in use and the one over them, and moves it as the crane brings a floor or takes one away", () => {
     // A tall house with a wide room on its ground floor, in the build view.
-    const g = new Game('?demo=road', 1)
+    const g = new Game('?demo=road', 1, memorySaves())
     const s = g.state
     const p = s.keep.plots[0]!
     expect(p).toMatchObject({ kind: 'tall', rooms: [{ shape: 'wide', row: 0 }] })
@@ -72,7 +68,7 @@ describe('the camera on every screen', () => {
     }
     // Any other window fits the whole house, and a phone the whole of a full one.
     for (const [w, h] of [...SIDEWAYS, ...UPRIGHT]) expect(buildRect(s, 0, w, h, simTime(s)), `${w}x${h}`).toEqual(houseRect(0, p))
-    const full = new Game('?demo=tall', 1).state
+    const full = new Game('?demo=tall', 1, memorySaves()).state
     expect(buildRect(full, 0, 667, 375, simTime(full))).toEqual(houseRect(0, full.keep.plots[0]!))
 
     // A room on the next floor: the view takes in the floor over it, growing over SHOT_TWEEN as the crane starts lowering the room.
@@ -108,7 +104,7 @@ describe('the camera on every screen', () => {
 
   it("eases a phone on its side's build view on from what it shows when the next room comes quickly, never popping it", () => {
     for (const gap of [0.15, 0.3, 0.45]) {
-      const g = new Game('?demo=road', 1)
+      const g = new Game('?demo=road', 1, memorySaves())
       const s = g.state
       s.shot = s.shotFrom = { kind: 'plot', plot: 0 }
       s.shotAt = -1
@@ -135,7 +131,7 @@ describe('the camera on every screen', () => {
   })
 
   it('frames the level crossing while the truck waits for the train, zooming out only on an upright screen, until every car has crossed the road', () => {
-    const g = new Game('?road=beach&nosave', 1)
+    const g = new Game('?road=beach&nosave', 1, memorySaves())
     const s = g.state
     const def = makeRoad('beach', 4, 6)
     const i = def.things.findIndex((t) => t.kind === 'surprise' && t.what === 'train')

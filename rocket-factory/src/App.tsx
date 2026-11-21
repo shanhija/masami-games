@@ -1,14 +1,15 @@
 import { Component, useMemo, type ReactNode } from 'react'
 
+import type { GameSaves } from '../../profiles/src/profiles'
 import { Sheet } from './draw/Sheet'
 import { Stage } from './draw/Stage'
 import { Game, useGameInput } from './game/game'
 import { Hud } from './Hud'
 
-function Play() {
+function Play({ saves }: { saves: GameSaves }) {
   // The seed is the one random number the page picks, outside the sim (?seed overrides it), so every game rolls its own.
-  const game = useMemo(() => new Game(location.search, Math.floor(Math.random() * 2 ** 31)), [])
-  useGameInput(game)
+  const game = useMemo(() => new Game(location.search, Math.floor(Math.random() * 2 ** 31), saves), [saves])
+  useGameInput(game, saves)
   // A test run (?debug, ?nosave, ?demo, ?seed, ?autoplay): the game for a look from the console, and for the headless screenshots without ?debug's overlay.
   const w = game.url
   if (w.debug || w.nosave || w.demo !== null || w.seed !== null || w.autoplay) (window as unknown as { game: Game }).game = game
@@ -34,6 +35,6 @@ class Oops extends Component<{ children: ReactNode }, { error: Error | null }> {
 }
 
 /** The game, or with ?sheet a sprite sheet instead. */
-export function App() {
-  return <Oops>{new URLSearchParams(location.search).has('sheet') ? <Sheet /> : <Play />}</Oops>
+export function App({ saves }: { saves: GameSaves }) {
+  return <Oops>{new URLSearchParams(location.search).has('sheet') ? <Sheet /> : <Play saves={saves} />}</Oops>
 }

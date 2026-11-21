@@ -8,6 +8,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { simTime, tweening, viewAt, type View } from './camera'
 import { HOUSE_GRID, SHAPE_SIZE } from './catalog'
 import { BEDTIME, Child, THINK, buttons, childMove, doMove, freeArea, type Move } from './child'
@@ -18,15 +20,9 @@ import { SAVE_KEY, parseKeep } from './progress'
 import { rng } from './random'
 import { cloneState } from './rules'
 
-/** An in-memory stand-in for the browser's localStorage. */
-function memoryStorage() {
-  const items = new Map<string, string>()
-  return { items, getItem: (key: string) => items.get(key) ?? null, setItem: (key: string, value: string) => void items.set(key, value) }
-}
-let storage: ReturnType<typeof memoryStorage>
+let storage: ReturnType<typeof memorySaves>
 beforeEach(() => {
-  storage = memoryStorage()
-  vi.stubGlobal('localStorage', storage)
+  storage = memorySaves()
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -60,7 +56,7 @@ function play(g: Game, child: Child, seconds: number, done: (g: Game) => boolean
 
 /** A new page over the save in storage (or a test page with `search`), its first frame drawn. */
 function open(search: string, seed: number): Game {
-  const g = new Game(search, seed)
+  const g = new Game(search, seed, storage)
   frame(g, 0)
   return g
 }
@@ -175,8 +171,8 @@ describe('the scripted child', () => {
   })
 
   it('plays on the page with ?autoplay (only beside ?nosave or ?demo), says Good night at bedtime and wakes the card, never writing the save', () => {
-    expect(() => new Game('?autoplay', 1)).toThrow(/nosave/)
-    expect(() => new Game('?autoplay&seed=4', 1)).toThrow(/nosave/)
+    expect(() => new Game('?autoplay', 1, storage)).toThrow(/nosave/)
+    expect(() => new Game('?autoplay&seed=4', 1, storage)).toThrow(/nosave/)
     const g = open('?nosave&autoplay&seed=4', 4)
     // The child plays by itself: the page only advances and draws.
     let k = 0

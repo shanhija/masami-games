@@ -1,5 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 
+import type { Saves } from '../../../profiles/src/profiles'
+
 import type { BotPlan } from './bot'
 import { ROOMS } from './levels'
 import { HZ, STEP, since, type Form, type Room, type Sim, type SimEvent } from './model'
@@ -214,8 +216,11 @@ export class Game {
   /** What the HUD last saw of the values that change on their own. */
   private seen = { stars: -1, bubble: false, shout: -2, card: false, ghost: false, saying: false, home: false, ending: false }
 
-  /** `search` is the page's query string: the switches (see Switches). */
-  constructor(search: string) {
+  private readonly saves: Saves
+
+  /** `search` is the page's query string: the switches (see Switches); `saves` are the player's. */
+  constructor(search: string, saves: Saves) {
+    this.saves = saves
     this.switches = readSwitches(search)
     this.save = this.loadSave()
     this.audio.setSound(this.save.sound)
@@ -633,7 +638,7 @@ export class Game {
   private loadSave(): Save {
     // Storage can be missing or throw (private modes, blocked cookies): then the game keeps its save in memory.
     try {
-      return parseSave(localStorage.getItem(SAVE_KEY))
+      return parseSave(this.saves.getItem(SAVE_KEY))
     } catch (e) {
       this.warnStorage(e)
       return parseSave(null)
@@ -644,7 +649,7 @@ export class Game {
   private storeSave() {
     if (this.switches.room !== null) return
     try {
-      localStorage.setItem(SAVE_KEY, serializeSave(this.save))
+      this.saves.setItem(SAVE_KEY, serializeSave(this.save))
     } catch (e) {
       this.warnStorage(e)
     }

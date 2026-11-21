@@ -1,13 +1,14 @@
 import { Component, useMemo, type ReactNode } from 'react'
 
+import type { Saves } from '../../profiles/src/profiles'
 import { Sheet } from './draw/Sheet'
 import { Stage } from './draw/Stage'
 import { Game, useGameInput } from './game/game'
 import { Hud } from './Hud'
 
-function Play() {
+function Play({ saves }: { saves: Saves }) {
   // The seed is the one random number the page picks, outside the sim (?seed overrides it), so every session rolls its own builder and roads.
-  const game = useMemo(() => new Game(location.search, Math.floor(Math.random() * 2 ** 31)), [])
+  const game = useMemo(() => new Game(location.search, Math.floor(Math.random() * 2 ** 31), saves), [saves])
   useGameInput(game)
   return (
     <>
@@ -31,6 +32,6 @@ class Oops extends Component<{ children: ReactNode }, { error: Error | null }> {
 }
 
 /** The game, or with ?sheet a sprite sheet instead. */
-export function App() {
-  return <Oops>{new URLSearchParams(location.search).has('sheet') ? <Sheet /> : <Play />}</Oops>
+export function App({ saves }: { saves: Saves }) {
+  return <Oops>{new URLSearchParams(location.search).has('sheet') ? <Sheet /> : <Play saves={saves} />}</Oops>
 }

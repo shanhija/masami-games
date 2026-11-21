@@ -1,24 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { memorySaves } from '../../../profiles/src/profiles'
+
 import { Game, HOME, homeTimes, readSwitches, roomAt, shoutFor } from './game'
 import { ROOMS } from './levels'
 import { parseSave, serializeSave, type Save } from './progress'
 
-/** An in-memory stand-in for the browser's localStorage. */
-function memoryStorage() {
-  const items = new Map<string, string>()
-  return {
-    items,
-    getItem: (key: string) => items.get(key) ?? null,
-    setItem: (key: string, value: string) => void items.set(key, value),
-  }
-}
-
-let storage: ReturnType<typeof memoryStorage>
+let storage: ReturnType<typeof memorySaves>
 
 beforeEach(() => {
-  storage = memoryStorage()
-  vi.stubGlobal('localStorage', storage)
+  storage = memorySaves()
 })
 
 afterEach(() => {
@@ -28,7 +19,7 @@ afterEach(() => {
 
 /** A game already in the first room. */
 function inRoom(search = '') {
-  const g = new Game(search)
+  const g = new Game(search, storage)
   if (g.screen !== 'play') g.openRoom(0)
   return g
 }
@@ -172,7 +163,7 @@ describe('the room screens', () => {
   })
 
   it('opens only open cards, and steps the highlight between open ones', () => {
-    const g = new Game('')
+    const g = new Game('', storage)
     expect(g.screen).toBe('rooms')
     run(g, 1)
     g.moveHighlight(1)
@@ -181,7 +172,7 @@ describe('the room screens', () => {
     expect(g.screen).toBe('rooms')
     expect(g.tapCard(0)).toBe(true)
     expect(g.screen).toBe('play')
-    const all = new Game('?all')
+    const all = new Game('?all', storage)
     run(all, 1)
     all.moveHighlight(1)
     expect(all.highlight).toBe(1)
@@ -215,7 +206,7 @@ describe('the room screens', () => {
   it('goes to the picnic after the fifth kitten, and back to the cards after it', () => {
     const four: Save = { ...parseSave(null), found: ROOMS.slice(0, 4).map((r) => r.id) }
     storage.items.set('pia-jump', serializeSave(four))
-    const g = new Game('')
+    const g = new Game('', storage)
     expect(g.nextRoom()).toBe(4)
     g.openRoom(4)
     finish(g, 3)
@@ -231,7 +222,7 @@ describe('the room screens', () => {
   })
 
   it('opens a locked room for good with the parent gate, and starts fresh keeping Sound and Music', () => {
-    const g = new Game('')
+    const g = new Game('', storage)
     g.unlockRoom(3)
     expect(g.isOpen(3)).toBe(true)
     g.toggleMusic()
@@ -257,7 +248,7 @@ describe('first-time help', () => {
   })
 
   it('teaches nothing in the other rooms, nor once the first kitten is home', () => {
-    const g = new Game('')
+    const g = new Game('', storage)
     g.openRoom(1)
     expect(g.teaching).toBe(false)
     expect(g.ghost).toBe(false)
@@ -270,7 +261,7 @@ describe('first-time help', () => {
 
 describe('the music', () => {
   it("plays the rooms' tune, a room's own tune, and nothing while paused", () => {
-    const g = new Game('')
+    const g = new Game('', storage)
     const tune = vi.spyOn(g.audio, 'setTune')
     const suspend = vi.spyOn(g.audio, 'suspend')
     g.advance(1 / 60)
@@ -285,7 +276,7 @@ describe('the music', () => {
   })
 
   it('fades out on a rooms screen nobody has touched for a minute, and comes back at the next touch', () => {
-    const g = new Game('')
+    const g = new Game('', storage)
     const tune = vi.spyOn(g.audio, 'setTune')
     run(g, 61)
     expect(tune).toHaveBeenLastCalledWith('none', false)
@@ -308,11 +299,11 @@ describe('the music', () => {
 
 describe('the save in the browser', () => {
   it('writes every change under one key and reads it back on the next visit', () => {
-    const g = new Game('')
+    const g = new Game('', storage)
     g.toggleSound()
     g.toggleMusic()
     expect(parseSave(storage.items.get('pia-jump') ?? null)).toEqual(g.save)
-    const again = new Game('')
+    const again = new Game('', storage)
     expect(again.save).toEqual(g.save)
     expect(again.audio.sound).toBe(false)
     expect(again.audio.music).toBe(false)
@@ -332,9 +323,8 @@ describe('the save in the browser', () => {
     const fail = () => {
       throw new Error('private mode')
     }
-    vi.stubGlobal('localStorage', { getItem: fail, setItem: fail })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const g = new Game('')
+    const g = new Game('', { getItem: fail, setItem: fail, removeItem: fail })
     g.toggleSound()
     g.toggleSound()
     expect(g.save.sound).toBe(true)
@@ -360,12 +350,12 @@ describe('the URL switches', () => {
   it('starts her on the nearest floor at or before &x, in &form', () => {
     const room = roomAt(0)
     const gap = room.gaps[0]!
-    const g = new Game(`?room=1&x=${gap.col1 - 1}&form=big`)
+    const g = new Game(`?room=1&x=${gap.col1 - 1}&form=big`, storage)
     expect(g.screen).toBe('play')
     expect(g.sim.hero.x).toBe(gap.col0 - 0.5)
     expect(g.sim.hero.y).toBe(room.floor[gap.col0 - 1])
     expect(g.sim.hero.form).toBe('big')
-    expect(() => new Game(`?room=1&x=${room.cols}`)).toThrow()
+    expect(() => new Game(`?room=1&x=${room.cols}`, storage)).toThrow()
   })
 })
 

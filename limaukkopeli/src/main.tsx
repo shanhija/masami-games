@@ -4,6 +4,9 @@ import './map.css'
 
 import { createRoot } from 'react-dom/client'
 
+import { enterGame } from '../../profiles/src/profiles'
 import { App } from './App'
 
-createRoot(document.getElementById('root')!).render(<App />)
+// The saves of whoever plays in this tab; with nobody picked yet the page goes to the gallery instead.
+const saves = enterGame('limaukkopeli')
+if (saves !== null) createRoot(document.getElementById('root')!).render(<App saves={saves} />)
