@@ -21,7 +21,7 @@ import { parseAst } from 'vite'
 import { describe, expect, it } from 'vitest'
 
 /** Games not yet in both languages. Each leaves this list in the commit that makes it so; then the list goes. */
-const PENDING = new Set(['chase', 'foot-chase', 'castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'monster-lunch', 'digger-town', 'silly-billy'])
+const PENDING = new Set(['chase', 'foot-chase', 'castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'digger-town', 'silly-billy'])
 
 /** Files only a developer sees (the `?sheet` pages), or that only a model reads (Silly Billy's dev server, its guard of made code, the API and the scene as the interpreter and the designer are told them). */
 const DEV_ONLY: readonly RegExp[] = [/\/Sheet\.tsx$/, /^silly-billy\/src\/server\//, /^silly-billy\/src\/engine\/(sandbox|apidoc)\.ts$/, /^silly-billy\/src\/brain\/context\.ts$/]

@@ -543,6 +543,7 @@ export class Renderer {
     ctx.restore()
   }
 
+  /** ?debug: the frames a second, a bare number in the bottom-left corner. */
   private drawFps(seconds: number) {
     const f = this.fps
     f.frames += 1
@@ -555,7 +556,7 @@ export class Renderer {
     const ctx = this.ctx
     ctx.font = `${Math.round(14 * this.dpr)}px system-ui`
     ctx.fillStyle = DEBUG.text
-    ctx.fillText(`${f.value.toFixed(0)} fps`, 8 * this.dpr, this.height - 10 * this.dpr)
+    ctx.fillText(f.value.toFixed(0), 8 * this.dpr, this.height - 10 * this.dpr)
   }
 
   // ------------------------------------------------------------------------------------- the finale

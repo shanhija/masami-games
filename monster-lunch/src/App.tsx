@@ -1,18 +1,19 @@
 import { Component, useMemo, type ReactNode } from 'react'
 
+import type { Lang } from '../../profiles/src/lang'
 import type { Saves } from '../../profiles/src/profiles'
 import { Sheet } from './draw/Sheet'
 import { Stage } from './draw/Stage'
 import { Game, useGameInput } from './game/game'
 import { Hud } from './Hud'
 
-function Play({ saves }: { saves: Saves }) {
+function Play({ saves, lang }: { saves: Saves; lang: Lang }) {
   const game = useMemo(() => new Game(location.search, saves), [saves])
   useGameInput(game)
   return (
     <>
       <Stage game={game} />
-      <Hud game={game} />
+      <Hud game={game} lang={lang} />
     </>
   )
 }
@@ -30,7 +31,7 @@ class Oops extends Component<{ children: ReactNode }, { error: Error | null }> {
   }
 }
 
-/** The game, or with ?sheet=<file> that draw file's sprite sheet instead. */
-export function App({ saves }: { saves: Saves }) {
-  return <Oops>{new URLSearchParams(location.search).has('sheet') ? <Sheet /> : <Play saves={saves} />}</Oops>
+/** The game in the player's language, or with ?sheet=<file> that draw file's sprite sheet instead. */
+export function App({ saves, lang }: { saves: Saves; lang: Lang }) {
+  return <Oops>{new URLSearchParams(location.search).has('sheet') ? <Sheet /> : <Play saves={saves} lang={lang} />}</Oops>
 }

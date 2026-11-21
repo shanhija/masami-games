@@ -19,8 +19,8 @@ if (import.meta.hot) import.meta.hot.accept(() => location.reload())
 export type Screen = 'courses' | 'kitchen' | 'play' | 'feed' | 'party'
 /** The kitchen asks two things: which dish, then what goes inside. */
 export type KitchenStep = 'dish' | 'fillings'
-/** The words that pop up on a moment, and nothing else. */
-export type Shout = 'Yum!' | 'Yuck!' | 'Oops!' | 'Splash!' | 'Hooray!' | 'Burger!' | 'Croissant!' | 'Hurry!'
+/** The moments that pop up a word, and nothing else; words.ts says each in the player's language. */
+export type Shout = 'yum' | 'yuck' | 'oops' | 'splash' | 'hooray' | 'burger' | 'croissant' | 'hurry'
 
 /** What one call to `advance` did: how many steps ran, how far into the next step the picture is, and every event of those steps. One object, reused. */
 export interface Frame {
@@ -130,27 +130,27 @@ export function courseAt(index: number): Course {
   return (parsed[index] ??= parseCourse(COURSE_TEXTS[index]!))
 }
 
-/** The word a moment shouts, if it shouts one. */
+/** The shout a moment pops up, if it pops one up. */
 export function shoutFor(e: SimEvent | FeedEvent): Shout | null {
   switch (e.kind) {
     case 'pick':
-      return e.food === 'poop' ? 'Yuck!' : e.n % 5 === 0 ? 'Yum!' : null
+      return e.food === 'poop' ? 'yuck' : e.n % 5 === 0 ? 'yum' : null
     case 'bonk':
-      return e.n > 0 ? 'Oops!' : null
+      return e.n > 0 ? 'oops' : null
     case 'zap':
-      return 'Oops!'
+      return 'oops'
     case 'splash':
-      return 'Splash!'
+      return 'splash'
     case 'warn':
-      return 'Hurry!'
+      return 'hurry'
     case 'finish':
-      return 'Hooray!'
+      return 'hooray'
     case 'bread':
-      return e.dish === 'burger' ? 'Burger!' : 'Croissant!'
+      return e.dish
     case 'bleh':
-      return 'Yuck!'
+      return 'yuck'
     case 'full':
-      return 'Yum!'
+      return 'yum'
     default:
       return null
   }
@@ -182,7 +182,7 @@ export class Game {
   save: Save
   /** Real seconds the page has run (it stops while the page is hidden): every timer of the HUD reads it. */
   clock = 0
-  shout: { word: Shout; at: number } | null = null
+  shout: { id: Shout; at: number } | null = null
   homecoming: Homecoming | null = null
   /** The finale's stars went up at this clock, or -1. */
   starsAt = -1
@@ -261,7 +261,7 @@ export class Game {
 
   /** The shout showing now, if any. */
   get shouting(): Shout | null {
-    return this.shout && this.clock - this.shout.at < SHOUT_FOR ? this.shout.word : null
+    return this.shout && this.clock - this.shout.at < SHOUT_FOR ? this.shout.id : null
   }
 
   /** The first course and its finale teach the fingers until the course is done: the ghost hand. */
@@ -587,8 +587,8 @@ export class Game {
         for (const e of events) {
           f.events.push(e)
           this.audio.play(e)
-          const word = shoutFor(e)
-          if (word) this.shout = { word, at: this.clock }
+          const id = shoutFor(e)
+          if (id) this.shout = { id, at: this.clock }
         }
         events.length = 0
         this.acc = Math.max(0, this.acc - 1)

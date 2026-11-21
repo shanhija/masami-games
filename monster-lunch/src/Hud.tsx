@@ -1,23 +1,21 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 
+import { DIRECTORY } from '../../profiles/src/directory'
+import { inLang, type Lang } from '../../profiles/src/lang'
 import { Controls } from './Controls'
 import { isBread } from './game/feed'
-import { toggleFullscreen, useGameView, type Game, type Shout } from './game/game'
-import { BREAD, COURSES, DISHES, FILLINGS, MAX_PICKS, MONSTER_OF, type CourseId, type Dish, type Filling, type Food, type MonsterId } from './game/model'
+import { toggleFullscreen, useGameView, type Game } from './game/game'
+import { BREAD, COURSES, DISHES, FILLINGS, MAX_PICKS, MONSTER_OF, type Dish, type Filling, type Food } from './game/model'
 import { HOLD_FOR } from './game/sounds'
 import { BackIcon, CardsIcon, CheckIcon, FullScreenIcon, HouseIcon, MusicIcon, PadlockIcon, PauseIcon, PlayIcon, RestartIcon, SoundIcon } from './Icons'
 import { Portrait } from './Portrait'
+import { DISH_WORD, FILLING_NAME, LUNCH_FOR, PLACE, SAY, SHOUT } from './words'
 
-/** The words on the cards and in the kitchen: the places and the monsters waiting in them. */
-const PLACE: Record<CourseId, string> = { park: 'Park', pond: 'Pond', garden: 'Garden', farm: 'Farm', castle: 'Castle' }
-const NAME: Record<MonsterId, string> = { munch: 'Munch', gulp: 'Gulp', nibble: 'Nibble', chomp: 'Chomp', gobble: 'Gobble' }
-const DISH_WORD: Record<Dish, string> = { burger: 'Burger', croissant: 'Croissant' }
 /** The kitchen's two big pictures. */
 const SHOWCASE: Record<Dish, Food[]> = {
   burger: ['bunBottom', 'patty', 'cheese', 'salad', 'tomato', 'bunTop'],
   croissant: ['croissantBottom', 'chocolate', 'banana', 'croissantTop'],
 }
-const SHOUT_CLASS: Record<Shout, string> = { 'Yum!': 'yum', 'Yuck!': 'yuck', 'Oops!': 'oops', 'Splash!': 'splash', 'Hooray!': 'hooray', 'Burger!': 'yum', 'Croissant!': 'yum', 'Hurry!': 'hurry' }
 /** A press on a locked card shorter than this is a tap, answered with a "nuh-uh" and a shake. */
 const TAP_FOR = 0.3
 /** The click a finger makes as it lifts after a finished hold comes within this many milliseconds; a later click is a new tap. */
@@ -99,12 +97,12 @@ function Stars({ n, className }: { n: number; className: string }) {
 }
 
 /** The course cards: each course's monster, hungry until it has had lunch, then happy with its best stars. */
-function Courses({ game }: { game: Game }) {
+function Courses({ game, lang }: { game: Game; lang: Lang }) {
   const hold = useHold(game)
   const home = game.homecoming
   return (
     <div className="screen courses">
-      <h1 className="title">Monster Lunch</h1>
+      <h1 className="title">{inLang(DIRECTORY['monster-lunch'].name, lang)}</h1>
       <div className="cards">
         {COURSES.map((id, i) => {
           const open = game.isOpen(i)
@@ -117,7 +115,7 @@ function Courses({ game }: { game: Game }) {
               type="button"
               tabIndex={-1}
               className={`card ${id}${open ? '' : ' locked'}${fresh ? ' fed' : ''}${opening ? ' opening' : ''}`}
-              aria-label={PLACE[id]}
+              aria-label={inLang(PLACE[id], lang)}
               onMouseDown={noFocus}
               onContextMenu={noFocus}
               onPointerDown={(e) => {
@@ -140,14 +138,14 @@ function Courses({ game }: { game: Game }) {
               }}
             >
               <Portrait className="who" picture={{ kind: 'monster', id: MONSTER_OF[id], mood: stars > 0 ? 'happy' : 'hungry' }} />
-              <span className="place">{PLACE[id]}</span>
+              <span className="place">{inLang(PLACE[id], lang)}</span>
               <Stars n={stars} className="card-stars" />
               {(!open || opening) && (
                 <span className="padlock">
                   <PadlockIcon />
                 </span>
               )}
-              {home !== null && fresh && home.newFood && <span className="badge">New food!</span>}
+              {home !== null && fresh && home.newFood && <span className="badge">{inLang(SAY.newFood, lang)}</span>}
             </button>
           )
         })}
@@ -166,9 +164,9 @@ function Courses({ game }: { game: Game }) {
           if (hold.end() >= 0) game.holding(false)
         }}
       >
-        Hold to start fresh
+        {inLang(SAY.holdToStartFresh, lang)}
       </button>
-      <a className="more" href="../index.html" aria-label="More games" onMouseDown={noFocus}>
+      <a className="more" href="../index.html" aria-label={inLang(SAY.moreGames, lang)} onMouseDown={noFocus}>
         <HouseIcon />
       </a>
       {hold.view}
@@ -177,10 +175,10 @@ function Courses({ game }: { game: Game }) {
 }
 
 /** The kitchen: a burger or a croissant, then one to three fillings, then Go! */
-function Kitchen({ game }: { game: Game }) {
+function Kitchen({ game, lang }: { game: Game; lang: Lang }) {
   const monster = MONSTER_OF[game.course.id]
   const back = (
-    <Btn className="round back" label="Back" onTap={() => game.kitchenBack()}>
+    <Btn className="round back" label={inLang(SAY.back, lang)} onTap={() => game.kitchenBack()}>
       <BackIcon />
     </Btn>
   )
@@ -188,12 +186,12 @@ function Kitchen({ game }: { game: Game }) {
     return (
       <div className="screen kitchen">
         {back}
-        <h2 className="heading">Lunch for {NAME[monster]}!</h2>
+        <h2 className="heading">{inLang(LUNCH_FOR[monster], lang)}</h2>
         <div className="dishes">
           {DISHES.map((d) => (
-            <Btn key={d} className="dish" label={DISH_WORD[d]} onTap={() => game.pickDish(d)}>
+            <Btn key={d} className="dish" label={inLang(DISH_WORD[d], lang)} onTap={() => game.pickDish(d)}>
               <Portrait className="dish-picture" picture={{ kind: 'pile', pile: SHOWCASE[d] }} />
-              <span className="dish-word">{DISH_WORD[d]}</span>
+              <span className="dish-word">{inLang(DISH_WORD[d], lang)}</span>
             </Btn>
           ))}
         </div>
@@ -214,8 +212,8 @@ function Kitchen({ game }: { game: Game }) {
               <span key={i} className={i < game.picks.length ? 'slot full' : 'slot'} />
             ))}
           </span>
-          <Btn className={`go${game.picks.length === 0 ? ' off' : ''}`} label="Go!" onTap={() => game.go()}>
-            Go!
+          <Btn className={`go${game.picks.length === 0 ? ' off' : ''}`} label={inLang(SAY.go, lang)} onTap={() => game.go()}>
+            {inLang(SAY.go, lang)}
           </Btn>
         </div>
         <div className="fillings">
@@ -226,7 +224,7 @@ function Kitchen({ game }: { game: Game }) {
               <Btn
                 key={f}
                 className={`filling${picked ? ' picked' : ''}${can ? '' : ' locked'}`}
-                label={f}
+                label={inLang(FILLING_NAME[f], lang)}
                 onTap={() => {
                   if (can) game.toggleFilling(f)
                 }}
@@ -242,7 +240,7 @@ function Kitchen({ game }: { game: Game }) {
                     <PadlockIcon />
                   </span>
                 )}
-                {can && game.isNew(dish, f) && <span className="badge">New!</span>}
+                {can && game.isNew(dish, f) && <span className="badge">{inLang(SAY.new, lang)}</span>}
               </Btn>
             )
           })}
@@ -253,7 +251,7 @@ function Kitchen({ game }: { game: Game }) {
 }
 
 /** On the course: the plate's count, the pause button, the shouts, the fingers' zone. */
-function PlayHud({ game }: { game: Game }) {
+function PlayHud({ game, lang }: { game: Game; lang: Lang }) {
   const plate = game.sim.plate
   const fillings = plate.filter((f) => f !== 'poop').length
   return (
@@ -262,7 +260,7 @@ function PlayHud({ game }: { game: Game }) {
         <span className="plate-disc" />
         <span className="count">{fillings}</span>
       </div>
-      <Btn className="round pause" label="Pause" onTap={() => game.pause()}>
+      <Btn className="round pause" label={inLang(SAY.pause, lang)} onTap={() => game.pause()}>
         <PauseIcon />
       </Btn>
     </>
@@ -270,7 +268,7 @@ function PlayHud({ game }: { game: Game }) {
 }
 
 /** The finale: what is still in the basket, the pause button, then the stars. */
-function FeedHud({ game }: { game: Game }) {
+function FeedHud({ game, lang }: { game: Game; lang: Lang }) {
   const f = game.feed!
   const left = f.queue.slice(0, 9)
   const done = game.starsAt >= 0
@@ -286,7 +284,7 @@ function FeedHud({ game }: { game: Game }) {
         </div>
       )}
       {!done && (
-        <Btn className="round pause" label="Pause" onTap={() => game.pause()}>
+        <Btn className="round pause" label={inLang(SAY.pause, lang)} onTap={() => game.pause()}>
           <PauseIcon />
         </Btn>
       )}
@@ -312,33 +310,33 @@ function StarsUp({ game, n }: { game: Game; n: number }) {
   )
 }
 
-function Pause({ game }: { game: Game }) {
+function Pause({ game, lang }: { game: Game; lang: Lang }) {
   return (
     <div className="pause-menu" onPointerDown={(e) => e.target === e.currentTarget && game.resume()}>
       <div className="panel">
-        <Btn className="big go-on" label="Keep going" onTap={() => game.resume()}>
+        <Btn className="big go-on" label={inLang(SAY.keepGoing, lang)} onTap={() => game.resume()}>
           <PlayIcon />
-          <span>Keep going</span>
+          <span>{inLang(SAY.keepGoing, lang)}</span>
         </Btn>
-        <Btn className="big" label="Start again" onTap={() => game.restart()}>
+        <Btn className="big" label={inLang(SAY.startAgain, lang)} onTap={() => game.restart()}>
           <RestartIcon />
-          <span>Start again</span>
+          <span>{inLang(SAY.startAgain, lang)}</span>
         </Btn>
-        <Btn className="big" label="Courses" onTap={() => game.toCourses()}>
+        <Btn className="big" label={inLang(SAY.courses, lang)} onTap={() => game.toCourses()}>
           <CardsIcon />
-          <span>Courses</span>
+          <span>{inLang(SAY.courses, lang)}</span>
         </Btn>
         <div className="switches">
-          <Btn className={`small${game.save.music ? '' : ' off'}`} label="Music" onTap={() => game.toggleMusic()}>
+          <Btn className={`small${game.save.music ? '' : ' off'}`} label={inLang(SAY.music, lang)} onTap={() => game.toggleMusic()}>
             <MusicIcon off={!game.save.music} />
           </Btn>
-          <Btn className={`small${game.save.sound ? '' : ' off'}`} label="Sound" onTap={() => game.toggleSound()}>
+          <Btn className={`small${game.save.sound ? '' : ' off'}`} label={inLang(SAY.sound, lang)} onTap={() => game.toggleSound()}>
             <SoundIcon off={!game.save.sound} />
           </Btn>
-          <Btn className="small" label="Full screen" onTap={toggleFullscreen}>
+          <Btn className="small" label={inLang(SAY.fullScreen, lang)} onTap={toggleFullscreen}>
             <FullScreenIcon />
           </Btn>
-          <a className="small" href="../index.html" aria-label="More games" onMouseDown={noFocus}>
+          <a className="small" href="../index.html" aria-label={inLang(SAY.moreGames, lang)} onMouseDown={noFocus}>
             <HouseIcon />
           </a>
         </div>
@@ -347,24 +345,24 @@ function Pause({ game }: { game: Game }) {
   )
 }
 
-/** Everything over the canvas: the screens, the HUD of the course and the finale, the shouts, the pause menu. */
-export function Hud({ game }: { game: Game }) {
+/** Everything over the canvas, in the player's language: the screens, the HUD of the course and the finale, the shouts, the pause menu. */
+export function Hud({ game, lang }: { game: Game; lang: Lang }) {
   useGameView(game)
   const shout = game.shouting
   return (
     <div className={`hud on-${game.screen}`}>
-      {game.screen === 'courses' && <Courses game={game} />}
-      {game.screen === 'kitchen' && <Kitchen game={game} />}
+      {game.screen === 'courses' && <Courses game={game} lang={lang} />}
+      {game.screen === 'kitchen' && <Kitchen game={game} lang={lang} />}
       {(game.screen === 'play' || game.screen === 'feed') && !game.paused && game.starsAt < 0 && <Controls game={game} ghost={game.ghost} />}
-      {game.screen === 'play' && !game.paused && <PlayHud game={game} />}
-      {game.screen === 'feed' && game.feed && !game.paused && <FeedHud game={game} />}
-      {game.screen === 'party' && <h1 className="title party-title">Hooray!</h1>}
+      {game.screen === 'play' && !game.paused && <PlayHud game={game} lang={lang} />}
+      {game.screen === 'feed' && game.feed && !game.paused && <FeedHud game={game} lang={lang} />}
+      {game.screen === 'party' && <h1 className="title party-title">{inLang(SHOUT.hooray, lang)}</h1>}
       {shout && (game.screen === 'play' || game.screen === 'feed') && (
-        <div className={`shout ${SHOUT_CLASS[shout]}`} key={game.shout!.at}>
-          {shout}
+        <div className={`shout ${shout}`} key={game.shout!.at}>
+          {inLang(SHOUT[shout], lang)}
         </div>
       )}
-      {game.paused && <Pause game={game} />}
+      {game.paused && <Pause game={game} lang={lang} />}
     </div>
   )
 }

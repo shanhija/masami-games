@@ -154,10 +154,10 @@ describe('the game', () => {
   })
 
   it('shouts on the moments that matter', () => {
-    expect(shoutFor({ kind: 'pick', food: 'poop', n: 3, x: 0, y: 0 })).toBe('Yuck!')
-    expect(shoutFor({ kind: 'pick', food: 'cheese', n: 5, x: 0, y: 0 })).toBe('Yum!')
+    expect(shoutFor({ kind: 'pick', food: 'poop', n: 3, x: 0, y: 0 })).toBe('yuck')
+    expect(shoutFor({ kind: 'pick', food: 'cheese', n: 5, x: 0, y: 0 })).toBe('yum')
     expect(shoutFor({ kind: 'pick', food: 'cheese', n: 4, x: 0, y: 0 })).toBeNull()
     expect(shoutFor({ kind: 'bonk', n: 0, x: 0, y: 0 })).toBeNull()
-    expect(shoutFor({ kind: 'bread', dish: 'croissant' })).toBe('Croissant!')
+    expect(shoutFor({ kind: 'bread', dish: 'croissant' })).toBe('croissant')
   })
 })

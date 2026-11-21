@@ -43,11 +43,12 @@ After the last course the first time, all five monsters have a party.
 
 ## For the parent
 
+- **Finnish or English**: the game plays in the player's language, picked with the flag in their profile in the gallery. Every word it shows is in [`src/words.ts`](src/words.ts), both languages side by side; the monsters' names are the same in both.
 - **Sound** and **Music** are two switches, saved with the progress.
 - **Hold to start fresh** (bottom left of the cards): hold it 3 seconds and the courses and their stars are forgotten. The switches and the last dish stay.
 - **Hold a locked card** 3 seconds and it opens.
 - The game pauses itself when the page hides, the window loses focus, full screen ends, or nobody touches it for a minute.
-- The progress lives in the browser's `localStorage` under `monster-lunch`.
+- The progress is kept for each player, under the key `monster-lunch` in their saves (`profile/<id>/monster-lunch/` in the browser's `localStorage`).
 
 URL switches, read once when the page loads (a bad value shows its message on the page):
 
@@ -81,6 +82,7 @@ src/
   App.tsx           the game, or a sprite sheet with ?sheet; a bad URL switch shows its message
   Hud.tsx           everything over the canvas: the course cards, the kitchen, the plate's count, the
                     finale's basket row and stars, the shouts, the pause menu, the parent gate's ring
+  words.ts          every word in Finnish and English: places, dishes, fillings, shouts, buttons
   Controls.tsx      the fingers' zone and the first course's ghost hand
   Portrait.tsx      a small canvas showing a real draw function: a food, a dish, a monster, a star
   Icons.tsx         the HUD's SVG icons
@@ -114,6 +116,6 @@ src/
 
 - The sims (`sim.ts` and `feed.ts` over the types in `model.ts`) are the whole game as plain data, stepped at a fixed 120 Hz by `game.ts` from the stage's frame loop (at most 12 steps a frame, so a stall never fast-forwards). The stage draws between the last two steps. A clone is a `structuredClone`, which is what the bot's look-ahead needs.
 - Input reaches the sims only through `setInput` and `steerFeed`. Keys and fingers merge in `game.ts`: the newest wins. A finger steers from where the renderer last drew her feet, so it is fed again every frame as she walks.
-- Each step leaves a list of events; sounds, shouts and particles read them. Anything drawn over time reads the tick stamps on the state instead.
+- Each step leaves a list of events; sounds, shouts and particles read them. A shout is an id (`yum`, `splash`, `burger`); the HUD shows its word in the player's language. Anything drawn over time reads the tick stamps on the state instead.
 - The ground is baked into 8-tile chunks as the camera reaches them; the water's ripples and everything standing are drawn every frame, sorted by where they touch the ground. Everything is vector paths, so it is sharp at any size.
 - The HUD is React, subscribed to the game's version; the canvas is never React's.
