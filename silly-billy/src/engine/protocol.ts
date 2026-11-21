@@ -255,6 +255,16 @@ export interface ForgetRequest {
   id: string
 }
 
+/** The header a page names itself by on api/library and api/forget, so the news of its own change is not told back to it. */
+export const PAGE_HEADER = 'x-silly-page'
+/** The event on Vite's own websocket that tells every page the library changed. */
+export const LIBRARY_EVENT = 'silly-billy:library'
+/**
+ * What changed in the library, as the dev server saved it, and which page changed it: every page
+ * open on the dev server takes it in, so two pages played at once never make the same thing twice.
+ */
+export type LibraryNews = { from: string } & ({ entry: Entry } | { phrase: PhraseEntry } | { forgot: ForgetRequest })
+
 /** POST api/log: one line for the parent's log of what was said and done. */
 export interface LogLine {
   kind: string

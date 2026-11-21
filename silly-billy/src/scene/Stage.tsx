@@ -7,7 +7,7 @@ import { CAMERA_FOV } from '../../../castle-builder/src/scene/look'
 import type { ItemInfo, RoomId, World } from '../engine/types'
 import { ActorLayer, Actors } from './Actors'
 import { Effects } from './Effects'
-import { busyPoints, frameFor, Reveals, type Frame } from './frame'
+import { busyPoints, frameFor, Reveals, ROOM, roomFrame, roomPoints, type Frame } from './frame'
 import { Ground } from './Ground'
 import { ItemLayer, Items } from './Items'
 import type { Clock } from './look'
@@ -42,29 +42,32 @@ function Driver({ source, advance, clock }: { source: SceneSource; advance: (dt:
 /**
  * Castle Builder's diorama frame: its yaw, pitch and long lens, standing back far enough
  * to keep the frame's ground in view around the aim on any screen. With nobody busy that
- * is the whole room (FRAME_R); when someone does something, the camera moves in on them
- * and on what their step names (frame.ts), on a thing still flying, and on a made thing
- * whose real model has just come, and goes back out a little after. The player's zoom
- * and pan (zoom.ts) go on top.
+ * is the whole room (FRAME_R, wider while something tall in it would reach over the top
+ * of the screen); when someone does something, the camera moves in on them and on what
+ * their step names (frame.ts), on a thing still flying, and on a made thing whose real
+ * model has just come, up onto a roof with them, and goes back out a little after. The
+ * player's zoom and pan (zoom.ts) go on top.
  */
 function CameraRig({ source, aim }: { source: SceneSource; aim: Vector3 }) {
   const camera = useRef<PerspectiveCameraObject>(null!)
   const size = useThree((s) => s.size)
-  const held = useRef<{ frame: Frame; until: number; busy: boolean; room: RoomId | null }>({ frame: frameFor([]), until: -1, busy: false, room: null })
+  const held = useRef<{ frame: Frame; until: number; busy: boolean; room: RoomId | null }>({ frame: ROOM, until: -1, busy: false, room: null })
   const reveals = useMemo(() => new Reveals(), [])
   useFrame((_, delta) => {
     const w = source.world
     const view = source.view
+    const info = (kind: string) => source.info(kind)
     const dt = Math.min(delta, 0.1)
     const h = held.current
-    reveals.update(w, source.libraryVersion, (kind) => source.info(kind).rough)
-    const points = [...busyPoints(w), ...reveals.points(w)]
+    reveals.update(w, source.libraryVersion, (kind) => info(kind).rough)
+    const room = roomFrame(roomPoints(w, info))
+    const points = [...busyPoints(w, info), ...reveals.points(w, info)]
     if (points.length > 0) {
       h.frame = frameFor(points)
       h.until = w.t + LINGER
       h.busy = true
     } else if (w.t > h.until || w.t < h.until - LINGER) {
-      h.frame = frameFor([])
+      h.frame = room
       h.busy = false
     }
     if (w.room !== h.room) {
@@ -72,11 +75,11 @@ function CameraRig({ source, aim }: { source: SceneSource; aim: Vector3 }) {
       h.room = w.room
     }
     const aspect = size.width / size.height
-    view.update(h.frame, h.busy, aspect, dt)
-    aim.set(view.x, 0, view.z)
+    view.update(h.frame, room, h.busy, aspect, dt)
+    aim.set(view.x, view.y, view.z)
     const d = view.r * standBack(aspect)
     const c = camera.current
-    c.position.set(aim.x + BACK[0] * d, BACK[1] * d, aim.z + BACK[2] * d)
+    c.position.set(aim.x + BACK[0] * d, aim.y + BACK[1] * d, aim.z + BACK[2] * d)
     c.lookAt(aim)
   })
   return <PerspectiveCamera ref={camera} makeDefault fov={CAMERA_FOV} near={1} far={300} />
@@ -92,7 +95,7 @@ const DOUBLE_PX = 40
  * The player's hands on the camera, over the whole stage: pinch with two fingers and the
  * wheel (or a trackpad) zoom toward the point under them; one finger or the mouse dragged
  * past SLOP pans (zoom.ts lets it only when zoomed in); a double tap on the ground, not on an
- * avatar, goes back to the whole room. A tap stays a tap: an avatar is tapped when the finger
+ * avatar, goes back to the whole room, however close the game is round someone. A tap stays a tap: an avatar is tapped when the finger
  * goes down (Actors), before any of this, and a drag that starts on one still pans.
  */
 function useGestures(stage: RefObject<HTMLDivElement | null>, view: View, tappedActor: { current: boolean }) {

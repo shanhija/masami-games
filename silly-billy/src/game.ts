@@ -200,7 +200,7 @@ export class Game implements SceneSource {
       final: (words) => {
         this.live = words
         this.liveUntil = performance.now() + WORDS_FOR
-        void this.brain.hear(words)
+        void this.hear(words)
         this.bump()
       },
       missed: () => {
@@ -269,7 +269,7 @@ export class Game implements SceneSource {
       for (const it of w.items.filter((it) => !known(it))) this.sim.removeItem(it.id)
       for (const room of ROOMS) if (room !== w.room) w.away[room] = w.away[room].filter(known)
     }
-    for (const words of new URLSearchParams(location.search).getAll('say')) await this.brain.hear(words)
+    for (const words of new URLSearchParams(location.search).getAll('say')) await this.hear(words)
   }
 
   /** Whisper wakes on the first status request and takes a few seconds: ask again until it is ready or gone. */
@@ -308,8 +308,9 @@ export class Game implements SceneSource {
     this.speaker.unlock()
   }
 
-  /** Words from a test or the console, the same way as from the microphone. */
+  /** Words heard, typed, from a test or the console: a new command, so the camera goes back to what is happening if the player zoomed out past it. */
   hear(words: string) {
+    this.view.follow()
     return this.brain.hear(words)
   }
 
@@ -325,11 +326,19 @@ export class Game implements SceneSource {
     this.bump()
   }
 
-  /** A portrait or an avatar tapped: the next command without a name goes to it, and it waves if it is free. */
+  /** A portrait or an avatar tapped: the next command without a name goes to it, it waves if it is free, and the camera goes to it if the player zoomed out past what is happening. */
   address = (id: string) => {
     this.brain.addressee = id
+    this.view.follow()
     const a = this.sim.world.actors.find((x) => x.id === id)!
     if (a.doing === null && a.queue.length === 0 && a.thinking === null) this.sim.react(id, 'hello')
+    this.bump()
+  }
+
+  /** The face of the one spoken to tapped again: nobody is, and the camera goes back to the whole room. */
+  letGo() {
+    this.brain.addressee = null
+    this.view.reset()
     this.bump()
   }
 
@@ -342,7 +351,7 @@ export class Game implements SceneSource {
   type(text: string) {
     const words = text.trim()
     if (words === '') return
-    void this.brain.hear(words)
+    void this.hear(words)
   }
 
   async forgetNewest() {
@@ -426,6 +435,7 @@ export class Game implements SceneSource {
       w.room,
       // The + and − buttons dim at the ends.
       this.view.goal,
+      this.view.outmost,
       b.addressee,
       ...w.actors.map((a) => `${a.id}:${a.name}:${a.mood}:${a.thinking !== null}:${a.listening}:${JSON.stringify(a.look)}`),
       line === undefined ? '' : `${line.serial}:${line.status}:${line.by}:${line.took}:${line.words}:${JSON.stringify(line.heard)}`,

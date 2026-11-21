@@ -27,7 +27,7 @@ import { castNamesFor, makeCast, NEW_NAMES } from '../content'
 import { inLang, type Lang, type Words } from '../engine/lang'
 import { parseColor } from '../engine/kit'
 import type { Library } from '../engine/library'
-import { isNewThing, kindOfArg, planUses, slugOf, type ActionEntry, type AvatarEntry, type InventRequest, type ItemEntry, type LogLine, type LookChange, type NewAction, type NewAvatar, type NewItem, type Param, type ParamKind, type PhraseEntry, type Plan, type SaveRequest } from '../engine/protocol'
+import { isNewThing, kindOfArg, planUses, slugOf, type ActionEntry, type AvatarEntry, type Entry, type InventRequest, type ItemEntry, type LibraryNews, type LogLine, type LookChange, type NewAction, type NewAvatar, type NewItem, type Param, type ParamKind, type PhraseEntry, type Plan, type SaveRequest } from '../engine/protocol'
 import { insideRoom, ROOM_GEO } from '../engine/rooms'
 import { newActor, type Reaction, type Sim } from '../engine/sim'
 import { ROOMS, SLOTS, type Actor, type BodyKind, type Item, type Look, type RoomId, type Slot, type Step, type WorldEvent } from '../engine/types'
@@ -205,6 +205,7 @@ export class Brain implements BrainApi {
 
   async start(): Promise<void> {
     const t0 = performance.now()
+    this.link.onNews((news) => this.news(news))
     try {
       const data = await this.link.library()
       const broken: string[] = []
@@ -266,14 +267,53 @@ export class Brain implements BrainApi {
     ]
     const newest = made.sort((a, b) => b.made.localeCompare(a.made))[0]
     if (newest === undefined) return null
-    // Still being made (a draft, or a fix): the job runs on out of sight, and what it makes is not taken in.
-    const key = `${newest.type}:${newest.id}`
+    this.drop(newest.type, newest.id)
+    if (this.server) await this.link.forget({ type: newest.type, id: newest.id })
+    this.log({ kind: 'forget', type: newest.type, id: newest.id })
+    this.changed()
+    return newest.name
+  }
+
+  /** Forgets everything made, newest first, each as forgetNewest does; how many were forgotten. */
+  async forgetAll(): Promise<number> {
+    // Each round forgets one; the bound only guards against one that would not go.
+    const most = this.library.items.size + this.library.actions.size + this.library.avatars.size + 1
+    let n = 0
+    while (n < most && (await this.forgetNewest()) !== null) n++
+    return n
+  }
+
+  /**
+   * What another page open on the dev server changed in the library: a thing or an action made
+   * there plays here at once (so this page never makes it a second time), a phrase heard there
+   * is known here, and what was forgotten there goes here too. An avatar is play on each page
+   * (its look, its clothes): another page's comes in when this one loads again.
+   */
+  news(news: LibraryNews): void {
+    if ('phrase' in news) {
+      if (meansTheSame(news.phrase.words)) this.library.addPhrase(news.phrase)
+    } else if ('forgot' in news) {
+      if (news.forgot.type !== 'avatar') this.drop(news.forgot.type, news.forgot.id)
+    } else if (news.entry.type !== 'avatar') {
+      const { entry } = news
+      const added = entry.type === 'item' ? this.library.addItem(entry) : this.library.addAction(entry)
+      if (!added.ok) console.warn(`Silly Billy: ${entry.type} ${entry.id} from another page did not load:`, added.error)
+      else if (entry.type === 'item') this.sim.refreshKind(entry.id)
+    }
+    this.changed()
+  }
+
+  /** Takes a made thing, action or avatar out of the game, and the phrases that use it: a job still making it runs on out of sight, and what it makes is not taken in. */
+  private drop(type: Entry['type'], id: string): void {
+    const world = this.sim.world
+    const newest = { type, id }
+    const key = `${type}:${id}`
     const job = this.jobs.find((j) => `${j.kind}:${j.id}` === key)
     if (job !== undefined && this.inflight.has(key)) {
       this.cancelled.set(key, job)
       this.jobs = this.jobs.filter((j) => j !== job)
     }
-    this.library.forget(newest.type, newest.id)
+    this.library.forget(type, id)
     if (newest.type === 'avatar') {
       const actor = world.actors.find((a) => a.id === newest.id)
       const first = makeCast(this.lang).find((a) => a.id === newest.id)
@@ -309,19 +349,6 @@ export class Brain implements BrainApi {
     if (newest.type !== 'avatar' || !world.actors.some((a) => a.id === newest.id)) {
       for (const [words, phrase] of this.library.phrases) if (planUses(phrase.plan, newest.type, newest.id)) this.library.phrases.delete(words)
     }
-    if (this.server) await this.link.forget({ type: newest.type, id: newest.id })
-    this.log({ kind: 'forget', type: newest.type, id: newest.id })
-    this.changed()
-    return newest.name
-  }
-
-  /** Forgets everything made, newest first, each as forgetNewest does; how many were forgotten. */
-  async forgetAll(): Promise<number> {
-    // Each round forgets one; the bound only guards against one that would not go.
-    const most = this.library.items.size + this.library.actions.size + this.library.avatars.size + 1
-    let n = 0
-    while (n < most && (await this.forgetNewest()) !== null) n++
-    return n
   }
 
   // ------------------------------------------------------------------ following the sim
@@ -370,7 +397,15 @@ export class Brain implements BrainApi {
   private async understandAndDo(command: Command): Promise<void> {
     // A stop comes first, before any words heard before: "Ei!" is always no, whatever a phrase once made of it.
     const u = understand(command.words, this.library, this.sim.world, this.addressee)
-    if (u.kind === 'stop') return this.stop(u.who, command)
+    if (u.kind === 'stop') {
+      // A stop with more ("Mikko, älä vedä vessaa, näytä se", "lopettakaa leikkiminen ja Mikko, tule"): they stop now, and the
+      // interpreter, which sees them standing, plans the rest. Without it the stop is all.
+      this.halt(u.who, command.line.serial)
+      if (!u.more || !this.link.online) return this.stopped(u.who, command)
+      const plan = await this.interpret(command, u.who)
+      const late = plan === null ? null : this.stillMeant(plan, command)
+      return late === null ? this.stopped(u.who, command) : this.execute(late, command, 'interpreter', false)
+    }
     const key = phraseKey(command.words)
     if (key === '') return this.puzzled(command, [], { en: 'nothing heard', fi: 'ei kuulunut mitään' }, null)
     const phrase = this.library.phrases.get(key)
@@ -452,15 +487,21 @@ export class Brain implements BrainApi {
     this.log({ kind: 'puzzled', serial: command.line.serial, words: command.words })
   }
 
-  private stop(who: string[], command: Command): void {
+  /** Whoever the words stop leaves what it does and what it was to do next. */
+  private halt(who: string[], serial: number): void {
     const world = this.sim.world
     for (const id of who) {
       this.settle(id)
       this.sim.stop(id)
       world.actors.find((a) => a.id === id)!.thinking = null
-      this.touch(id, command.line.serial)
+      this.touch(id, serial)
     }
     if (this.spot !== null && who.includes(this.spot.actor)) this.endSpot()
+  }
+
+  /** The command's line says who stopped. */
+  private stopped(who: string[], command: Command): void {
+    const world = this.sim.world
     const names = (lang: Lang, all: string, and: string) => (who.length === world.actors.length ? all : who.map((id) => this.nameOf(id, lang)).join(` ${and} `))
     const heard = { en: `${names('en', 'Everyone', 'and')}: stop`, fi: `${names('fi', 'Kaikki', 'ja')}: seis` }
     Object.assign(command.line, { heard, who, by: 'local', status: 'done', took: secs(command.t0) })
@@ -520,6 +561,20 @@ export class Brain implements BrainApi {
         continue
       }
       steps.set(actor, [...(steps.get(actor) ?? []), { action, args, serial: line.serial }])
+    }
+    // A new one asked for after the same avatar's step made one of that kind is the one just made ("tee hyppynaru ja hypi sillä"):
+    // its kind alone, which is the nearest one, the one in front of it. Never a second one.
+    for (const list of steps.values()) {
+      const made = new Set<string>()
+      for (const step of list) {
+        for (const [name, value] of Object.entries(step.args)) {
+          if (!isNewThing(value)) continue
+          const kind = slug(kindOfArg(value))
+          if (made.has(kind)) step.args[name] = kind
+          else made.add(kind)
+        }
+        if (step.action === 'make' && step.args.thing !== undefined) made.add(slug(kindOfArg(step.args.thing)))
+      }
     }
     const all = [...steps]
     const uses = (step: Step, kind: string) => Object.values(step.args).some((v) => kindOfArg(v) === kind)

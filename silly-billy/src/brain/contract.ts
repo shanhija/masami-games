@@ -16,6 +16,7 @@ import type {
   InventRequest,
   ItemEntry,
   LibraryData,
+  LibraryNews,
   LogLine,
   SaveRequest,
   Status,
@@ -45,6 +46,8 @@ export interface Link {
   forget(req: ForgetRequest): Promise<void>
   /** Everything made so far: from the server in dev, from the files shipped in the build otherwise. */
   library(): Promise<LibraryData>
+  /** Hears what another page open on the dev server changed in the library; never this page's own changes, nothing in the build. */
+  onNews(listener: (news: LibraryNews) => void): void
   /** Fire and forget. */
   log(line: LogLine): void
 }

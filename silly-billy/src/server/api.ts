@@ -15,7 +15,9 @@ import type { Lang } from '../engine/lang'
 import {
   isNewThing,
   kindOfArg,
+  LIBRARY_EVENT,
   NEW_THING,
+  PAGE_HEADER,
   slugOf,
   type ActionEntry,
   type ForgetRequest,
@@ -25,6 +27,7 @@ import {
   type InventLine,
   type InventRequest,
   type ItemEntry,
+  type LibraryNews,
   type LogLine,
   type NewAction,
   type NewItem,
@@ -62,13 +65,15 @@ export interface Deps {
   voice: VoiceStore
   models: Status['models']
   log: (message: string) => void
+  /** Tells every page open on the dev server something (Vite's websocket); nothing without one. */
+  tell?: (event: string, data: unknown) => void
 }
 
 /** Which interpreter prompt this is: a phrase another prompt made is understood afresh (store.ts). */
 export const promptStamp = (): string => createHash('sha256').update(INTERPRET_SYSTEM).update(JSON.stringify(PLAN_SCHEMA)).digest('hex').slice(0, 12)
 
 /** The real things, found from the environment and the home folder: called on the first request, never at import. */
-export function depsFromEnv(root: string, log: (message: string) => void): Deps {
+export function depsFromEnv(root: string, log: (message: string) => void, tell?: Deps['tell']): Deps {
   const home = os.homedir()
   const bin = findClaude(process.env, home)
   log(bin ? `Claude: ${bin}` : 'Claude: no CLI found, so nothing new can be made (set CLAUDE_BIN)')
@@ -80,6 +85,7 @@ export function depsFromEnv(root: string, log: (message: string) => void): Deps 
     voice: new VoiceStore(path.join(library, 'voice'), VOICE_CAP),
     models: { interpret: process.env.SILLY_INTERPRET_MODEL ?? 'opus', invent: process.env.SILLY_INVENT_MODEL ?? 'opus' },
     log,
+    ...(tell === undefined ? {} : { tell }),
   }
 }
 
@@ -123,6 +129,12 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
   }
   if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new HttpError(400, 'the body is not a JSON object')
   return data as Record<string, unknown>
+}
+
+/** The page that asks, as it names itself (PAGE_HEADER); '' when it does not. */
+function pageOf(req: IncomingMessage): string {
+  const said = req.headers[PAGE_HEADER]
+  return typeof said === 'string' ? said.slice(0, 64) : ''
 }
 
 /** Throws a 400 naming the first field that is not what `check` wants. */
@@ -478,8 +490,8 @@ export class Api {
       if (route === '/interpret') return send(200, await this.interpret(await readJson(req), stopped(res)))
       if (route === '/invent') return await this.invent(await readJson(req), res)
       if (route === '/library' && req.method === 'GET') return send(200, this.deps.store.read())
-      if (route === '/library') return send(200, this.save(await readJson(req)))
-      if (route === '/forget') return send(200, this.forget(await readJson(req)))
+      if (route === '/library') return send(200, this.save(await readJson(req), pageOf(req)))
+      if (route === '/forget') return send(200, this.forget(await readJson(req), pageOf(req)))
       const line = await readJson(req)
       need(line, { kind: isText(100) })
       this.deps.store.log(line as LogLine)
@@ -636,22 +648,39 @@ export class Api {
     res.end()
   }
 
-  private save(body: Record<string, unknown>): { ok: true } {
+  /** Saves an entry or a phrase, and tells the other pages what was saved. */
+  private save(body: Record<string, unknown>, from: string): { ok: true } {
     if (!isObject(body.entry) && !isObject(body.phrase)) throw new HttpError(400, 'bad or missing entry or phrase')
+    let saved: SaveRequest
     try {
-      this.deps.store.save(body as unknown as SaveRequest)
+      saved = this.deps.store.save(body as unknown as SaveRequest)
     } catch (err) {
       throw asBadInput(err)
     }
+    this.tell({ from, ...saved })
     return { ok: true }
   }
 
-  private forget(body: Record<string, unknown>): { ok: true; existed: boolean } {
+  /** Forgets a made thing, and tells the other pages. */
+  private forget(body: Record<string, unknown>, from: string): { ok: true; existed: boolean } {
     need(body, { type: (v) => v === 'item' || v === 'action' || v === 'avatar', id: isText(80) })
+    const req = { type: body.type, id: body.id } as ForgetRequest
+    let existed: boolean
     try {
-      return { ok: true, existed: this.deps.store.forget(body as unknown as ForgetRequest) }
+      existed = this.deps.store.forget(req)
     } catch (err) {
       throw asBadInput(err)
+    }
+    this.tell({ from, forgot: { type: req.type, id: safeId(req.id) } })
+    return { ok: true, existed }
+  }
+
+  /** Tells the pages what changed; what was saved stays saved when no page can be told. */
+  private tell(news: LibraryNews): void {
+    try {
+      this.deps.tell?.(LIBRARY_EVENT, news)
+    } catch (err) {
+      this.deps.log(`could not tell the pages the library changed: ${(err as Error).message}`)
     }
   }
 

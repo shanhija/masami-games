@@ -1,1 +1,118 @@
-[]
+[
+  {
+    "words": "ei vaan aino",
+    "plan": {
+      "heard": "No wait, Aino!",
+      "heardFi": "Ei sittenkään, Aino!",
+      "who": [
+        "alice"
+      ],
+      "steps": [
+        {
+          "who": "alice",
+          "action": "say",
+          "args": [
+            {
+              "name": "words",
+              "value": "Okei, lopetan!"
+            }
+          ]
+        },
+        {
+          "who": "alice",
+          "action": "wave",
+          "args": []
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Okay, I stop!",
+      "sayFi": "Okei, lopetan!"
+    },
+    "made": "2026-11-10T16:52:59.493Z",
+    "prompt": "a50023946a9d"
+  },
+  {
+    "words": "mikko tee laservaloshow",
+    "plan": {
+      "heard": "Mikko does a laser light show",
+      "heardFi": "Mikko tekee laservaloshown",
+      "who": [
+        "mike"
+      ],
+      "steps": [
+        {
+          "who": "mike",
+          "action": "laser-show",
+          "args": []
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Laser show time!",
+      "sayFi": "Laservaloshow alkaa!"
+    },
+    "made": "2026-11-11T16:11:28.598Z",
+    "prompt": "a50023946a9d"
+  },
+  {
+    "words": "eetu rakenna pisaran muotoinen uima alas",
+    "plan": {
+      "heard": "Eetu builds a drop shaped swimming pool",
+      "heardFi": "Eetu rakentaa pisaran muotoisen uima-altaan",
+      "who": [
+        "steve"
+      ],
+      "steps": [
+        {
+          "who": "steve",
+          "action": "build",
+          "args": [
+            {
+              "name": "thing",
+              "value": "new:drop-pool"
+            },
+            {
+              "name": "at",
+              "value": "0,8"
+            }
+          ]
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "A drop pool!",
+      "sayFi": "Pisara-allas!"
+    },
+    "made": "2026-11-11T16:14:21.811Z",
+    "prompt": "a50023946a9d"
+  },
+  {
+    "words": "noora lennä kuin perhonen",
+    "plan": {
+      "heard": "Noora flies like a butterfly",
+      "heardFi": "Noora lentää kuin perhonen",
+      "who": [
+        "noora"
+      ],
+      "steps": [
+        {
+          "who": "noora",
+          "action": "fly",
+          "args": [
+            {
+              "name": "like",
+              "value": "perhonen"
+            }
+          ]
+        }
+      ],
+      "newActions": [],
+      "newItems": [],
+      "say": "Flutter like a butterfly!",
+      "sayFi": "Lennän kuin perhonen!"
+    },
+    "made": "2026-11-13T11:06:49.147Z",
+    "prompt": "a50023946a9d"
+  }
+]

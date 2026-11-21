@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BUILTIN_ACTIONS, BUILTIN_ITEMS, LAYOUTS, makeCast, NEW_NAMES } from '../content'
 import { inLang, useLang, type Lang } from '../engine/lang'
 import { Library } from '../engine/library'
-import type { ActionEntry, AvatarEntry, ForgetRequest, InterpretRequest, InventRequest, ItemEntry, LibraryData, LogLine, NewAction, NewItem, Plan, SaveRequest, Status } from '../engine/protocol'
+import type { ActionEntry, AvatarEntry, ForgetRequest, InterpretRequest, InventRequest, ItemEntry, LibraryData, LibraryNews, LogLine, NewAction, NewItem, Plan, SaveRequest, Status } from '../engine/protocol'
 import { createWorld, Sim } from '../engine/sim'
 import type { Actor, WorldEvent } from '../engine/types'
 import { Brain } from './brain'
@@ -84,6 +84,18 @@ class FakeLink implements Link {
 
   async library() {
     return this.data
+  }
+
+  /** Who hears another page's news: tests tell it with tell(). */
+  private listener: ((news: LibraryNews) => void) | null = null
+
+  onNews(listener: (news: LibraryNews) => void) {
+    this.listener = listener
+  }
+
+  /** Another page changed the library. */
+  tell(news: LibraryNews) {
+    this.listener!(news)
   }
 
   log(line: LogLine) {
@@ -503,7 +515,62 @@ describe('avatars', () => {
   })
 })
 
+describe('two pages at once', () => {
+  it('takes in what another page made and forgot: it plays here at once and is never made again (2026-11-09: two pages made seven things twice)', async () => {
+    const { sim, library, link, brain } = setup()
+    await brain.start()
+    link.tell({ from: 'other', entry: actionEntry('throw', GOOD_THROW, THROW.params) })
+    link.tell({ from: 'other', entry: itemEntry('frisbee', FRISBEE_MODEL) })
+    link.tell({ from: 'other', phrase: { words: 'mike heitä frisbee', plan: plan({ who: ['mike'], steps: [{ who: 'mike', action: 'throw', args: [{ name: 'thing', value: 'frisbee' }] }] }), made: MADE } })
+    expect(library.actions.get('throw')!.entry!.code).toBe(GOOD_THROW)
+    expect(library.phrases.has('mike heitä frisbee')).toBe(true)
+    // This page's interpreter, asked before the news came, names them as new: nothing is made again, the steps play.
+    link.plans.set(WORDS, THROW_PLAN)
+    await brain.hear(WORDS)
+    expect(link.invents).toEqual([])
+    expect(doingOrQueued(actor(sim, 'steve'))).toContain('throw')
+    // What the other page took in is not saved again from here.
+    expect(savedIds(link).filter((id) => id !== `phrase:${WORDS}`)).toEqual([])
+    // Forgotten there: gone here too, from the room as well, and nothing is told back.
+    link.tell({ from: 'other', forgot: { type: 'item', id: 'frisbee' } })
+    link.tell({ from: 'other', forgot: { type: 'action', id: 'throw' } })
+    expect([library.items.has('frisbee'), library.actions.has('throw'), library.phrases.has('mike heitä frisbee')]).toEqual([false, false, false])
+    expect(sim.world.items.some((i) => i.kind === 'frisbee')).toBe(false)
+    expect(link.forgot).toEqual([])
+  })
+})
+
 describe('hearing', () => {
+  it('a stop with more words stops them now and the interpreter plans the rest, knowing they stand (2026-11-09: "älä vedä vessaa" stopped all and did nothing else)', async () => {
+    const { sim, link, brain } = setup()
+    await brain.start()
+    await brain.hear('Mikko, pyöri!')
+    expect(doingOrQueued(actor(sim, 'mike'))).toEqual(['spin'])
+    const words = 'Mikko, älä pyöri vaan hyppää!'
+    link.plans.set(words, plan({ who: ['mike'], steps: [{ who: 'mike', action: 'jump', args: [] }] }))
+    await brain.hear(words)
+    expect(link.interprets.at(-1)!.words).toBe(words)
+    expect(doingOrQueued(actor(sim, 'mike'))).toEqual(['jump'])
+    expect(brain.lines.at(-1)).toMatchObject({ by: 'interpreter', who: ['mike'] })
+    // With nobody to ask, the stop is all.
+    link.online = false
+    await brain.hear('Mikko, älä hyppää vaan pyöri!')
+    expect(doingOrQueued(actor(sim, 'mike'))).toEqual([])
+    expect(brain.lines.at(-1)).toMatchObject({ by: 'local', status: 'done', heard: { fi: 'Mikko: seis' } })
+  })
+
+  it('a new one asked for after the same avatar made one of that kind is the one it made (2026-11-09: two jump ropes for one)', async () => {
+    const { sim, link, brain } = setup()
+    await brain.start()
+    const words = 'Mikko, tee pallo ja ota se'
+    link.plans.set(words, plan({ who: ['mike'], steps: [{ who: 'mike', action: 'make', args: [{ name: 'thing', value: 'ball' }] }, { who: 'mike', action: 'pick-up', args: [{ name: 'thing', value: 'new:ball' }] }] }))
+    const before = sim.world.items.filter((i) => i.kind === 'ball').length
+    await brain.hear(words)
+    expect(actor(sim, 'mike').queue.find((s) => s.action === 'pick-up')!.args.thing).toBe('ball')
+    play(sim, brain, 8)
+    expect(sim.world.items.filter((i) => i.kind === 'ball').length).toBe(before + 1)
+  })
+
   it('"seis" stops everybody, and what waited stops waiting', async () => {
     const { sim, link, brain } = setup()
     await brain.start()

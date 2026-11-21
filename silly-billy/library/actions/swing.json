@@ -1,0 +1,27 @@
+{
+  "type": "action",
+  "id": "swing",
+  "name": "swing",
+  "nameFi": "keinu",
+  "calls": [
+    "keinu",
+    "keinua",
+    "keinumaan",
+    "keinukaa",
+    "swing"
+  ],
+  "about": "The avatar walks to the swinging thing, sits on its seat and swings back and forth higher and higher, laughing, then slows down and stays sitting.",
+  "by": "opus",
+  "asked": "Noora, mene keinumaan keinuun!",
+  "made": "2026-11-11T16:08:50.630Z",
+  "params": [
+    {
+      "name": "thing",
+      "kind": "item",
+      "about": "what to swing on",
+      "optional": true
+    }
+  ],
+  "code": "const it = args.thing || me.riding\nif (!it) { me.say({ en: 'No swing!', fi: 'Ei keinua!' }); me.feel('silly'); yield* me.sitOn(null); return }\nif (me.riding !== it) yield* me.ride(it)\nme.feel('happy')\nme.say({ en: 'Wheee!', fi: 'Jee!' })\nconst bx = me.x, by = me.y, bz = me.z, yaw = me.yaw\nconst top = it.anchor('top').y\nconst L = Math.max(0.8, top - by - 0.3)\nconst parts = it.parts || []\nlet last = 0\nyield* w.during(10, (k) => {\n  const amp = k < 0.7 ? 0.2 + k * 1.1 : (1 - k) / 0.3 * 0.97\n  const a = amp * Math.sin(w.t * 3.2)\n  me.x = bx + Math.sin(yaw) * Math.sin(a) * L\n  me.z = bz + Math.cos(yaw) * Math.sin(a) * L\n  me.y = by + (1 - Math.cos(a)) * L\n  me.pitch = -a * 0.5\n  for (const p of parts) it.part(p).rx = -a\n  const leg = a > 0 ? 0.3 : -0.6\n  me.pose.legL.swing = me.pose.legR.swing = 1.4 + leg\n  me.pose.legL.bend = me.pose.legR.bend = 1.2 - leg\n  me.pose.lean = -a * 0.4\n  if (k < 0.75 && w.t - last > 2.2) { last = w.t; w.sound('giggle'); me.feel('happy'); w.puff({ at: me, kind: 'star', count: 5 }) }\n})\nfor (const p of parts) it.part(p).rx = 0\nme.x = bx; me.y = by; me.z = bz; me.pitch = 0\nme.say({ en: 'So fun!', fi: 'Tosi kivaa!' })\nyield* me.poseTo({ lean: 0, legL: { swing: 1.4, bend: 1.4 }, legR: { swing: 1.4, bend: 1.4 } })",
+  "guarded": "function* __action(me, args, w) {__g();\nconst it = args.thing || me.riding\nif (!it) { me.say({ en: 'No swing!', fi: 'Ei keinua!' }); me.feel('silly'); yield* me.sitOn(null); return }\nif (me.riding !== it) yield* me.ride(it)\nme.feel('happy')\nme.say({ en: 'Wheee!', fi: 'Jee!' })\nconst bx = me.x, by = me.y, bz = me.z, yaw = me.yaw\nconst top = it.anchor('top').y\nconst L = Math.max(0.8, top - by - 0.3)\nconst parts = it.parts || []\nlet last = 0\nyield* w.during(10, (k) => {__g();\n  const amp = k < 0.7 ? 0.2 + k * 1.1 : (1 - k) / 0.3 * 0.97\n  const a = amp * Math.sin(w.t * 3.2)\n  me.x = bx + Math.sin(yaw) * Math.sin(a) * L\n  me.z = bz + Math.cos(yaw) * Math.sin(a) * L\n  me.y = by + (1 - Math.cos(a)) * L\n  me.pitch = -a * 0.5\n  for (const p of parts) {__g();it.part(p).rx = -a}\n  const leg = a > 0 ? 0.3 : -0.6\n  me.pose.legL.swing = me.pose.legR.swing = 1.4 + leg\n  me.pose.legL.bend = me.pose.legR.bend = 1.2 - leg\n  me.pose.lean = -a * 0.4\n  if (k < 0.75 && w.t - last > 2.2) { last = w.t; w.sound('giggle'); me.feel('happy'); w.puff({ at: me, kind: 'star', count: 5 }) }\n})\nfor (const p of parts) {__g();it.part(p).rx = 0}\nme.x = bx; me.y = by; me.z = bz; me.pitch = 0\nme.say({ en: 'So fun!', fi: 'Tosi kivaa!' })\nyield* me.poseTo({ lean: 0, legL: { swing: 1.4, bend: 1.4 }, legR: { swing: 1.4, bend: 1.4 } })\n}"
+}

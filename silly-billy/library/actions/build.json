@@ -1,0 +1,27 @@
+{
+  "type": "action",
+  "id": "build",
+  "name": "build",
+  "nameFi": "rakenna",
+  "calls": [],
+  "about": "The avatar walks to the spot, hammers and stacks pieces busily while the new thing grows bit by bit, then steps back and cheers at the finished thing.",
+  "by": "opus",
+  "asked": "Eetu, rakenna pisaran muotoinen uima-alas.",
+  "made": "2026-11-11T16:14:21.621Z",
+  "params": [
+    {
+      "name": "thing",
+      "kind": "text",
+      "about": "what to build",
+      "optional": false
+    },
+    {
+      "name": "at",
+      "kind": "place",
+      "about": "where to build it",
+      "optional": true
+    }
+  ],
+  "code": "const spot = args.at || me.ahead(2.5)\nyield* me.walkTo(spot, { near: 1.5 })\nyield* me.turnTo(spot)\nlet it = args.thing ? w.make(args.thing, { x: spot.x, z: spot.z }) : null\nconst full = it ? it.scale : 1\nif (it) it.scale = full * 0.1\nme.feel('happy')\nme.say({ en: 'Bang bang!', fi: 'Pum pum!' })\nfor (let i = 1; i <= 6; i++) {\n  yield* me.poseTo({ armR: { swing: 2.6, bend: 0.5 }, lean: -0.1 }, 0.15)\n  yield* me.poseTo({ armR: { swing: 0.6, bend: 0.2 }, lean: 0.35, squash: 0.9 }, 0.12)\n  w.sound('drum')\n  w.puff({ x: spot.x, y: 0.2, z: spot.z, kind: i % 2 ? 'dust' : 'spark', count: 8 })\n  if (it) {\n    const a = it.scale, b = full * (0.1 + 0.9 * i / 6)\n    yield* w.during(0.25, (k) => { it.scale = w.lerp(a, b, w.ease(k)) })\n  } else yield* w.wait(0.2)\n}\nyield* me.rest(0.2)\nyield* me.walkTo(me.ahead(-2))\nyield* me.turnTo(spot)\nw.sound('yay')\nw.puff({ x: spot.x, y: 0.5, z: spot.z, kind: 'confetti', count: 20 })\nme.feel('happy')\nme.say(it ? { en: `Tadaa, ${it.name}!`, fi: `Tadaa, ${it.name}!` } : { en: 'Tadaa!', fi: 'Tadaa!' })\nyield* me.poseTo({ armL: { swing: 3 }, armR: { swing: 3 } }, 0.2)\nyield* me.jump(0.5)\nyield* me.rest()",
+  "guarded": "function* __action(me, args, w) {__g();\nconst spot = args.at || me.ahead(2.5)\nyield* me.walkTo(spot, { near: 1.5 })\nyield* me.turnTo(spot)\nlet it = args.thing ? w.make(args.thing, { x: spot.x, z: spot.z }) : null\nconst full = it ? it.scale : 1\nif (it) it.scale = full * 0.1\nme.feel('happy')\nme.say({ en: 'Bang bang!', fi: 'Pum pum!' })\nfor (let i = 1; i <= 6; i++) {__g();\n  yield* me.poseTo({ armR: { swing: 2.6, bend: 0.5 }, lean: -0.1 }, 0.15)\n  yield* me.poseTo({ armR: { swing: 0.6, bend: 0.2 }, lean: 0.35, squash: 0.9 }, 0.12)\n  w.sound('drum')\n  w.puff({ x: spot.x, y: 0.2, z: spot.z, kind: i % 2 ? 'dust' : 'spark', count: 8 })\n  if (it) {\n    const a = it.scale, b = full * (0.1 + 0.9 * i / 6)\n    yield* w.during(0.25, (k) => {__g(); it.scale = w.lerp(a, b, w.ease(k)) })\n  } else yield* w.wait(0.2)\n}\nyield* me.rest(0.2)\nyield* me.walkTo(me.ahead(-2))\nyield* me.turnTo(spot)\nw.sound('yay')\nw.puff({ x: spot.x, y: 0.5, z: spot.z, kind: 'confetti', count: 20 })\nme.feel('happy')\nme.say(it ? { en: `Tadaa, ${it.name}!`, fi: `Tadaa, ${it.name}!` } : { en: 'Tadaa!', fi: 'Tadaa!' })\nyield* me.poseTo({ armL: { swing: 3 }, armR: { swing: 3 } }, 0.2)\nyield* me.jump(0.5)\nyield* me.rest()\n}"
+}

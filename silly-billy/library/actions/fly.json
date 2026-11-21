@@ -1,0 +1,33 @@
+{
+  "type": "action",
+  "id": "fly",
+  "name": "fly",
+  "nameFi": "lennä",
+  "calls": [
+    "lennä",
+    "lentää",
+    "lentäkää",
+    "lentele",
+    "fly"
+  ],
+  "about": "The avatar flaps its arms like wings, lifts off the ground and flutters around the room in loops, in the manner given if any, then lands softly and smiles.",
+  "by": "opus",
+  "asked": "noora, lennä kuin perhonen",
+  "made": "2026-11-13T11:06:48.950Z",
+  "params": [
+    {
+      "name": "like",
+      "kind": "text",
+      "about": "what it flies like, e.g. a bird",
+      "optional": true
+    },
+    {
+      "name": "to",
+      "kind": "place",
+      "about": "where it lands",
+      "optional": true
+    }
+  ],
+  "code": "const like = args.like\nconst cx = me.x, cz = me.z\nconst end = args.to || { x: cx, z: cz }\nme.feel('happy')\nif (like) me.say({ en: `Like a ${like}!`, fi: `Kuin ${like}!` })\nelse me.say({ en: 'I can fly!', fi: 'Mä lennän!' })\nw.sound('whoosh')\nconst r = 2.5, h = 1.5\nlet px = me.x, pz = me.z\nyield* w.during(7, (k, dt) => {\n  const f = Math.sin(w.t * 14)\n  me.pose.armL.raise = 1.6 + f * 0.8\n  me.pose.armR.raise = 1.6 + f * 0.8\n  me.pose.legL.bend = 0.5; me.pose.legR.bend = 0.5\n  me.pose.lean = 0.4\n  const up = Math.min(1, k * 5) * Math.min(1, (1 - k) * 5)\n  const a = k * Math.PI * 4\n  const bx = w.lerp(cx, end.x, w.ease(k)), bz = w.lerp(cz, end.z, w.ease(k))\n  const nx = w.clamp(bx + Math.sin(a) * r * up, -w.size + 1, w.size - 1)\n  const nz = w.clamp(bz + (Math.cos(a) - 1) * r * up, -w.size + 1, w.size - 1)\n  if (Math.hypot(nx - px, nz - pz) > 0.001) me.yaw = Math.atan2(nx - px, nz - pz)\n  px = nx; pz = nz\n  me.x = nx; me.z = nz\n  me.y = w.groundAt(nx, nz) + up * (h + Math.sin(w.t * 5) * 0.3)\n  if (w.random() < 0.08) w.puff({ x: me.x, y: me.y, z: me.z, kind: 'sparkle' === 'x' ? 'spark' : 'star', count: 2 })\n})\nme.y = w.groundAt(me.x, me.z)\nw.puff({ x: me.x, y: 0.05, z: me.z, kind: 'dust', count: 6 })\nme.feel('happy')\nme.say({ en: 'Soft landing!', fi: 'Pehmeä lasku!' })\nyield* me.rest()",
+  "guarded": "function* __action(me, args, w) {__g();\nconst like = args.like\nconst cx = me.x, cz = me.z\nconst end = args.to || { x: cx, z: cz }\nme.feel('happy')\nif (like) me.say({ en: `Like a ${like}!`, fi: `Kuin ${like}!` })\nelse me.say({ en: 'I can fly!', fi: 'Mä lennän!' })\nw.sound('whoosh')\nconst r = 2.5, h = 1.5\nlet px = me.x, pz = me.z\nyield* w.during(7, (k, dt) => {__g();\n  const f = Math.sin(w.t * 14)\n  me.pose.armL.raise = 1.6 + f * 0.8\n  me.pose.armR.raise = 1.6 + f * 0.8\n  me.pose.legL.bend = 0.5; me.pose.legR.bend = 0.5\n  me.pose.lean = 0.4\n  const up = Math.min(1, k * 5) * Math.min(1, (1 - k) * 5)\n  const a = k * Math.PI * 4\n  const bx = w.lerp(cx, end.x, w.ease(k)), bz = w.lerp(cz, end.z, w.ease(k))\n  const nx = w.clamp(bx + Math.sin(a) * r * up, -w.size + 1, w.size - 1)\n  const nz = w.clamp(bz + (Math.cos(a) - 1) * r * up, -w.size + 1, w.size - 1)\n  if (Math.hypot(nx - px, nz - pz) > 0.001) me.yaw = Math.atan2(nx - px, nz - pz)\n  px = nx; pz = nz\n  me.x = nx; me.z = nz\n  me.y = w.groundAt(nx, nz) + up * (h + Math.sin(w.t * 5) * 0.3)\n  if (w.random() < 0.08) w.puff({ x: me.x, y: me.y, z: me.z, kind: 'sparkle' === 'x' ? 'spark' : 'star', count: 2 })\n})\nme.y = w.groundAt(me.x, me.z)\nw.puff({ x: me.x, y: 0.05, z: me.z, kind: 'dust', count: 6 })\nme.feel('happy')\nme.say({ en: 'Soft landing!', fi: 'Pehmeä lasku!' })\nyield* me.rest()\n}"
+}

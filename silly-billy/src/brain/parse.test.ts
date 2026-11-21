@@ -202,21 +202,32 @@ describe('understanding misheard Finnish', () => {
 
 describe('stopping', () => {
   it('"seis" stops everybody', () => {
-    expect(hear('seis')).toEqual({ kind: 'stop', who: ['alice', 'steve', 'mike', 'noora', 'mirri'] })
+    expect(hear('seis')).toEqual({ kind: 'stop', who: ['alice', 'steve', 'mike', 'noora', 'mirri'], more: false })
   })
 
   it('a stop with a name stops just them', () => {
-    expect(hear('Alice, seis!')).toEqual({ kind: 'stop', who: ['alice'] })
-    expect(hear('älä hyppää steve')).toEqual({ kind: 'stop', who: ['steve'] })
+    expect(hear('Alice, seis!')).toEqual({ kind: 'stop', who: ['alice'], more: false })
+    expect(hear('älä hyppää steve')).toEqual({ kind: 'stop', who: ['steve'], more: true })
+  })
+
+  it('a stop with more words stops them, and the rest is for the interpreter (2026-11-09: "älä vedä vessaa" stopped all and did nothing else)', () => {
+    const all = ['alice', 'steve', 'mike', 'noora', 'mirri']
+    // A "don't" inside a command stops the one spoken to, or who was called before it, not everyone.
+    expect(hear('Kaki uudestaan sinne ja älä vedä vessaa! Ja näytä se minulle.', 'mike')).toEqual({ kind: 'stop', who: ['mike'], more: true })
+    expect(hear('Mike, mene puun luo ja älä hyppää.', 'noora')).toEqual({ kind: 'stop', who: ['mike'], more: true })
+    // Said to many with nobody called in its part: everyone stops, and Mikko's own command is the interpreter's.
+    expect(hear('Lopettakaa leikkiminen! Lopettakaa hyppiminen! Ja Mike, tule tänne!', 'noora')).toEqual({ kind: 'stop', who: all, more: true })
+    // What is stopped, said as a doing, and who is told: no more than a stop.
+    expect(hear('Lopettakaa vetäminen te kaksi, Noora ja Alice.')).toEqual({ kind: 'stop', who: ['noora', 'alice'], more: false })
   })
 
   it('a bare "ei" or "älä" stops the one spoken to: Noora was made to say "Ei? Okei!" and Eetu "Okay, I stop!"', () => {
-    for (const words of ['Ei!', 'Ei, ei, ei,', 'ei ei ei ei', 'älä', 'Älä!']) expect(hear(words, 'noora'), words).toEqual({ kind: 'stop', who: ['noora'] })
-    expect(hear('Ei, Alice!', 'noora')).toEqual({ kind: 'stop', who: ['alice'] })
-    expect(hear('Ei!', null)).toEqual({ kind: 'stop', who: ['alice', 'steve', 'mike', 'noora', 'mirri'] })
+    for (const words of ['Ei!', 'Ei, ei, ei,', 'ei ei ei ei', 'älä', 'Älä!']) expect(hear(words, 'noora'), words).toEqual({ kind: 'stop', who: ['noora'], more: false })
+    expect(hear('Ei, Alice!', 'noora')).toEqual({ kind: 'stop', who: ['alice'], more: false })
+    expect(hear('Ei!', null)).toEqual({ kind: 'stop', who: ['alice', 'steve', 'mike', 'noora', 'mirri'], more: false })
     // 'no' is "well" in Finnish; in English it is no.
     expect(understand('No!', vocab, { ...world, lang: 'fi' }, 'noora')).toMatchObject({ kind: 'plan' })
-    expect(hear('No!', 'noora')).toEqual({ kind: 'stop', who: ['noora'] })
+    expect(hear('No!', 'noora')).toEqual({ kind: 'stop', who: ['noora'], more: false })
     // An "ei" in a sentence is no stop: "Ei vaan, Alice hyppää".
     expect(hear('Ei vaan Alice hyppää', 'noora')).toMatchObject({ kind: 'plan' })
   })

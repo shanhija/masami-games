@@ -91,8 +91,11 @@ const SMALL: Plan = { heard: 'Eetu jumps', heardFi: 'Eetu hyppää', who: ['stev
  * second play of 2026-11-09 they state principles, not the cases that taught them (the game is meant to meet requests nobody
  * foresaw): the size came down from 21,405 to 21,240 with the new engine calls in it, and stayed there when one principle of
  * world knowledge ("can it be done") took the place of the role lists (Sami: "that list would grow uncontrollably").
+ * The log of 2026-11-09's afternoon added 279 for three principles: do what was asked, not something nicer (a wish to see a
+ * mess became flowers, and a child asked four times); whoever was told to stop has stopped, so plan the rest; and a thing an
+ * earlier step made is its kind after it (two jump ropes and two trampolines where one was asked for).
  */
-const INTERPRETER_SIZE = 21_240
+const INTERPRETER_SIZE = 21_519
 
 describe('schemas', () => {
   it('are strict, typed and described all the way down', () => {

@@ -41,7 +41,7 @@ describe('the parser with the real library', () => {
   })
 
   it('stops and changes rooms', () => {
-    expect(hear('seis')).toEqual({ kind: 'stop', who: world.actors.map((a) => a.id) })
+    expect(hear('seis')).toEqual({ kind: 'stop', who: world.actors.map((a) => a.id), more: false })
     expect(sure(hear('mennään uimaan')).room).toBe('pool')
     expect(sure(hear('mennään metsään')).room).toBe('forest')
   })

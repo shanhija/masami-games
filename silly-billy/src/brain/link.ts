@@ -4,7 +4,7 @@
  * `online` stays false, and the library comes from the files the build shipped with.
  */
 
-import type { HearReply, InterpretReply, InventLine, LibraryData, Status } from '../engine/protocol'
+import { LIBRARY_EVENT, PAGE_HEADER, type HearReply, type InterpretReply, type InventLine, type LibraryData, type LibraryNews, type Status } from '../engine/protocol'
 import type { Link } from './contract'
 
 /** The server's { error } as an Error, or the HTTP status when the reply says nothing. */
@@ -16,12 +16,14 @@ async function failure(res: Response): Promise<Error> {
 
 export function createLink(base = './api/'): Link {
   let online = false
+  // This page's name on the dev server: the news of its own saves is not told back to it.
+  const page = Math.random().toString(36).slice(2, 12)
   const ask = async (path: string, init?: RequestInit): Promise<Response> => {
     const res = await fetch(base + path, init)
     if (!res.ok) throw await failure(res)
     return res
   }
-  const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const post = (body: unknown): RequestInit => ({ method: 'POST', headers: { 'content-type': 'application/json', [PAGE_HEADER]: page }, body: JSON.stringify(body) })
 
   return {
     get online() {
@@ -91,6 +93,13 @@ export function createLink(base = './api/'): Link {
       // The build plays what was on disk when it was built; only the build loads those files, so the dev server never watches them.
       if (import.meta.env.PROD) return (await import('./shipped')).SHIPPED
       return (await (await ask('library')).json()) as LibraryData
+    },
+
+    onNews(listener) {
+      // Vite's websocket, there only under the dev server: another page made or forgot something.
+      import.meta.hot?.on(LIBRARY_EVENT, (news: LibraryNews) => {
+        if (news.from !== page) listener(news)
+      })
     },
 
     log(line) {

@@ -112,12 +112,12 @@ function Btn({ className, label, onTap, onDown, children }: { className: string;
 }
 
 /**
- * The words and pictures over the rooms, few and big: the cast's faces along the top with the
- * room pictures on the right and a small box to type a command under them, the last command
- * under the faces and the things being invented under that, the big hold-to-talk button at the
- * bottom middle with the words in a bubble over it, and in the corner the + and − of the zoom
- * over the pause button. Paused, only the pause card shows, over a dimmed picture that takes
- * every tap. Every word is in the language the game is played in. Re-renders only when the game
+ * The words and pictures over the rooms, few and big: the cast's faces along the top (a tap
+ * speaks to one, a tap on the one spoken to lets go of them) with the room pictures on the
+ * right and a small box to type a command under them, the last command under the faces and
+ * the things being invented under that, the big hold-to-talk button at the bottom middle with
+ * the words in a bubble over it, and in the corner the + and − of the zoom over the pause
+ * button. Paused, only the pause card shows, over a dimmed picture that takes every tap. Every word is in the language the game is played in. Re-renders only when the game
  * says there is news.
  */
 export function Hud({ game }: { game: Game }) {
@@ -172,7 +172,7 @@ export function Hud({ game }: { game: Game }) {
       <div className="top">
         <div className="cast" ref={cast}>
           {w.actors.map((a) => (
-            <Btn key={a.id} className={`portrait${brain.addressee === a.id ? ' addressee' : ''}`} label={a.name} onDown={() => game.address(a.id)}>
+            <Btn key={a.id} className={`portrait${brain.addressee === a.id ? ' addressee' : ''}`} label={a.name} onDown={() => (brain.addressee === a.id ? game.letGo() : game.address(a.id))}>
               <Portrait actor={a} size={54} paint={paint} />
               <span className="name">{a.name}</span>
               {a.thinking !== null ? (
@@ -224,7 +224,7 @@ export function Hud({ game }: { game: Game }) {
         <Btn className={`round zoom${zoom >= 1 ? ' end' : ''}`} label={say(SAY.closer)} onDown={() => game.view.step(1, w.actors)}>
           <ZoomIcon size={44} closer />
         </Btn>
-        <Btn className={`round zoom${zoom <= 0 ? ' end' : ''}`} label={say(SAY.farther)} onDown={() => game.view.step(-1, w.actors)}>
+        <Btn className={`round zoom${game.view.outmost ? ' end' : ''}`} label={say(SAY.farther)} onDown={() => game.view.step(-1, w.actors)}>
           <ZoomIcon size={44} closer={false} />
         </Btn>
         <Btn className="round" label={say(SAY.pause)} onTap={() => game.pause()}>

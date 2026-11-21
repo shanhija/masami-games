@@ -39,7 +39,7 @@ export default defineConfig(({ command, mode }) => ({
           }
         : undefined,
     allowedHosts: DEV_HOST === undefined ? [] : [DEV_HOST],
-    // Silly Billy saves what it makes in silly-billy/library/: saving must not reload the page.
+    // Silly Billy saves what it makes in its library/: saving must not reload the page.
     watch: { ignored: ['**/silly-billy/library/**'] },
   },
   build: {

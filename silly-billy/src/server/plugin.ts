@@ -42,7 +42,9 @@ export function sillyBilly(): Plugin {
             current.api.close()
             current = null
           }
-          current = { module, api: new module.Api(module.depsFromEnv(server.config.root, log)) }
+          // What changed in the library goes to every page open on this server, by Vite's own websocket.
+          const tell = (event: string, data: unknown) => server.ws?.send(event, data as Record<string, unknown>)
+          current = { module, api: new module.Api(module.depsFromEnv(server.config.root, log, tell)) }
         }
         return current.api
       }

@@ -150,18 +150,20 @@ export class Store {
     return { items: entries('item'), actions: entries('action'), avatars: entries('avatar'), phrases: kept }
   }
 
-  /** Saves an entry (replacing one with the same id) or a phrase (replacing the same words). Throws on an entry or a phrase the page could not use, or code the guard refuses. */
-  save(req: SaveRequest): void {
+  /** Saves an entry (replacing one with the same id) or a phrase (replacing the same words), and returns it as saved. Throws on an entry or a phrase the page could not use, or code the guard refuses. */
+  save(req: SaveRequest): SaveRequest {
     if ('entry' in req) {
       checkEntry(req.entry)
-      this.write(this.file(req.entry.type, req.entry.id), { ...fresh(req.entry), id: safeId(req.entry.id) })
-      return
+      const entry = { ...fresh(req.entry), id: safeId(req.entry.id) }
+      this.write(this.file(req.entry.type, req.entry.id), entry)
+      return { entry }
     }
     const { phrase } = req
     if (typeof phrase.words !== 'string' || !phrase.words.trim() || typeof phrase.plan !== 'object' || phrase.plan === null) throw new Error('a phrase needs words and a plan')
     if (!playsToday(phrase)) throw new Error("a phrase's plan needs its line in Finnish too (heardFi)")
     const stamped = this.prompt === undefined ? phrase : { ...phrase, prompt: this.prompt }
     this.write(this.phrasesFile, [...this.phrases().kept.filter((p) => p.words !== phrase.words), stamped])
+    return { phrase: stamped }
   }
 
   /** Forgets a made thing and the phrases that use it. Returns whether there was such a thing. */

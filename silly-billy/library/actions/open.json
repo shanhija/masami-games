@@ -1,0 +1,27 @@
+{
+  "type": "action",
+  "id": "open",
+  "name": "open",
+  "nameFi": "avaa",
+  "calls": [
+    "avaa",
+    "avata",
+    "avatkaa",
+    "aukaise",
+    "open"
+  ],
+  "about": "The avatar walks to the thing and opens its lid, door or cover; if it is a box, a surprise pops out with sparkles, and the avatar cheers.",
+  "by": "opus",
+  "asked": "Avaa kysymysmerkki.",
+  "made": "2026-11-11T16:14:49.594Z",
+  "params": [
+    {
+      "name": "thing",
+      "kind": "item",
+      "about": "what to open",
+      "optional": false
+    }
+  ],
+  "code": "const it = args.thing\nif (!it) { me.feel('silly'); me.say({ en: 'Open what?', fi: 'Avaa mitä?' }); yield* w.wait(1); return }\nyield* me.walkTo(it, { near: 0.4 })\nyield* me.turnTo(it)\nyield* me.poseTo({ lean: 0.4, armL: { swing: 1.2 }, armR: { swing: 1.2 } }, 0.3)\nme.say({ en: 'Let me open!', fi: 'Avataan!' })\nconst lid = it.part('lid'), door = it.part('door'), cover = it.part('cover')\nyield* w.during(0.8, (k) => {\n  const a = w.ease(k)\n  lid.rx = -a * 1.8; cover.rx = -a * 1.8; door.ry = a * 1.6\n})\nyield* me.poseTo({ lean: 0, armL: { swing: 2.8, raise: 0.5 }, armR: { swing: 2.8, raise: 0.5 } }, 0.25)\nconst top = it.anchor('top')\nw.sound('magic')\nw.puff({ x: top.x, y: top.y, z: top.z, kind: 'star', count: 20, up: 3, speed: 3 })\nw.puff({ x: top.x, y: top.y, z: top.z, kind: 'confetti', count: 30, up: 3 })\nme.feel('surprised', 1)\nyield* me.jump(0.4)\nw.sound('yay')\nme.feel('happy')\nme.say({ en: 'A surprise!', fi: 'Yllätys!' })\nw.puff({ x: top.x, y: top.y + 0.3, z: top.z, kind: 'spark', count: 20, up: 2 })\nyield* me.jump(0.5)\nyield* me.rest()",
+  "guarded": "function* __action(me, args, w) {__g();\nconst it = args.thing\nif (!it) { me.feel('silly'); me.say({ en: 'Open what?', fi: 'Avaa mitä?' }); yield* w.wait(1); return }\nyield* me.walkTo(it, { near: 0.4 })\nyield* me.turnTo(it)\nyield* me.poseTo({ lean: 0.4, armL: { swing: 1.2 }, armR: { swing: 1.2 } }, 0.3)\nme.say({ en: 'Let me open!', fi: 'Avataan!' })\nconst lid = it.part('lid'), door = it.part('door'), cover = it.part('cover')\nyield* w.during(0.8, (k) => {__g();\n  const a = w.ease(k)\n  lid.rx = -a * 1.8; cover.rx = -a * 1.8; door.ry = a * 1.6\n})\nyield* me.poseTo({ lean: 0, armL: { swing: 2.8, raise: 0.5 }, armR: { swing: 2.8, raise: 0.5 } }, 0.25)\nconst top = it.anchor('top')\nw.sound('magic')\nw.puff({ x: top.x, y: top.y, z: top.z, kind: 'star', count: 20, up: 3, speed: 3 })\nw.puff({ x: top.x, y: top.y, z: top.z, kind: 'confetti', count: 30, up: 3 })\nme.feel('surprised', 1)\nyield* me.jump(0.4)\nw.sound('yay')\nme.feel('happy')\nme.say({ en: 'A surprise!', fi: 'Yllätys!' })\nw.puff({ x: top.x, y: top.y + 0.3, z: top.z, kind: 'spark', count: 20, up: 2 })\nyield* me.jump(0.5)\nyield* me.rest()\n}"
+}

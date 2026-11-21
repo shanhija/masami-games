@@ -37,8 +37,12 @@ export interface Vocabulary {
   actionFor(word: string, opts?: { near?: boolean }): string | null
 }
 
-/** A stop for these actors, or a plan and whether the parser is sure enough to play it without asking. */
-export type Understood = { kind: 'stop'; who: string[] } | { kind: 'plan'; plan: Plan; confident: boolean }
+/**
+ * A stop for these actors, or a plan and whether the parser is sure enough to play it without
+ * asking. `more`: the words say more than the stop ("älä vedä vessaa, näytä se"), for the
+ * interpreter once they stopped.
+ */
+export type Understood = { kind: 'stop'; who: string[]; more: boolean } | { kind: 'plan'; plan: Plan; confident: boolean }
 
 const NUMBERS = new Map([
   ['nolla', '0'], ['yksi', '1'], ['yks', '1'], ['yhden', '1'], ['kaksi', '2'], ['kaks', '2'], ['kolme', '3'], ['neljä', '4'], ['viisi', '5'], ['viis', '5'], ['kuus', '6'],
@@ -71,6 +75,12 @@ export function phraseKey(words: string): string {
 // ------------------------------------------------------------------------------ words
 
 const STOP = new Set(['seis', 'stop', 'stoppi', 'stoppaa', 'lopeta', 'lopettakaa', 'lopetetaan', 'älä', 'älkää', 'pysähdy', 'pysähtykää', 'riittää', 'halt', 'freeze', 'dont'])
+/** Stop words said to many: with more words after them and nobody named before, everyone stops ("lopettakaa leikkiminen ja Mikko, tule"). */
+const STOP_ALL = new Set(['seis', 'stop', 'lopettakaa', 'lopetetaan', 'älkää', 'pysähtykää', 'riittää', 'halt', 'freeze'])
+/** What is stopped, said as a doing ("lopettakaa hyppiminen", "lopeta hyppimästä"): part of the stop, no more words. */
+const DOING = /(minen|mista|mistä|masta|mästä)$/
+/** A verb said to many in Finnish ("hyppikää", "ampukaa", "maalatkaa"); a double k before it is one ("pakkaa", "hakkaa"). */
+const TO_MANY = /[^k]k(aa|ää)$/
 /** A child's "no!" to one ("Ei!", "ei ei ei", "älä!"): said with nothing else but names, it stops whoever was just told something. 'no' is "well" in Finnish ("no niin"): a no only in a game played in English. */
 const NO = new Set(['ei', 'älä', 'nope'])
 const isNo = (word: string, lang: Lang) => NO.has(word) || (lang === 'en' && word === 'no')
@@ -94,7 +104,7 @@ const SMALL = new Set([
   'ja', 'sitten', 'nyt', 'kanssa', 'luo', 'luokse', 'päälle', 'päällä', 'yli', 'ali', 'alle', 'alla', 'sisään', 'sisälle', 'ulos', 'pois', 'myös', 'vielä',
   'taas', 'uudestaan', 'heti', 'vaan', 'vain', 'kohti', 'ympäri', 'perään', 'perässä', 'mukaan', 'eteen', 'taakse', 'viereen', 'vieressä', 'sinne',
   'tuonne', 'hei', 'moi', 'no', 'niin', 'nii', 'okei', 'ok', 'kiitos', 'pliis', 'voisitko', 'voitko', 'voisit', 'osaatko', 'saa', 'saat', 'pitää', 'täytyy',
-  'mä', 'minä', 'sä', 'sinä', 'mun', 'sun', 'minun', 'sinun', 'mulle', 'sulle', 'minua', 'mua', 'minulle', 'meille', 'meitä',
+  'mä', 'minä', 'sä', 'sinä', 'te', 'mun', 'sun', 'minun', 'sinun', 'mulle', 'sulle', 'minua', 'mua', 'minulle', 'meille', 'meitä',
   'joku', 'jokin', 'jonkun', 'jonkin', 'tuo', 'tämä', 'tää', 'toi', 'se', 'sen',
   'sitä', 'ne', 'niitä', 'nää', 'noi', 'kun', 'että', 'jos', 'oikein', 'ihan', 'tosi', 'vähän', 'äkkiä', 'takaisin', 'uudelleen',
   'kerta', 'kertaa', 'kerran', 'itse', 'itsesi', 'itseäsi', 'itsensä', 'itseään', 'itseni', 'itsenne', 'kaikille', 'kaikkia', 'kaikilta',
@@ -118,6 +128,8 @@ const POINTING = new Set([
   'noille', 'näille', 'heille', 'heidät', 'heidän', 'toinen', 'toiselle', 'toista', 'toisen', 'molemmat', 'molemmille', 'kummallekin', 'kaikille', 'kaikkia', 'kaikilta',
   'it', 'this', 'that', 'these', 'those', 'other', 'both',
 ])
+/** Finnish endings for where: onto, on, off, into, in, out of ("puulle", "penkillä", "keinuun", "telineeseen", "altaasta"). */
+const WHERE = /(lle|lla|llä|lta|ltä|ssa|ssä|sta|stä|seen|h[aeiouyäö]n|([aeiouyäö])\2n)$/
 /** Little words that go after the word they belong to ("puun luo", "Ainon kanssa"): the Finnish line keeps them with it. */
 const AFTER = new Set(['luo', 'luokse', 'päälle', 'päällä', 'yli', 'ali', 'alle', 'alla', 'kanssa', 'kohti', 'ympäri', 'perään', 'perässä', 'eteen', 'taakse', 'viereen', 'vieressä', 'sisään', 'sisälle'])
 
@@ -371,6 +383,8 @@ interface Candidate {
   type: 'actor' | 'item' | 'number'
   value: string
   fi: string
+  /** Said as where: with an ending for where ("puulle", "keinuun") or before a little word for where ("kerrostalon viereen"). */
+  placed: boolean
 }
 
 /** How the Finnish line says an arg, and where in the words it was, so the line keeps the child's order. */
@@ -468,7 +482,11 @@ function fill(action: Pick<LibAction, 'id' | 'params'>, candidates: Candidate[],
         texts++
         continue
       }
-      const c = candidates.find((x) => !used.has(x) && TAKES[p.kind].includes(x.type))
+      // A param for where takes a word said as where first ("tee puu kerrostalon viereen": at the block of flats), any other
+      // param a word said plainly first (the tree is what is made).
+      const open = candidates.filter((x) => !used.has(x) && TAKES[p.kind].includes(x.type))
+      const where = p.kind === 'place' || BEFORE.has(p.name)
+      const c = (where ? open.find((x) => x.placed) : open.find((x) => !x.placed)) ?? open[0]
       if (c === undefined) continue
       used.add(c)
       taken.add(c.at)
@@ -521,21 +539,39 @@ export function understand(words: string, vocab: Vocabulary, world: World, addre
 
   // "Ei!", "ei ei ei", "älä!" with nothing but names: no to what the one spoken to was just told.
   const no = raw.some((r) => isNo(r.word, world.lang)) && raw.every((r) => isNo(r.word, world.lang) || (r.kind === 'actor' && r.bare) || r.kind === 'all')
-  if (no || raw.some((r) => r.kind === 'stop')) {
-    const who = new Set<string>()
-    for (const r of raw) {
-      if (r.kind === 'all') for (const id of everybody) who.add(id)
-      else if (r.kind === 'actor') who.add(r.id)
-      else if (r.kind === 'pronoun') {
-        const id = pronounFor(r.fits)
-        if (id !== null) who.add(id)
+  const stopAt = raw.findIndex((r) => r.kind === 'stop')
+  if (no || stopAt >= 0) {
+    // More than a stop: a verb, a thing, a room, or a word nobody knows that is no doing ("älä vedä vessaa", "seis ja tule tänne").
+    const more = !no && raw.some((r) => ['action', 'item', 'room', 'go'].includes(r.kind) || (r.kind === 'unknown' && !DOING.test(r.word)))
+    const named = (readings: readonly Reading[], bare: boolean) => {
+      const ids = new Set<string>()
+      for (const r of readings) {
+        if (r.kind === 'all') for (const id of everybody) ids.add(id)
+        else if (r.kind === 'actor' && (r.bare || !bare)) ids.add(r.id)
+        else if (r.kind === 'pronoun' && (r.subject || !bare)) {
+          const id = pronounFor(r.fits)
+          if (id !== null) ids.add(id)
+        }
       }
+      return ids
     }
-    return { kind: 'stop', who: who.size > 0 ? [...who] : no && listener !== null ? [listener.id] : everybody }
+    // A stop alone stops whoever it names. One with more stops who is called in its own part of the words ("älä hyppää Steve"),
+    // else who was called before it ("Mikko, mene vessaan ja älä vedä"), else everyone ("lopettakaa"), else the one spoken to.
+    const from = raw.reduce((last, r, i) => (i < stopAt && AND.has(r.word) ? i + 1 : last), 0)
+    const to = raw.findIndex((r, i) => i > stopAt && AND.has(r.word))
+    const own = named(raw.slice(from, to < 0 ? raw.length : to), true)
+    const who = !more ? named(raw, false) : own.size > 0 ? own : named(raw.slice(0, stopAt), true)
+    const toAll = more && raw.some((r) => r.kind === 'all' || (r.kind === 'stop' && STOP_ALL.has(r.word)))
+    const fallback = (no || (more && !toAll)) && listener !== null ? [listener.id] : everybody
+    return { kind: 'stop', who: who.size > 0 ? [...who] : fallback, more }
   }
 
   const rooms = [...new Set(raw.flatMap((r) => (r.kind === 'room' ? [r.room] : [])))]
-  const room = rooms.length === 1 ? rooms[0] : undefined
+  // A room is somewhere to go only with a word for going, or with no other verb ("uimahalliin!"): beside another verb it is what
+  // that verb is about ("maalaa piha pinkiksi" paints the yard), which the interpreter works out.
+  const toRoom = (r: Reading) => WHERE.test(r.word) || ['to', 'into', 'in'].includes(raw.find((q) => q.at === r.at - 1)?.word ?? '')
+  const otherVerb = rooms.length > 0 && !raw.some((r) => r.kind === 'go') && raw.some((r) => r.kind === 'action') && !raw.some((r) => r.kind === 'room' && toRoom(r))
+  const room = rooms.length === 1 && !otherVerb ? rooms[0] : undefined
   const readings = raw.map((r): Reading => {
     if (r.kind !== 'go') return r
     if (room !== undefined) return { at: r.at, word: r.word, kind: 'small' }
@@ -546,9 +582,11 @@ export function understand(words: string, vocab: Vocabulary, world: World, addre
   if (actionIds.length > 0) for (const [i, r] of readings.entries()) if (r.kind === 'unknown' && PLAY.has(r.word)) readings[i] = { at: r.at, word: r.word, kind: 'small' }
   const verbAt = readings.find((r) => r.kind === 'action')?.at ?? Infinity
   const game = actionIds.length === 1 && vocab.actions.get(actionIds[0]!)!.params.some((p) => p.name === 'players')
-  const lets = (game || readings.some((r) => r.word.split(' ').some((w) => LETS.has(w)))) && !readings.some((r) => (r.kind === 'actor' && r.bare) || (r.kind === 'pronoun' && r.subject))
+  // A verb said to many ("ampukaa", "maalatkaa") with nobody named is for everyone, as "let's" is.
+  const toMany = world.lang === 'fi' && readings.some((r) => r.kind === 'action' && r.word.split(' ').some((w) => TO_MANY.test(w)))
+  const lets = (game || toMany || readings.some((r) => r.word.split(' ').some((w) => LETS.has(w)))) && !readings.some((r) => (r.kind === 'actor' && r.bare) || (r.kind === 'pronoun' && r.subject))
   const everyone = readings.some((r) => r.kind === 'all') || (lets && actionIds.length > 0)
-  let unclear = rooms.length > 1
+  let unclear = rooms.length > 1 || otherVerb
 
   // Who does it: names before the verb, "kaikki", "hän"; else a name after the verb ("hyppää Alice"); else the one spoken to.
   const bare = readings.flatMap((r) => (r.kind === 'actor' && r.bare ? [r] : []))
@@ -583,14 +621,16 @@ export function understand(words: string, vocab: Vocabulary, world: World, addre
 
   // What can fill params: names with endings (and bare ones after the verb when someone was named before it), "hänelle", things, numbers.
   const candidates: Candidate[] = []
+  // Finnish endings for where only in a game played in Finnish ("balloon" is no illative); a little word after it in any.
+  const placed = (r: Reading) => (world.lang === 'fi' && WHERE.test(r.word)) || AFTER.has(readings.find((q) => q.at > r.at)?.word ?? '')
   for (const r of readings) {
-    if (r.kind === 'actor' && !(r.bare && (vocative || r.at < verbAt))) candidates.push({ at: r.at, type: 'actor', value: r.id, fi: fiOf(r) })
+    if (r.kind === 'actor' && !(r.bare && (vocative || r.at < verbAt))) candidates.push({ at: r.at, type: 'actor', value: r.id, fi: fiOf(r), placed: placed(r) })
     else if (r.kind === 'pronoun' && !r.subject) {
       const id = pronounFor(r.fits)
       if (id === null) unclear = true
-      else candidates.push({ at: r.at, type: 'actor', value: id, fi: finnishName(id, PRONOUN_ENDING.get(r.word) ?? '') })
-    } else if (r.kind === 'item') candidates.push({ at: r.at, type: 'item', value: r.item, fi: fiOf(r) })
-    else if (r.kind === 'number') candidates.push({ at: r.at, type: 'number', value: r.word, fi: r.word })
+      else candidates.push({ at: r.at, type: 'actor', value: id, fi: finnishName(id, PRONOUN_ENDING.get(r.word) ?? ''), placed: placed(r) })
+    } else if (r.kind === 'item') candidates.push({ at: r.at, type: 'item', value: r.item, fi: fiOf(r), placed: placed(r) })
+    else if (r.kind === 'number') candidates.push({ at: r.at, type: 'number', value: r.word, fi: r.word, placed: false })
   }
 
   // Paint's part: a worn kind is the slot it is worn in, on whoever is painted (a name with an ending, else whoever paints) when one of them wears something there.

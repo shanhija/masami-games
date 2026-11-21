@@ -6,6 +6,7 @@ import type { Job } from './brain/contract'
 import type { LibraryData, Status } from './engine/protocol'
 import type { Item, RoomId, World } from './engine/types'
 import { DEFAULT_SETTINGS, Game, keyAction, readRooms, readSettings, restoreRooms, roomsOf, type SavedRooms } from './game'
+import { ROOM } from './scene/frame'
 
 const item = (id: string, kind: string, extra: Partial<Item> = {}): Item => ({
   id,
@@ -183,6 +184,21 @@ describe('the game', () => {
     expect(JSON.parse(saves.items.get('silly-billy-settings')!)).toEqual({ sound: false, spoken: true, lang: 'en' })
     game.address('noora')
     expect(game.brain.addressee).toBe('noora')
+    // Her face tapped again lets her go, and the camera goes back to the whole room.
+    game.view.step(1, game.world.actors)
+    game.letGo()
+    expect([game.brain.addressee, game.view.goal]).toEqual([null, 0])
+    // While the camera is close round someone busy, letting go goes out past it to the whole room; a face tapped or a new command comes back.
+    const busy = { x: 4, y: 0, z: -3, r: 6 }
+    game.view.update(busy, ROOM, true, 1.5, 1 / 60)
+    game.address('noora')
+    game.letGo()
+    expect([game.view.goal, game.view.outmost]).toEqual([-1, true])
+    game.address('noora')
+    expect(game.view.goal).toBe(0)
+    game.letGo()
+    game.type('noora hyppää')
+    expect(game.view.goal).toBe(0)
     // Nothing listens here, so holding the button does nothing at all.
     game.talk(true)
     expect([game.mic.held, game.words, game.missed]).toEqual([false, '', false])

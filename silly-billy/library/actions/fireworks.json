@@ -1,0 +1,28 @@
+{
+  "type": "action",
+  "id": "fireworks",
+  "name": "set off fireworks",
+  "nameFi": "ammu ilotulitus",
+  "calls": [
+    "ilotulitus",
+    "ilotulitusta",
+    "ilotulituksia",
+    "raketti",
+    "raketteja",
+    "fireworks"
+  ],
+  "about": "The avatar points up, colourful firework rockets shoot from its hands into the sky and burst into sparkly bangs, then it cheers as the sparks fade.",
+  "by": "opus",
+  "asked": "EeTu ja kaikki pystyttekö ilovulituksia?",
+  "made": "2026-11-11T16:12:10.751Z",
+  "params": [
+    {
+      "name": "color",
+      "kind": "text",
+      "about": "main colour of the sparks",
+      "optional": true
+    }
+  ],
+  "code": "const cols = args.color ? [args.color, args.color, 'white'] : ['red', 'gold', 'deepskyblue', 'hotpink', 'lime']\nme.feel('happy')\nyield* me.poseTo({ armL: { swing: 2.9 }, armR: { swing: 2.9 }, head: { nod: -0.5 } }, 0.3)\nfor (let i = 0; i < 4; i++) {\n  const hand = i % 2 ? 'left' : 'right'\n  const h = me.handAt(hand)\n  const c = w.pick(cols)\n  w.sound('whoosh')\n  const top = 7 + w.random() * 3\n  const dx = (w.random() - 0.5) * 4, dz = (w.random() - 0.5) * 4\n  yield* w.during(0.6, (k) => {\n    w.puff({ x: h.x + dx * k, y: h.y + (top - h.y) * k, z: h.z + dz * k, kind: 'spark', color: c, count: 2, size: 0.1, speed: 0.3, life: 0.4 })\n  })\n  w.sound(i % 2 ? 'crash' : 'zap')\n  w.puff({ x: h.x + dx, y: top, z: h.z + dz, kind: 'star', color: c, count: 40, size: 0.25, speed: 5, up: 0, life: 1.5, gravity: 2 })\n  w.puff({ x: h.x + dx, y: top, z: h.z + dz, kind: 'confetti', color: w.pick(cols), count: 25, size: 0.2, speed: 4, life: 1.5 })\n  yield* me.jump(0.3)\n}\nyield* w.wait(0.6)\nw.sound('yay')\nme.feel('happy')\nme.say({ en: 'Ooh! Fireworks!', fi: 'Oho! Ilotulitus!' })\nyield* me.poseTo({ armL: { swing: 2.6, raise: 0.6 }, armR: { swing: 2.6, raise: 0.6 } }, 0.2)\nyield* me.jump(0.5)\nyield* me.rest()",
+  "guarded": "function* __action(me, args, w) {__g();\nconst cols = args.color ? [args.color, args.color, 'white'] : ['red', 'gold', 'deepskyblue', 'hotpink', 'lime']\nme.feel('happy')\nyield* me.poseTo({ armL: { swing: 2.9 }, armR: { swing: 2.9 }, head: { nod: -0.5 } }, 0.3)\nfor (let i = 0; i < 4; i++) {__g();\n  const hand = i % 2 ? 'left' : 'right'\n  const h = me.handAt(hand)\n  const c = w.pick(cols)\n  w.sound('whoosh')\n  const top = 7 + w.random() * 3\n  const dx = (w.random() - 0.5) * 4, dz = (w.random() - 0.5) * 4\n  yield* w.during(0.6, (k) => {__g();\n    w.puff({ x: h.x + dx * k, y: h.y + (top - h.y) * k, z: h.z + dz * k, kind: 'spark', color: c, count: 2, size: 0.1, speed: 0.3, life: 0.4 })\n  })\n  w.sound(i % 2 ? 'crash' : 'zap')\n  w.puff({ x: h.x + dx, y: top, z: h.z + dz, kind: 'star', color: c, count: 40, size: 0.25, speed: 5, up: 0, life: 1.5, gravity: 2 })\n  w.puff({ x: h.x + dx, y: top, z: h.z + dz, kind: 'confetti', color: w.pick(cols), count: 25, size: 0.2, speed: 4, life: 1.5 })\n  yield* me.jump(0.3)\n}\nyield* w.wait(0.6)\nw.sound('yay')\nme.feel('happy')\nme.say({ en: 'Ooh! Fireworks!', fi: 'Oho! Ilotulitus!' })\nyield* me.poseTo({ armL: { swing: 2.6, raise: 0.6 }, armR: { swing: 2.6, raise: 0.6 } }, 0.2)\nyield* me.jump(0.5)\nyield* me.rest()\n}"
+}

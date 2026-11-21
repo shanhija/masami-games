@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 import type { ViteDevServer } from 'vite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import type { ActionEntry, InterpretReply, InventLine, ItemEntry, LibraryData, NewAction, NewItem, Plan, Status } from '../engine/protocol'
+import { LIBRARY_EVENT, PAGE_HEADER, type ActionEntry, type InterpretReply, type InventLine, type ItemEntry, type LibraryData, type LibraryNews, type NewAction, type NewItem, type Plan, type Status } from '../engine/protocol'
 import { interpreterContext } from '../brain/context'
 import { BUILTIN_ACTIONS, BUILTIN_ITEMS, LAYOUTS, NEW_NAMES, makeCast } from '../content'
 import { Library } from '../engine/library'
@@ -34,6 +34,8 @@ type Handler = (req: http.IncomingMessage, res: http.ServerResponse, next: () =>
 
 /** The repo's root, where Vite's module runner finds /silly-billy/src/server/api.ts. */
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
+/** What the plugin told the pages over Vite's websocket. */
+const told: { event: string; data: unknown }[] = []
 
 const THROW: NewAction = {
   id: 'throw',
@@ -122,6 +124,7 @@ async function serve(): Promise<{ base: string; server: http.Server; handler: Ha
     config: { root: ROOT, logger: { info: (m: string) => logs.push(m) } },
     httpServer: fake,
     ssrLoadModule: (url: string) => import(path.join(ROOT, url)),
+    ws: { send: (event: string, data: unknown) => told.push({ event, data }) },
   }
   ;(sillyBilly().configureServer as (s: ViteDevServer) => void)(stub as unknown as ViteDevServer)
   const http_ = http.createServer((req, res) => {
@@ -432,6 +435,19 @@ describe('the plugin', () => {
     expect(await post('/forget', { type: 'action', id: 'throw' })).toEqual({ status: 200, body: { ok: true, existed: true } })
     const after = (await get('/library')).body as unknown as LibraryData
     expect([after.actions, after.phrases]).toEqual([[], []])
+  })
+
+  it('tells every page what was saved and forgotten, as saved, and which page did it (2026-11-09: two pages made the same things twice)', async () => {
+    told.length = 0
+    const entry: ActionEntry = { type: 'action', ...THROW, id: 'Toss Twice', code: CODE, guarded: 'old', by: 'opus', asked: 'heitä', made: '2026-11-09T16:40:00.000Z' }
+    const as = (page: string, route: string, body: unknown) => fetch(`${base}${route}`, { method: 'POST', headers: { [PAGE_HEADER]: page }, body: JSON.stringify(body) })
+    expect((await as('page-a', '/library', { entry })).status).toBe(200)
+    expect((await as('page-b', '/forget', { type: 'action', id: 'toss-twice' })).status).toBe(200)
+    expect(told.map((t) => t.event)).toEqual([LIBRARY_EVENT, LIBRARY_EVENT])
+    const [saved, forgot] = told.map((t) => t.data as LibraryNews)
+    // As the server keeps it: its id made safe and its code guarded afresh.
+    expect(saved).toMatchObject({ from: 'page-a', entry: { id: 'toss-twice', guarded: (guard('action', CODE) as { guarded: string }).guarded } })
+    expect(forgot).toEqual({ from: 'page-b', forgot: { type: 'action', id: 'toss-twice' } })
   })
 
   it('refuses library requests the page could not mean', async () => {

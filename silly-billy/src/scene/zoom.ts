@@ -3,17 +3,21 @@
  * the wheel or the + and − buttons zoom: `t` runs from 0, the game's frame exactly as it is (the
  * whole room, or close round whoever is busy), to 1, MIN_R of ground round the aim whatever the
  * frame, so one or two avatars fill much of the screen. In between, the frame's own moves (in on
- * an action, back out after) still show, smaller the closer the player is. A zoom keeps the ground
- * under the fingers or the cursor where it is; the + button zooms toward the people when nobody is
- * busy, else toward the middle of the action. Zoomed in, a drag pans; a new action takes the camera
- * to it again, and when everyone is done the view stays where it was. The view never leaves the
- * room. Plain numbers, read by the camera once a frame and kept only while the page is open.
+ * an action, back out after) still show, smaller the closer the player is. Zooming out always
+ * works: while the game is close round someone, `t` goes below 0, to -1 at the whole room, and
+ * stays out until a new command, a face tapped or everyone done (then the frame is the whole room
+ * anyway). A zoom keeps the ground under the fingers or the cursor where it is; the + button
+ * zooms toward the people when nobody is busy, else toward the middle of the action. Zoomed in, a
+ * drag pans; a new action takes the camera to it again, and when everyone is done the view stays
+ * where it was. The view never leaves the room. Plain numbers, read by the camera once a frame
+ * and kept only while the page is open. "Ground" is the level the camera aims at (the frame's
+ * floor: a roof when everyone is up on one).
  */
 
 import { ease } from '../../../castle-builder/src/game/math'
 import { CAMERA_HALF_FOV, CAMERA_PITCH, CAMERA_YAW, GROUND_AHEAD } from '../../../castle-builder/src/scene/look'
 import { ROOM_HALF } from '../engine/types'
-import type { Frame } from './frame'
+import { ROOM, type Frame } from './frame'
 import { FRAME_R } from './look'
 
 /** All the way in: the least ground kept round the aim, metres. A kid is then about 7 times as tall on the screen as at the whole room, two of them fill the screen. */
@@ -27,8 +31,8 @@ const ROOM_EDGE = 1
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
-/** The ground the camera shows round its aim: the frame's own (`frameR`) at t 0, MIN_R at t 1, evenly in between on a log scale. */
-export const shownR = (frameR: number, t: number) => frameR ** (1 - t) * MIN_R ** t
+/** The ground the camera shows round its aim: the whole room's (`roomR`) at t -1, the frame's own (`frameR`) at 0, MIN_R at 1, evenly in between on a log scale. */
+export const shownR = (frameR: number, roomR: number, t: number) => (t >= 0 ? frameR ** (1 - t) * MIN_R ** t : frameR ** (1 + t) * Math.max(frameR, roomR) ** -t)
 
 /** How far the camera stands from its aim per metre of ground kept in view, so the frame's ground fits below the aim and across on a screen this wide (`aspect`, width over height). */
 export const standBack = (aspect: number) => Math.max(1 / GROUND_AHEAD, 1 / (Math.tan(CAMERA_HALF_FOV) * aspect))
@@ -56,13 +60,14 @@ export function groundUnit(ndcX: number, ndcY: number, aspect: number): [number,
   return [k * bx + s * ray[0], k * bz + s * ray[2]]
 }
 
-/** The player's view: how far zoomed in, how far panned, and where the camera looks this frame. */
+/** The player's view: how far zoomed in or out, how far panned, and where the camera looks this frame. */
 export class View {
-  /** How far zoomed in now, 0 to 1, and where it is easing to. */
+  /** How far zoomed in now, -1 (the whole room while the game is close round someone) to 1, and where it is easing to. */
   t = 0
   goal = 0
-  /** Where the camera looks on the ground, and how much ground it keeps in view round that, this frame. */
+  /** Where the camera looks, and how much ground it keeps in view round that, this frame. */
   x = 0
+  y = 0
   z = 0
   r = FRAME_R
   /** A finger or the mouse is panning or pinching: a new action does not take the view from under it. */
@@ -70,42 +75,59 @@ export class View {
   /** The player's shift of the aim from the frame's, metres. */
   private panX = 0
   private panZ = 0
-  /** The frame's ground, eased, as the camera always eased it. */
+  /** The frame's ground and the whole room's, eased, as the camera always eased them. */
   private frameR = FRAME_R
-  /** The frame last aimed at, for gestures between frames. */
-  private frame: Frame = { x: 0, z: 0, r: FRAME_R }
+  private roomR = FRAME_R
+  /** The frame and the whole room last aimed at, for gestures between frames. */
+  private frame: Frame = ROOM
+  private room: Frame = ROOM
   private busy = false
   /** The screen's width over its height. */
   private aspect = 1
   /** A ground point kept where it is on the screen while the zoom eases: the one under the cursor or the people. */
   private anchor: [number, number] | null = null
 
-  /** Once a frame: the game's frame, whether anyone is busy (or was until a moment ago), the screen's shape. */
-  update(frame: Frame, busy: boolean, aspect: number, dt: number) {
+  /** Once a frame: the game's frame, the whole room's, whether anyone is busy (or was until a moment ago), the screen's shape. */
+  update(frame: Frame, room: Frame, busy: boolean, aspect: number, dt: number) {
     if (busy !== this.busy) {
       // A new action takes the camera to it; when everyone is done the view stays where it was (zoomed out, that is the whole room).
       if (busy && !this.dragging) [this.panX, this.panZ] = [0, 0]
-      if (!busy) [this.panX, this.panZ] = [this.panX + this.frame.x - frame.x, this.panZ + this.frame.z - frame.z]
+      if (!busy) {
+        const [ax, , az] = this.aimGoal()
+        // Out past the game's frame: that frame is the whole room now, so the view is at its own frame, as far out as it was.
+        if (this.t < 0) [this.frameR, this.t] = [this.shown(this.t), 0]
+        this.goal = Math.max(0, this.goal)
+        ;[this.panX, this.panZ] = [ax - frame.x, az - frame.z]
+      }
       this.busy = busy
     }
     this.frame = frame
+    this.room = room
     this.aspect = aspect
-    const r0 = shownR(this.frameR, this.t)
+    const r0 = this.shown(this.t)
     this.t = Math.abs(this.goal - this.t) < 1e-3 ? this.goal : ease(this.t, this.goal, dt, ZOOM_TAU)
     if (this.anchor !== null) {
-      this.keep(this.anchor, r0, shownR(this.frameR, this.t))
+      this.keep(this.anchor, r0, this.shown(this.t))
       if (this.t === this.goal) this.anchor = null
     }
     this.frameR = ease(this.frameR, frame.r, dt, 1)
+    this.roomR = ease(this.roomR, room.r, dt, 1)
     this.inRoom()
-    this.x = ease(this.x, frame.x + this.panX, dt, 0.8)
-    this.z = ease(this.z, frame.z + this.panZ, dt, 0.8)
-    this.r = shownR(this.frameR, this.t)
+    const [ax, ay, az] = this.aimGoal()
+    this.x = ease(this.x, ax, dt, 0.8)
+    this.y = ease(this.y, ay, dt, 0.8)
+    this.z = ease(this.z, az, dt, 0.8)
+    this.r = this.shown(this.t)
+  }
+
+  /** The − button can go no further out: the whole room, or the game's own frame when that is the whole room. */
+  get outmost(): boolean {
+    return this.goal <= this.lowest
   }
 
   /** The + (1) or − (-1) button: a step in, toward the people if nobody is busy and they are on the screen, else toward the middle; or a step out. */
   step(dir: 1 | -1, people: ReadonlyArray<{ readonly x: number; readonly z: number }>) {
-    this.goal = clamp(Math.round((this.goal + dir * ZOOM_STEP) / ZOOM_STEP) * ZOOM_STEP, 0, 1)
+    this.goal = clamp(Math.round((this.goal + dir * ZOOM_STEP) / ZOOM_STEP) * ZOOM_STEP, this.lowest, 1)
     this.anchor = null
     if (dir < 0 || this.busy || people.length === 0) return
     const cx = people.reduce((s, p) => s + p.x, 0) / people.length
@@ -116,11 +138,12 @@ export class View {
   /**
    * Zooms by `scale` (2: half the ground in view) keeping the ground under a point of the screen
    * where it is (`at`, or the middle for null): eased for the wheel, at once (`now`) for a pinch,
-   * which follows the fingers.
+   * which follows the fingers. Out past the game's frame the aim goes to the room's middle, so
+   * nothing stays under the fingers there.
    */
   zoomAt(scale: number, at: readonly [number, number] | null, now: boolean) {
-    const goal = clamp(this.goal + Math.log(scale) / Math.log(this.frameR / MIN_R), 0, 1)
-    const ground = at === null ? null : this.groundAt(at)
+    const goal = clamp(this.tAt(this.shown(this.goal) / scale), this.lowest, 1)
+    const ground = at === null || goal < 0 ? null : this.groundAt(at)
     if (!now) {
       this.goal = goal
       this.anchor = ground
@@ -129,7 +152,7 @@ export class View {
     const r0 = this.r
     this.goal = this.t = goal
     this.anchor = null
-    this.r = shownR(this.frameR, this.t)
+    this.r = this.shown(this.t)
     if (ground !== null) this.keep(ground, r0, this.r)
   }
 
@@ -140,10 +163,15 @@ export class View {
     this.shift(-(bx - ax) * this.r, -(bz - az) * this.r)
   }
 
-  /** Back to the whole room (a double tap). */
+  /** Back to the whole room, however close the game is round someone (a double tap, a face let go). */
   reset() {
-    this.goal = 0
+    this.goal = this.lowest
     this.anchor = null
+  }
+
+  /** A new command or a face tapped: out past the game's frame, the camera goes back to what is happening. */
+  follow() {
+    this.goal = Math.max(0, this.goal)
   }
 
   /** Into another room: the pan was for the one left. */
@@ -155,6 +183,30 @@ export class View {
   groundAt(at: readonly [number, number]): [number, number] {
     const [ux, uz] = groundUnit(at[0], at[1], this.aspect)
     return [this.x + ux * this.r, this.z + uz * this.r]
+  }
+
+  /** How far out the zoom may go: the whole room while someone is busy; otherwise the game's frame already is the whole room. */
+  private get lowest(): number {
+    return this.busy ? -1 : 0
+  }
+
+  /** The ground in view at zoom `t` now. */
+  private shown(t: number): number {
+    return shownR(this.frameR, this.roomR, t)
+  }
+
+  /** The zoom that shows `r` of ground now: past MIN_R it is over 1, past the whole room under -1, and with the game's frame the whole room nothing is below 0. */
+  private tAt(r: number): number {
+    if (r <= this.frameR) return Math.log(this.frameR / r) / Math.log(this.frameR / MIN_R)
+    const wide = Math.log(Math.max(this.frameR, this.roomR) / this.frameR)
+    return wide < 1e-9 ? 0 : -Math.log(r / this.frameR) / wide
+  }
+
+  /** Where the aim eases to: the frame's plus the pan, and out past the frame on the way to the whole room's. */
+  private aimGoal(): [number, number, number] {
+    const [f, m] = [this.frame, this.room]
+    const s = Math.max(0, -this.t)
+    return [f.x + this.panX + (m.x - f.x) * s, f.y + (m.y - f.y) * s, f.z + this.panZ + (m.z - f.z) * s]
   }
 
   /** The ground in view going from r0 to r1: shifts the aim so `ground` stays where it is on the screen. */
@@ -173,7 +225,7 @@ export class View {
     this.panX += dx
     this.panZ += dz
     this.inRoom()
-    const [[loX, hiX], [loZ, hiZ]] = [this.room(this.frame.x), this.room(this.frame.z)]
+    const [[loX, hiX], [loZ, hiZ]] = [this.within(this.frame.x), this.within(this.frame.z)]
     const move = (at: number, d: number, moved: number, lo: number, hi: number) =>
       d > 0 ? Math.max(at, Math.min(at + clamp(moved, 0, d), hi)) : Math.min(at, Math.max(at + clamp(moved, d, 0), lo))
     this.x = move(this.x, dx, this.panX - px, loX, hiX)
@@ -186,19 +238,19 @@ export class View {
    * room to pan at all; the frame's own aim is always allowed (it can lean to the very edge, as
    * it always has).
    */
-  private room(frameAim: number): [number, number] {
-    const room = this.goal === 0 ? 0 : Math.max(0, ROOM_HALF + ROOM_EDGE - shownR(this.frame.r, this.goal))
+  private within(frameAim: number): [number, number] {
+    const room = this.goal <= 0 ? 0 : Math.max(0, ROOM_HALF + ROOM_EDGE - shownR(this.frame.r, this.room.r, this.goal))
     return [Math.min(-room, frameAim), Math.max(room, frameAim)]
   }
 
   /** Keeps the pan inside the room; zoomed out there is no pan. */
   private inRoom() {
-    if (this.goal === 0) {
+    if (this.goal <= 0) {
       ;[this.panX, this.panZ] = [0, 0]
       return
     }
     const f = this.frame
-    const [[loX, hiX], [loZ, hiZ]] = [this.room(f.x), this.room(f.z)]
+    const [[loX, hiX], [loZ, hiZ]] = [this.within(f.x), this.within(f.z)]
     this.panX = clamp(f.x + this.panX, loX, hiX) - f.x
     this.panZ = clamp(f.z + this.panZ, loZ, hiZ) - f.z
   }

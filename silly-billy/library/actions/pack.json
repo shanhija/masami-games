@@ -1,0 +1,26 @@
+{
+  "type": "action",
+  "id": "pack",
+  "name": "pack",
+  "nameFi": "pakkaa",
+  "calls": [
+    "pakkaa",
+    "pakata",
+    "pakatkaa",
+    "pack"
+  ],
+  "about": "The avatar walks to the thing, folds and squeezes it down into a small bundle, and ends holding the bundle, which unfolds back to the thing when put down.",
+  "by": "opus",
+  "asked": "Pakkaa teltta takaisin!",
+  "made": "2026-11-11T16:03:45.362Z",
+  "params": [
+    {
+      "name": "thing",
+      "kind": "item",
+      "about": "what to pack up",
+      "optional": false
+    }
+  ],
+  "code": "const it = args.thing\nif (!it || it.fixed) {\n  me.feel('silly')\n  me.say({ en: 'Nothing to pack!', fi: 'Ei mitään pakattavaa!' })\n  yield* me.flip('somersault')\n  yield* me.rest()\n  return\n}\nyield* me.walkTo(it, { near: 0.4 })\nyield* me.turnTo(it)\nme.feel('happy')\nme.say({ en: 'Fold, fold!', fi: 'Taitellaan!' })\nconst s0 = it.scale\nit.state.packedScale = s0\nconst small = Math.min(s0, 0.3 / Math.max(it.size.w, it.size.h, it.size.d) * s0)\nfor (let i = 0; i < 3; i++) {\n  yield* me.poseTo({ lean: 0.6, armL: { swing: 1.2, raise: 0.6 }, armR: { swing: 1.2, raise: 0.6 }, squash: 0.85 }, 0.2)\n  w.sound('squeak')\n  const a = it.scale, b = w.lerp(s0, small, (i + 1) / 3)\n  yield* w.during(0.3, (k) => { it.scale = w.lerp(a, b, w.ease(k)) })\n  w.puff({ at: it, kind: 'dust', count: 8 })\n  yield* me.poseTo({ lean: 0.2, armL: { raise: 1.2 }, armR: { raise: 1.2 }, squash: 1.1 }, 0.2)\n}\nw.puff({ at: it, kind: 'star', count: 10 })\nw.sound('pop')\nyield* me.pickUp(it)\nme.keep(it)\nme.say({ en: 'All packed!', fi: 'Pakattu!' })\nyield* me.rest()",
+  "guarded": "function* __action(me, args, w) {__g();\nconst it = args.thing\nif (!it || it.fixed) {\n  me.feel('silly')\n  me.say({ en: 'Nothing to pack!', fi: 'Ei mitään pakattavaa!' })\n  yield* me.flip('somersault')\n  yield* me.rest()\n  return\n}\nyield* me.walkTo(it, { near: 0.4 })\nyield* me.turnTo(it)\nme.feel('happy')\nme.say({ en: 'Fold, fold!', fi: 'Taitellaan!' })\nconst s0 = it.scale\nit.state.packedScale = s0\nconst small = Math.min(s0, 0.3 / Math.max(it.size.w, it.size.h, it.size.d) * s0)\nfor (let i = 0; i < 3; i++) {__g();\n  yield* me.poseTo({ lean: 0.6, armL: { swing: 1.2, raise: 0.6 }, armR: { swing: 1.2, raise: 0.6 }, squash: 0.85 }, 0.2)\n  w.sound('squeak')\n  const a = it.scale, b = w.lerp(s0, small, (i + 1) / 3)\n  yield* w.during(0.3, (k) => {__g(); it.scale = w.lerp(a, b, w.ease(k)) })\n  w.puff({ at: it, kind: 'dust', count: 8 })\n  yield* me.poseTo({ lean: 0.2, armL: { raise: 1.2 }, armR: { raise: 1.2 }, squash: 1.1 }, 0.2)\n}\nw.puff({ at: it, kind: 'star', count: 10 })\nw.sound('pop')\nyield* me.pickUp(it)\nme.keep(it)\nme.say({ en: 'All packed!', fi: 'Pakattu!' })\nyield* me.rest()\n}"
+}
