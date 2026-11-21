@@ -20,6 +20,7 @@ A five-lens design panel (child development, cosy-game design, a co-playing pare
 - **Goods speak one language**: each good is one small shape in one colour, the same on the meadow, in the flight arc, in the piles at the keep, in a worker's thought bubble, on the workshop sign and as the HUD icon. Workers carry inputs visibly from the yard to their door and sit with a bubble when the yard has none.
 - **Sheep are toys**: they wander, hop and baa when poked or approached, turn small and pink when shorn and follow the hero for a bit.
 - **The castle saves itself** to the browser so it is still there tomorrow; "new castle" needs a second confirming tap.
+- **Finnish or English, by the player's flag** ([`finnish-and-english.md`](finnish-and-english.md)): the few words, and a name for every build button in place of its raw id, are in `src/words.ts`. The Finnish title, Linnanrakentaja, is one long word, so the cards' title shrinks to the width on a narrow phone, and on a phone on its side the cards shrink to the height to stay between the goods and the build bar.
 - **Auto-beauty**: walls join and grow battlements, wall ends grow turrets, placed cells get cobbles and flowers, the keep grows a storey every five pieces, bunting and doves appear as the castle grows, banners take the dyer's current colour, the child can repaint roofs with colour cloth, and the hand in the build bar takes any piece back up with everything it cost.
 
 ## Build order

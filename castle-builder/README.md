@@ -4,6 +4,8 @@ A toy castle on a round meadow island, seen from high up, for a five-year-old. Y
 
 Nothing punishes. Repair is free, a fire never spreads, a piece in the wrong place comes back up with everything it cost, nothing is ever lost for good, and the castle is saved in the browser, so it is still there tomorrow.
 
+It plays in the player's language, Finnish or English, picked by their flag in the gallery. The words are few: the start card, the pause menu, and the names a screen reader says for the buttons, every build button's piece or workshop among them. They are all in [`src/words.ts`](src/words.ts); the King's wish, the goods and the prices are pictures and numbers in both.
+
 The brief is [`design.md`](design.md); the design decisions and what is left are in [`plans/castle-builder.md`](../plans/castle-builder.md). This game deliberately looks nothing like [`chase/`](../chase/README.md) or [`foot-chase/`](../foot-chase/README.md): no side view, no golden hour, no toon shading. It borrows only their tech: the one Vite + React project at the repo root, react-three-fiber and drei, a pure numeric sim under vitest, synthesised sounds, a DOM HUD.
 
 ```
@@ -81,6 +83,7 @@ src/
   Hud.tsx         the words over the picture, which are almost none: the wish card, the
                   goods, the build bar, the buttons, the start card and the pause menu
   Icons.tsx       the same goods and pieces as flat SVG icons
+  words.ts        every word in Finnish and English: the cards, the pause menu, the buttons' names
 ```
 
 ## How it hangs together

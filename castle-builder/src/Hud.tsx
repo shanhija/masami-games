@@ -1,8 +1,11 @@
 import { useEffect, useState, type ReactNode, type SyntheticEvent } from 'react'
 
+import { DIRECTORY } from '../../profiles/src/directory'
+import { inLang, type Lang, type Words } from '../../profiles/src/lang'
 import { toggleFullscreen, useGameView, type Game } from './game/game'
 import { COST, GOODS, HINT_FOR, PIECE_KINDS, RECIPE, WORKSHOPS, cannotPay, costEntries, currentWish, makerOf, unlocked, wishProgress, type BarKind, type Good, type Made } from './game/sim'
 import { GoodIcon, PieceIcon } from './Icons'
+import { BAR_NAMES, WORDS } from './words'
 
 /** How long each little flourish lasts, in sim seconds. */
 const BUMP_FOR = 0.4
@@ -48,7 +51,8 @@ function Btn({ className, label, onTap, onDown, children }: { className: string;
  * Re-renders only when the game says there is news, plus once more when a flourish is due
  * to end.
  */
-export function Hud({ game }: { game: Game }) {
+export function Hud({ game, lang }: { game: Game; lang: Lang }) {
+  const say = (words: Words) => inLang(words, lang)
   const sim = useGameView(game)
   const now = sim.time
   const muted = game.audio.muted
@@ -103,7 +107,7 @@ export function Hud({ game }: { game: Game }) {
 
   return (
     <div className="hud">
-      <Btn className={`wish${done ? ' done' : ''}`} label="look at the castle" onDown={() => game.look()}>
+      <Btn className={`wish${done ? ' done' : ''}`} label={say(WORDS.look)} onDown={() => game.look()}>
         {wish ? (
           <>
             <span className="crown">👑</span>
@@ -133,13 +137,13 @@ export function Hud({ game }: { game: Game }) {
       </div>
 
       <div className="corner">
-        <Btn className="round" label={game.paused ? 'keep going' : 'pause'} onTap={() => (game.paused ? game.resume() : game.pause())}>
+        <Btn className="round" label={say(game.paused ? WORDS.keepGoing : WORDS.pause)} onTap={() => (game.paused ? game.resume() : game.pause())}>
           {game.paused ? '▶' : '⏸'}
         </Btn>
-        <Btn className="round" label={muted ? 'sound off' : 'sound on'} onTap={() => game.toggleMute()}>
+        <Btn className="round" label={say(muted ? WORDS.soundOff : WORDS.soundOn)} onTap={() => game.toggleMute()}>
           {muted ? '🔇' : '🔊'}
         </Btn>
-        <Btn className="round" label="look at the castle" onTap={() => game.look()}>
+        <Btn className="round" label={say(WORDS.look)} onTap={() => game.look()}>
           👁️
         </Btn>
       </div>
@@ -150,7 +154,7 @@ export function Hud({ game }: { game: Game }) {
             {bar.map((kind) => {
               const cls = ['piece', sim.selected === kind ? 'selected' : '', cannotPay(sim, kind) ? 'poor' : '', wiggle === kind ? 'wiggle' : '', fresh(seen.dingAt[kind], DING_FOR) ? 'ding' : ''].filter(Boolean).join(' ')
               return (
-                <Btn key={kind} className={cls} label={kind} onDown={() => game.select(kind)}>
+                <Btn key={kind} className={cls} label={say(BAR_NAMES[kind])} onDown={() => game.select(kind)}>
                   <span className="pic" key={seen.dingAt[kind]}>
                     <PieceIcon kind={kind} size={52} colour={sim.dye} />
                   </span>
@@ -166,25 +170,25 @@ export function Hud({ game }: { game: Game }) {
 
       {sim.phase === 'ready' && !game.paused && (
         <div className="card start">
-          <h1>Castle Builder</h1>
-          <p className="tap">Tap to play</p>
-          <Btn className="big" label="play" onTap={() => game.press()}>
-            Play
+          <h1>{say(DIRECTORY['castle-builder'].name)}</h1>
+          <p className="tap">{say(WORDS.tapToPlay)}</p>
+          <Btn className="big" label={say(WORDS.play)} onTap={() => game.press()}>
+            {say(WORDS.play)}
           </Btn>
-          <p className="small">Arrows run. Space builds or hops. Tap a tree to chop it, a sheep to shear it. Fix what the storm breaks.</p>
-          {sim.pieces.length > 0 && <p className="small">Your castle is still here!</p>}
+          <p className="small">{say(WORDS.howToPlay)}</p>
+          {sim.pieces.length > 0 && <p className="small">{say(WORDS.stillHere)}</p>}
         </div>
       )}
 
       {game.paused && (
         <div className="card menu">
-          <h1>Paused</h1>
-          <Btn className="big" label="keep going" onTap={() => game.resume()}>
-            Keep going
+          <h1>{say(WORDS.paused)}</h1>
+          <Btn className="big" label={say(WORDS.keepGoing)} onTap={() => game.resume()}>
+            {say(WORDS.keepGoing)}
           </Btn>
           <Btn
             className={`big${armed ? ' armed' : ''}`}
-            label="new castle"
+            label={say(WORDS.newCastle)}
             onTap={() => {
               if (armed) {
                 setArmedAt(-1)
@@ -192,20 +196,20 @@ export function Hud({ game }: { game: Game }) {
               } else setArmedAt(Date.now())
             }}
           >
-            {armed ? 'Really? Yes, new castle' : 'New castle'}
+            {say(armed ? WORDS.reallyNewCastle : WORDS.newCastle)}
           </Btn>
           <div className="row">
-            <Btn className="" label={muted ? 'sound off' : 'sound on'} onTap={() => game.toggleMute()}>
-              {muted ? '🔇 Sound off' : '🔊 Sound on'}
+            <Btn className="" label={say(muted ? WORDS.soundOff : WORDS.soundOn)} onTap={() => game.toggleMute()}>
+              {muted ? '🔇' : '🔊'} {say(muted ? WORDS.soundOff : WORDS.soundOn)}
             </Btn>
-            <Btn className="" label="full screen" onTap={toggleFullscreen}>
-              ⛶ Full screen
+            <Btn className="" label={say(WORDS.fullScreen)} onTap={toggleFullscreen}>
+              ⛶ {say(WORDS.fullScreen)}
             </Btn>
-            <Btn className="" label="more games" onTap={() => location.assign('../index.html')}>
-              🎮 More games
+            <Btn className="" label={say(WORDS.moreGames)} onTap={() => location.assign('../index.html')}>
+              🎮 {say(WORDS.moreGames)}
             </Btn>
-            <Btn className="" label={sim.stormsOn ? 'storms on' : 'storms off'} onTap={() => game.toggleStorms()}>
-              {sim.stormsOn ? '☁️ Storms on' : '☀️ Storms off'}
+            <Btn className="" label={say(sim.stormsOn ? WORDS.stormsOn : WORDS.stormsOff)} onTap={() => game.toggleStorms()}>
+              {sim.stormsOn ? '☁️' : '☀️'} {say(sim.stormsOn ? WORDS.stormsOn : WORDS.stormsOff)}
             </Btn>
           </div>
         </div>

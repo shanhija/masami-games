@@ -298,12 +298,15 @@ body,
   align-items: center;
   gap: 14px;
   text-align: center;
+  /* As wide as its words want, up to the cap: left at 50% alone would let it take only half the screen, and wrap every button. */
+  width: max-content;
   max-width: min(90vw, 760px);
 }
 
 .card h1 {
   margin: 0;
-  font-size: clamp(44px, 8vw, 120px);
+  /* The Finnish name is one long word that cannot wrap: on a narrow phone it shrinks to the width instead. */
+  font-size: min(clamp(44px, 8vw, 120px), 11vw);
   line-height: 1;
   letter-spacing: 0.02em;
   color: #f2c14e;
@@ -404,6 +407,33 @@ body,
 
   .pieces {
     gap: 6px;
+  }
+}
+
+/* A phone on its side: the cards size to the height, so the title fits between the wish and the goods, and the words above the build bar. */
+@media (max-height: 500px) {
+  .card {
+    top: 40%;
+    gap: 8px;
+  }
+
+  .card h1 {
+    font-size: 9.5vh;
+    -webkit-text-stroke: 5px #2b2b30;
+  }
+
+  .card p {
+    font-size: 6vh;
+  }
+
+  .card button {
+    min-height: 48px;
+    font-size: 4.6vh;
+  }
+
+  .card button.big {
+    min-height: 56px;
+    font-size: 8vh;
   }
 }
 
