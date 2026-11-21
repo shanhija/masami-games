@@ -1,5 +1,5 @@
 import { shownFloors, viewAt } from './camera'
-import { LOOK_KEYS, LOOK_OPTIONS, MACHINE_FOR_MATERIAL, PRESENTS, PRESENT_GEMS, RECIPES, THEME_INFO, optionOpen, roomCost, themeOpen } from './catalog'
+import { LOOK_KEYS, LOOK_OPTIONS, MACHINE_FOR_MATERIAL, PRESENTS, PRESENT_GEMS, RECIPES, THEME_VISIT, optionOpen, roomCost, themeOpen } from './catalog'
 import { heapShows } from './flights'
 import { ITEMS, defaultItems, type ItemId } from './items'
 import {
@@ -540,7 +540,7 @@ function stepAside(s: State, plot: number, room: PlacedRoom): void {
 
 /** The builder goes into a room of `theme` and does its thing. */
 function visit(s: State, plot: number, room: number, theme: Theme): void {
-  moveBuilder(s, { kind: 'room', plot, room }, THEME_INFO[theme].visit, 1)
+  moveBuilder(s, { kind: 'room', plot, room }, THEME_VISIT[theme], 1)
   emit(s, { kind: 'visit', theme })
 }
 

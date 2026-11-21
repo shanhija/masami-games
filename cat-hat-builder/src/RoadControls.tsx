@@ -1,10 +1,12 @@
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
 
+import { inLang, type Lang } from '../../profiles/src/lang'
 import { noFocus } from './Btn'
 import type { Game } from './game/game'
 import { tripProgress, type HudView } from './game/hud'
 import { GoIcon, HornIcon } from './Icons'
 import { HomeSignPic, StopPic, ToolPic, TruckPic } from './Pictures'
+import { WORDS } from './words'
 
 /** A press on the pedal shorter than this (seconds) is a tap: a push of about a second as well. */
 const PUSH_TAP = 0.25
@@ -18,7 +20,7 @@ const PUSH_TAP = 0.25
  * left. Over the road, the trip strip: a dotted line with the stops and the present ahead,
  * the truck moving along it, and the house at the end.
  */
-export function RoadControls({ game, view }: { game: Game; view: NonNullable<HudView['road']> }) {
+export function RoadControls({ game, view, lang }: { game: Game; view: NonNullable<HudView['road']>; lang: Lang }) {
   const held = useRef<{ id: number; at: number } | null>(null)
 
   useEffect(() => () => game.pedal('touch', false), [game])
@@ -50,7 +52,7 @@ export function RoadControls({ game, view }: { game: Game; view: NonNullable<Hud
       <button
         type="button"
         tabIndex={-1}
-        aria-label="Horn"
+        aria-label={inLang(WORDS.horn, lang)}
         className="btn horn"
         onMouseDown={noFocus}
         onPointerDown={(e) => e.button === 0 && game.dispatch({ kind: 'horn' })}
@@ -60,7 +62,7 @@ export function RoadControls({ game, view }: { game: Game; view: NonNullable<Hud
       <button
         type="button"
         tabIndex={-1}
-        aria-label={view.boulder ? 'Hit the rock' : 'Go'}
+        aria-label={inLang(view.boulder ? WORDS.hitRock : WORDS.drive, lang)}
         className={`btn pedal${view.boulder ? ' tool' : ''}${game.holds('touch') ? ' down' : ''}${view.pulse ? ' pulse' : ''}`}
         onMouseDown={noFocus}
         onPointerDown={press}

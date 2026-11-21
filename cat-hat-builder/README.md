@@ -4,6 +4,8 @@ A building game for a five-year-old, seen from the side on the browser's canvas.
 
 Nothing is lost and nothing startles. Taking a room back returns its goods, going home early keeps the load, the truck stops by itself before anything it could hit, and there is no timer, score or way to fail.
 
+It plays in the player's language, Finnish or English, as the flag in the gallery's player editor says. The child sees few words (the house, road and theme cards, New!, Good night!, Go! and the pause menu); the rest name the picture buttons for a screen reader. Every word is in [`src/words.ts`](src/words.ts), both languages side by side.
+
 The brief is [`design.md`](design.md), in Finnish; the decisions and what is left are in [`plans/cat-hat-builder.md`](../plans/cat-hat-builder.md). It shares only the repo's tech with the other games: the one Vite + React project at the repo root, a pure state under vitest, synthesised sounds and a DOM HUD. Its look ("Sunny Site": one navy ink, flat toy colours, boxes lit on top) is its own.
 
 ```
@@ -81,7 +83,7 @@ The tall house is 3 columns by 5 floors with balconies and a glass lift; the row
 - **Sound** and **Music** are two switches in the pause menu, saved with the game.
 - **Start again**: hold it 3 seconds in the pause menu and the goods, machines, houses, trips and presents are wiped. The builder's look, sound and music stay.
 - The game pauses itself when the page hides, the window loses focus, full screen ends, the page comes back from the browser's back-forward cache, or nobody touches it for a minute.
-- The game lives in the browser's `localStorage` under `cat-hat-builder`, written at most once a second after a change and when the page hides. It is read leniently: anything it does not know becomes empty or is refunded, never an error.
+- The game is kept per player, in the player's saves (`profiles/`, in the browser's `localStorage`) under the key `cat-hat-builder`, written at most once a second after a change and when the page hides. It is read leniently: anything it does not know becomes empty or is refunded, never an error.
 - Good night stops the frame loop on a still card, so a sleeping iPad does not keep drawing.
 
 URL switches, read once when the page loads (a bad value shows its message on the page). Any switch makes the run a test: it may read the save but never writes it.
@@ -103,7 +105,8 @@ URL switches, read once when the page loads (a bad value shows its message on th
 Units are metres and seconds, y points down and the ground is at y = 0; the state steps 60 times a second.
 
 - [`src/game/model.ts`](src/game/model.ts), at the end: the timings (the builder's dash, the camera's tween, a machine's batch, the crate's hits, the crane, the tip, the goods' flights), a room's price per square, the plot count, the hint's wait, the boulders' hits and rocks, the crossers' time.
-- [`src/game/catalog.ts`](src/game/catalog.ts): what each road brings, the training road, the order of the presents, what is locked, the themes' words and visits, the friends' outfits.
+- [`src/game/catalog.ts`](src/game/catalog.ts): what each road brings, the training road, the order of the presents, what is locked, the themes' visits, the friends' outfits.
+- [`src/words.ts`](src/words.ts): every word in Finnish and English, the cards' and the screen reader's.
 - [`src/game/road.ts`](src/game/road.ts), at the top: the truck's speeds, pull, coasting and braking, the push, the ramp's arc, the balloon, the train, and the spacing rules the road lint holds.
 - [`src/game/layout.ts`](src/game/layout.ts): the street's places (garage, mirror, yard, plots), a cell's size, the slots in a room, the smallest tap target (56 px).
 - [`src/game/sounds.ts`](src/game/sounds.ts): every sound's voice and level, the music, the soft limiter.
@@ -112,8 +115,8 @@ Units are metres and seconds, y points down and the ground is at y = 0; the stat
 
 ## Adding a theme or an item
 
-1. Add the theme to `THEMES` in [`src/game/model.ts`](src/game/model.ts) (only at the end: the save stores ids) and its word and visit pose to `THEME_INFO` in [`src/game/catalog.ts`](src/game/catalog.ts); a theme that comes in a present also goes in `PRESENTS` and `LOCKED_THEMES`.
-2. Add its five items to `ITEMS` in [`src/game/items.ts`](src/game/items.ts): slot, idle loop, tap motion, sound.
+1. Add the theme to `THEMES` in [`src/game/model.ts`](src/game/model.ts) (only at the end: the save stores ids), its visit pose to `THEME_VISIT` in [`src/game/catalog.ts`](src/game/catalog.ts), and its card word in both languages to `THEME_NAMES` in [`src/words.ts`](src/words.ts); a theme that comes in a present also goes in `PRESENTS` and `LOCKED_THEMES`.
+2. Add its five items to `ITEMS` in [`src/game/items.ts`](src/game/items.ts): slot, idle loop, tap motion, sound; and their names in both languages to `ITEM_NAMES` in [`src/words.ts`](src/words.ts).
 3. Draw them in one of the room files in [`src/draw/rooms/`](src/draw/rooms/) as a `ThemeArt` (wall, floor, glow, the paint pots' swatches, one draw function per item). The `ItemOf<T>` type makes the compiler name any item without a drawing.
 4. Run `npx vitest run cat-hat-builder/src/draw/rooms` (every item inside its slot box at every moment of its idle and tap, no NaN, the context left as found) and look at `?sheet=rooms&only=<theme>` and `?demo=themes`.
 
@@ -137,6 +140,7 @@ src/
   Portrait.tsx        a small canvas for one picture
   Icons.tsx           the ink-style SVG icons
   styles.css          the HUD's look, every colour a :root token
+  words.ts            every word in Finnish and English
   game/
     model.ts          the contract: units, goods, the look, houses, roads, the state, actions, hits, events, timings
     catalog.ts        the data: recipes, shapes and prices, roads, presents and locks, themes, friends

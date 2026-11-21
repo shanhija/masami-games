@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { inLang, LANGS } from '../../../profiles/src/lang'
 import { memorySaves } from '../../../profiles/src/profiles'
 
 import { fitThemeCards, handAt, handFor, layerTakes, SETTLE } from '../Cards'
 import { TOOL_ICON_BOX } from '../draw/builder'
 import { canvasEvents } from '../draw/Stage'
 import { partLook, ToolPic } from '../Pictures'
-import { fitWardrobe, optionName, tabLook, wardrobePanel } from '../Wardrobe'
+import { fitWardrobe, tabLook, wardrobePanel } from '../Wardrobe'
+import { optionName } from '../words'
 import { insets, isShort, roomTray, simTime, toScreen, viewAt } from './camera'
 import { DEFAULT_LOOK, LOOK_KEYS, LOOK_OPTIONS, PRESENTS } from './catalog'
 import { Child } from './child'
@@ -700,14 +702,15 @@ describe('the HUD over the canvas', () => {
     for (const tool of TOOLS) expect(ToolPic({ tool, animate: true, className: 'pic' }).props.box).toEqual(TOOL_ICON_BOX)
   })
 
-  it('names every wardrobe option in words for a screen reader', () => {
+  it('names every wardrobe option in words for a screen reader, in both languages, each its own', () => {
     for (const field of LOOK_KEYS) {
-      for (const value of LOOK_OPTIONS[field]) {
-        const name = optionName({ [field]: value })
-        expect(name, `${field}: ${value}`).toMatch(/^[A-Z][a-z-]*( [a-z-]+)*$|^[A-Z]-[a-z]+$|^Skin [1-8]$/)
+      for (const lang of LANGS) {
+        const names = LOOK_OPTIONS[field].map((value) => inLang(optionName({ [field]: value }), lang))
+        for (const name of names) expect(name, `${field} in ${lang}`).toMatch(/^\p{Lu}[\p{Ll}-]*( [\p{Ll}-]+)*$|^\p{Lu}-\p{Ll}+$|^\p{Lu}\p{Ll}+ [1-8]$/u)
+        expect(new Set(names).size, `${field} in ${lang}`).toBe(names.length)
       }
     }
-    expect(optionName({ hairColor: 'darkBrown' })).toBe('Dark brown')
+    expect(optionName({ hairColor: 'darkBrown' })).toEqual({ en: 'Dark brown', fi: 'Tummanruskea' })
   })
 
   it('shows each wardrobe tab its own part: a sample where the pick is none, the hair bare-headed, the skin and the shirt alone', () => {

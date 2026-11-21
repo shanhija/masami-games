@@ -1,36 +1,15 @@
 import type { CSSProperties } from 'react'
 
+import { inLang, type Lang } from '../../profiles/src/lang'
 import { Btn } from './Btn'
 import { isShort, type Insets } from './game/camera'
 import type { Game } from './game/game'
 import type { HudView } from './game/hud'
-import { PARTS, type Look, type Part, type WearColor } from './game/model'
+import { PARTS, type Look, type Part } from './game/model'
 import { HAIR_LOOK, WEAR_LOOK } from './draw/look'
 import { DiceIcon, UndoIcon } from './Icons'
 import { PartPic } from './Pictures'
-
-/** The tabs' and every option's words, for a screen reader. */
-const PART_NAMES: Record<Part, string> = { hat: 'Hat', hair: 'Hair', skin: 'Skin', glasses: 'Glasses', shirt: 'Shirt', bag: 'Bag', pants: 'Trousers', shoes: 'Shoes', tool: 'Tool' }
-const WEAR_NAMES: Record<WearColor, string> = { red: 'Red', orange: 'Orange', yellow: 'Yellow', lime: 'Lime', green: 'Green', teal: 'Teal', blue: 'Blue', purple: 'Purple', pink: 'Pink', white: 'White' }
-const LOOK_NAMES: { [K in keyof Look]: Record<Look[K], string> } = {
-  hat: { yellow: 'Yellow', orange: 'Orange', red: 'Red', pink: 'Pink', purple: 'Purple', blue: 'Blue', green: 'Green', white: 'White', none: 'No hat' },
-  hair: { short: 'Short hair', curly: 'Curly hair', long: 'Long hair', ponytail: 'Ponytail', braids: 'Braids', puffs: 'Puffs', spiky: 'Spiky hair' },
-  hairColor: { black: 'Black', darkBrown: 'Dark brown', brown: 'Brown', red: 'Red', ginger: 'Ginger', blond: 'Blond', pink: 'Pink', blue: 'Blue' },
-  skin: { 0: 'Skin 1', 1: 'Skin 2', 2: 'Skin 3', 3: 'Skin 4', 4: 'Skin 5', 5: 'Skin 6', 6: 'Skin 7', 7: 'Skin 8' },
-  shirt: { tee: 'T-shirt', vest: 'Safety vest', stripes: 'Stripy top', hoodie: 'Hoodie', dress: 'Dress', star: 'Star top' },
-  shirtColor: WEAR_NAMES,
-  pants: { jeans: 'Jeans', dungarees: 'Dungarees', shorts: 'Shorts', skirt: 'Skirt', work: 'Work trousers' },
-  pantsColor: WEAR_NAMES,
-  shoes: { boots: 'Boots', sneakers: 'Sneakers', wellies: 'Wellies', lights: 'Light-up shoes', cowboy: 'Cowboy boots' },
-  glasses: { none: 'No glasses', round: 'Round glasses', sunglasses: 'Sunglasses', goggles: 'Goggles', stars: 'Star glasses', hearts: 'Heart glasses' },
-  bag: { none: 'No bag', school: 'School bag', teddy: 'Teddy bag', toolbox: 'Toolbox', jetpack: 'Jetpack', cat: 'Cat bag' },
-  tool: { hammer: 'Hammer', pickaxe: 'Pickaxe', drill: 'Drill', shovel: 'Shovel', wrench: 'Wrench', wand: 'Magic wand' },
-}
-/** The words of an option, which puts on one field of the look. */
-export function optionName(patch: Partial<Look>): string {
-  const [field, value] = Object.entries(patch)[0] as [keyof Look, Look[keyof Look]]
-  return (LOOK_NAMES[field] as Record<Look[keyof Look], string>)[value]
-}
+import { optionName, PART_NAMES, WORDS } from './words'
 
 /** The colour a colour-row button shows: the hair's, the shirt's or the trousers'. */
 function swatch(patch: Partial<Look>): string {
@@ -124,7 +103,7 @@ export function fitWardrobe(panel: { wide: boolean; short: boolean; w: number; h
  * builder wearing each; the colour row; the dice and its undo; and Go!, which pulses once the
  * child has dressed up a while.
  */
-export function Wardrobe({ game, view, ins, screen }: { game: Game; view: NonNullable<HudView['wardrobe']>; ins: Insets; screen: { w: number; h: number } }) {
+export function Wardrobe({ game, view, ins, screen, lang }: { game: Game; view: NonNullable<HudView['wardrobe']>; ins: Insets; screen: { w: number; h: number }; lang: Lang }) {
   const look = game.hud.look
   const panel = wardrobePanel(ins, screen.w, screen.h)
   const fit = fitWardrobe(panel, view.options.length, view.colours.length)
@@ -135,7 +114,7 @@ export function Wardrobe({ game, view, ins, screen }: { game: Game; view: NonNul
     <div className={`wardrobe ${panel.wide ? 'wide' : 'tall'}${fit.stacked ? ' stacked' : ''}`} style={box}>
       <div className="tabs">
         {PARTS.map((part) => (
-          <Btn key={part} className={`tab${part === view.tab ? ' on' : ''}`} label={PART_NAMES[part]} onTap={() => game.button({ kind: 'tab', part }, 'pick')}>
+          <Btn key={part} className={`tab${part === view.tab ? ' on' : ''}`} label={inLang(PART_NAMES[part], lang)} onTap={() => game.button({ kind: 'tab', part }, 'pick')}>
             <PartPic look={tabLook(look, part)} part={part} className="pic" />
           </Btn>
         ))}
@@ -144,7 +123,7 @@ export function Wardrobe({ game, view, ins, screen }: { game: Game; view: NonNul
         <div className="pick">
           <div className="options">
             {view.options.map((o) => (
-              <Btn key={JSON.stringify(o.patch)} className={`option${o.on ? ' on' : ''}`} label={optionName(o.patch)} onTap={() => wear(o.patch)}>
+              <Btn key={JSON.stringify(o.patch)} className={`option${o.on ? ' on' : ''}`} label={inLang(optionName(o.patch), lang)} onTap={() => wear(o.patch)}>
                 <PartPic look={{ ...look, ...o.patch }} part={view.tab} className="pic" />
               </Btn>
             ))}
@@ -152,7 +131,7 @@ export function Wardrobe({ game, view, ins, screen }: { game: Game; view: NonNul
           {view.colours.length > 0 && (
             <div className="colours">
               {view.colours.map((c) => (
-                <Btn key={JSON.stringify(c.patch)} className={`colour${c.on ? ' on' : ''}`} label={optionName(c.patch)} style={{ '--swatch': swatch(c.patch) } as CSSProperties} onTap={() => wear(c.patch)}>
+                <Btn key={JSON.stringify(c.patch)} className={`colour${c.on ? ' on' : ''}`} label={inLang(optionName(c.patch), lang)} style={{ '--swatch': swatch(c.patch) } as CSSProperties} onTap={() => wear(c.patch)}>
                   <span className="dot" />
                 </Btn>
               ))}
@@ -160,14 +139,14 @@ export function Wardrobe({ game, view, ins, screen }: { game: Game; view: NonNul
           )}
         </div>
         <div className="foot">
-          <Btn className="round dice" label="Dice" onTap={() => game.dispatch({ kind: 'dice' })}>
+          <Btn className="round dice" label={inLang(WORDS.dice, lang)} onTap={() => game.dispatch({ kind: 'dice' })}>
             <DiceIcon />
           </Btn>
-          <Btn className={`round undo${view.undo ? '' : ' off'}`} label="Undo" onTap={() => view.undo && game.dispatch({ kind: 'undoDice' })}>
+          <Btn className={`round undo${view.undo ? '' : ' off'}`} label={inLang(WORDS.undo, lang)} onTap={() => view.undo && game.dispatch({ kind: 'undoDice' })}>
             <UndoIcon />
           </Btn>
-          <Btn className={`go${view.go ? ' pulse' : ''}`} label="Go" onTap={() => game.dispatch({ kind: 'go' })}>
-            Go!
+          <Btn className={`go${view.go ? ' pulse' : ''}`} label={inLang(WORDS.go, lang)} onTap={() => game.dispatch({ kind: 'go' })}>
+            <span className="say">{inLang(WORDS.go, lang)}</span>
           </Btn>
         </div>
       </div>

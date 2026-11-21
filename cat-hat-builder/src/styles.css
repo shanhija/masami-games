@@ -352,6 +352,15 @@ body,
   letter-spacing: 0.02em;
 }
 
+/* Go! in Finnish ("Mennään!") is three times as long as in English: its button takes its width from the foot, never from the word, and the word shrinks to fit it. */
+.hud .btn.go:lang(fi) {
+  container-type: inline-size;
+}
+
+.hud .btn.go:lang(fi) .say {
+  font-size: min(1em, 19cqi);
+}
+
 .hud .btn.go.pulse {
   animation: pulse 0.8s ease-in-out infinite alternate;
 }
@@ -710,7 +719,13 @@ body,
 }
 
 .ask.house .card {
-  width: min(38vw, max(34vh, 170px), 320px);
+  --card: min(38vw, max(34vh, 170px), 320px);
+  width: var(--card);
+}
+
+/* On a narrow card (a phone held upright) the word shrinks with it, so the longest ("Kerrostalo", "Tall house") keeps clear of the border. */
+.ask.house .card .word {
+  font-size: min(30px, calc(var(--card) * 0.16));
 }
 
 .ask.house .card .pic {
@@ -736,6 +751,15 @@ body,
 
 .ask.theme .card .word {
   font-size: var(--word);
+}
+
+/* The longest Finnish words ("Liukumäki", 4.6 em) are wider than the smallest pictures (a 568x320 phone), where the word is already at its least size: there they shrink to fit inside the card's border. */
+.ask.theme .card:lang(fi) {
+  container-type: inline-size;
+}
+
+.ask.theme .card:lang(fi) .word {
+  font-size: min(var(--word), calc((100cqi + 16px) / 4.6));
 }
 
 .ask.road .card {

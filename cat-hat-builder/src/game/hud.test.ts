@@ -232,7 +232,7 @@ describe('the build tray', () => {
     s.shot = { kind: 'plot', plot: 2 }
     s.shape = 'big'
     const game = { hud: { look: s.keep.look }, state: s } as unknown as Game
-    const tray = () => renderToStaticMarkup(createElement(BuildTray, { game, view: hudView(s, 0, { good: 'planks', at: 0 }).build! }))
+    const tray = () => renderToStaticMarkup(createElement(BuildTray, { game, view: hudView(s, 0, { good: 'planks', at: 0 }).build!, lang: 'en' }))
     const bouncing = (html: string) => [...html.matchAll(/class="btn ([^"]*)\bmissing\b[^"]*"/g)].map((m) => m[1]!.split(' ')[0])
     const goods = (g: Partial<Record<Material, number>>) => MATERIALS.forEach((m) => (s.keep.goods[m] = g[m] ?? 0))
     goods({ planks: 1, bricks: 9 })

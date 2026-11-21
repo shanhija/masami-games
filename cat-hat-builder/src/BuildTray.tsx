@@ -1,13 +1,11 @@
+import { inLang, type Lang } from '../../profiles/src/lang'
 import { Btn } from './Btn'
 import type { Game } from './game/game'
 import type { HudView } from './game/hud'
 import { ROOFS, type Material, type Shape } from './game/model'
 import { BellIcon, HandIcon } from './Icons'
 import { GoodPic, MachinePic, RoofPic, ShapePic, TruckPic } from './Pictures'
-
-/** The materials' and the shapes' words, for a screen reader. */
-const MATERIAL_NAMES: Record<Material, string> = { planks: 'Planks', bricks: 'Bricks', concrete: 'Concrete', glass: 'Glass', rainbow: 'Rainbow blocks' }
-const SHAPE_NAMES: Record<Shape, string> = { small: 'Small room', wide: 'Wide room', tall: 'Tall room', big: 'Big room' }
+import { MATERIAL_NAMES, SHAPE_NAMES, WORDS } from './words'
 
 /**
  * The build view's tray along the bottom: the five materials (a little pile and how many,
@@ -19,7 +17,7 @@ const SHAPE_NAMES: Record<Shape, string> = { small: 'Small room', wide: 'Wide ro
  * material under a bubble with the machine that can make some, or the truck to fetch more,
  * and a tap on the bubble goes back to the street, where that thing bounces.
  */
-export function BuildTray({ game, view }: { game: Game; view: NonNullable<HudView['build']> }) {
+export function BuildTray({ game, view, lang }: { game: Game; view: NonNullable<HudView['build']>; lang: Lang }) {
   if (view.kind === null) return null
   const missing = view.missing
   const next = missing === null ? null : missing.next
@@ -38,14 +36,14 @@ export function BuildTray({ game, view }: { game: Game; view: NonNullable<HudVie
                 // A new nope mounts the button anew, so its bounce starts again.
                 key={bounce ? `${g.material}:${missing!.at}` : g.material}
                 className={`mat${g.material === view.material && !view.hand ? ' on' : ''}${g.afford ? '' : ' poor'}${bounce ? ' missing' : ''}`}
-                label={MATERIAL_NAMES[g.material]}
+                label={inLang(MATERIAL_NAMES[g.material], lang)}
                 onTap={() => game.button({ kind: 'material', material: g.material }, 'pick')}
               >
                 <GoodPic good={g.material} stack className="pic" />
                 <span className="count">{g.n}</span>
               </Btn>
               {bounce && bubble !== null && (
-                <Btn key={missing!.at} className="bubble" label={bubble.kind === 'truck' ? 'To the truck' : 'To the machine'} onTap={() => game.button({ kind: 'back' }, 'tap')}>
+                <Btn key={missing!.at} className="bubble" label={inLang(bubble.kind === 'truck' ? WORDS.toTruck : WORDS.toMachine, lang)} onTap={() => game.button({ kind: 'back' }, 'tap')}>
                   {bubble.kind === 'truck' ? <TruckPic look={game.hud.look} trips={game.state.keep.trips} className="pic" /> : <MachinePic m={bubble.m} className="pic" />}
                 </Btn>
               )}
@@ -60,7 +58,7 @@ export function BuildTray({ game, view }: { game: Game; view: NonNullable<HudVie
             <Btn
               key={bounce ? `${s.shape}:${missing!.at}` : s.shape}
               className={`shape${s.shape === view.shape && !view.hand ? ' on' : ''}${s.afford ? '' : ' poor'}${bounce ? ' missing' : ''}`}
-              label={SHAPE_NAMES[s.shape]}
+              label={inLang(SHAPE_NAMES[s.shape], lang)}
               onTap={() => game.button({ kind: 'shape', shape: s.shape }, 'pick')}
             >
               <ShapePic shape={s.shape} material={view.material} className="pic" />
@@ -71,15 +69,15 @@ export function BuildTray({ game, view }: { game: Game; view: NonNullable<HudVie
       <div className="group tools">
         {/* The roof and the doorbell come with the house's first room. */}
         {view.doorbell && (
-          <Btn className="roof" label="Roof" onTap={() => game.dispatch({ kind: 'roof' })}>
+          <Btn className="roof" label={inLang(WORDS.roof, lang)} onTap={() => game.dispatch({ kind: 'roof' })}>
             <RoofPic style={nextRoof} material={view.material} className="pic" />
           </Btn>
         )}
-        <Btn className={`hand${view.hand ? ' on' : ''}`} label="Take back" onTap={() => game.button({ kind: 'hand', on: !view.hand }, 'pick')}>
+        <Btn className={`hand${view.hand ? ' on' : ''}`} label={inLang(WORDS.takeBack, lang)} onTap={() => game.button({ kind: 'hand', on: !view.hand }, 'pick')}>
           <HandIcon />
         </Btn>
         {view.doorbell && (
-          <Btn className="bell" label="Doorbell" onTap={() => game.dispatch({ kind: 'doorbell' })}>
+          <Btn className="bell" label={inLang(WORDS.doorbell, lang)} onTap={() => game.dispatch({ kind: 'doorbell' })}>
             <BellIcon />
           </Btn>
         )}

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
+import { inLang, type Lang } from '../../profiles/src/lang'
 import { Btn, noFocus } from './Btn'
 import { useLayerTaps } from './Cards'
 import { toggleFullscreen, type Game } from './game/game'
 import { HOLD_FOR } from './game/sounds'
 import { FullScreenIcon, GamesIcon, MoonIcon, MusicIcon, PlayIcon, RestartIcon, SoundIcon } from './Icons'
+import { WORDS } from './words'
 
 /** The ring around a holding finger: its radius in CSS px, and its length. */
 const RING_R = 46
@@ -16,8 +18,9 @@ const RING_LENGTH = 2 * Math.PI * RING_R
  * tap outside the buttons keeps going. Like the cards, it takes only taps that start on it
  * once it has settled (useLayerTaps), so a second tap on the pause button never closes it.
  */
-export function PauseMenu({ game }: { game: Game }) {
+export function PauseMenu({ game, lang }: { game: Game; lang: Lang }) {
   const hud = game.hud
+  const say = (words: keyof typeof WORDS) => inLang(WORDS[words], lang)
   const taps = useLayerTaps()
   const keepGoing = () => {
     game.resume()
@@ -32,42 +35,42 @@ export function PauseMenu({ game }: { game: Game }) {
       }}
     >
       <div className="card menu">
-        <Btn className="primary" label="Keep going" onTap={keepGoing}>
+        <Btn className="primary" label={say('keepGoing')} onTap={keepGoing}>
           <PlayIcon />
-          Keep going
+          {say('keepGoing')}
         </Btn>
-        <Btn className="secondary" label="Good night" onTap={() => game.goodnight()}>
+        <Btn className="secondary" label={say('goodNight')} onTap={() => game.goodnight()}>
           <MoonIcon />
-          Good night
+          {say('goodNight')}
         </Btn>
         <div className="row">
-          <Btn className={`small${hud.sound ? '' : ' off'}`} label="Sound" onTap={() => game.button({ kind: 'sound', on: !hud.sound }, 'tap')}>
+          <Btn className={`small${hud.sound ? '' : ' off'}`} label={say('sound')} onTap={() => game.button({ kind: 'sound', on: !hud.sound }, 'tap')}>
             <SoundIcon on={hud.sound} />
-            Sound
+            {say('sound')}
           </Btn>
-          <Btn className={`small${hud.music ? '' : ' off'}`} label="Music" onTap={() => game.button({ kind: 'music', on: !hud.music }, 'tap')}>
+          <Btn className={`small${hud.music ? '' : ' off'}`} label={say('music')} onTap={() => game.button({ kind: 'music', on: !hud.music }, 'tap')}>
             <MusicIcon on={hud.music} />
-            Music
+            {say('music')}
           </Btn>
           {document.fullscreenEnabled && (
-            <Btn className="small" label="Full screen" onTap={toggleFullscreen}>
+            <Btn className="small" label={say('fullScreen')} onTap={toggleFullscreen}>
               <FullScreenIcon />
-              Full screen
+              {say('fullScreen')}
             </Btn>
           )}
-          <Btn className="small" label="More games" onTap={() => location.assign('../index.html')}>
+          <Btn className="small" label={say('moreGames')} onTap={() => location.assign('../index.html')}>
             <GamesIcon />
-            More games
+            {say('moreGames')}
           </Btn>
         </div>
-        <HoldButton game={game} />
+        <HoldButton game={game} label={say('startAgain')} />
       </div>
     </div>
   )
 }
 
 /** Start again: held for HOLD_FOR (as long as the hold's rising tone), a ring filling round the finger; a parent's button, not a child's tap. Let go early and nothing happens. */
-function HoldButton({ game }: { game: Game }) {
+function HoldButton({ game, label }: { game: Game; label: string }) {
   const [ring, setRing] = useState<{ x: number; y: number; id: number } | null>(null)
   const timer = useRef(0)
   useEffect(() => () => window.clearTimeout(timer.current), [])
@@ -94,7 +97,7 @@ function HoldButton({ game }: { game: Game }) {
       <button
         type="button"
         tabIndex={-1}
-        aria-label="Start again"
+        aria-label={label}
         className="btn small fresh"
         onMouseDown={noFocus}
         onPointerDown={begin}
@@ -103,7 +106,7 @@ function HoldButton({ game }: { game: Game }) {
         onLostPointerCapture={end}
       >
         <RestartIcon />
-        Start again
+        {label}
       </button>
       {ring && (
         <svg className="ring" style={{ left: ring.x, top: ring.y }} viewBox={`${-RING_R - 8} ${-RING_R - 8} ${2 * RING_R + 16} ${2 * RING_R + 16}`} aria-hidden>

@@ -31,10 +31,10 @@ import {
 
 /**
  * The game's data that is not geometry: which machine makes what, the roads, the presents
- * and what they open, the themes' words and visits, the friends' outfits, the shapes and
- * their price, and the house kinds. The rules, the HUD and the save all ask here what a room
- * costs and what is open, so a tray never lights what the rules refuse. The items are in
- * items.ts; the geometry is in layout.ts.
+ * and what they open, the themes' visits, the friends' outfits, the shapes and their price,
+ * and the house kinds. The rules, the HUD and the save all ask here what a room costs and
+ * what is open, so a tray never lights what the rules refuse. The items are in items.ts; the
+ * geometry is in layout.ts; every word is in ../words.ts.
  */
 
 /** Each machine takes one raw good and makes one material, one for one. */
@@ -87,8 +87,6 @@ export const ROADS: Record<RoadKind, { biomes: readonly Biome[]; pickups: Record
 export const ROAD_LENGTH = 320
 /** Trip 1: a 200 m forest road with 4 logs (the planks for the first two-cell room), one small boulder, the ducks and a present. */
 export const TRAINING = { length: 200, logs: 4 } as const
-/** The words on the signpost's cards. */
-export const ROAD_NAMES: Record<RoadKind, string> = { forest: 'Forest', beach: 'Beach', hills: 'Hills' }
 
 /** What the presents hold, in this order, one per trip; after the last, a present holds PRESENT_GEMS gems. */
 export const PRESENTS: readonly Unlock[] = ['theme:bath', 'bag:jetpack', 'theme:space', 'tool:wand', 'theme:kitchen', 'shoes:lights', 'theme:sauna', 'glasses:stars', 'shoes:cowboy', 'glasses:hearts', 'bag:cat']
@@ -130,25 +128,22 @@ export const themeOpen = (unlocked: readonly Unlock[], theme: Theme) => !LOCKED_
 /** Every open theme, in the picker's order. */
 export const openThemes = (unlocked: readonly Unlock[]): Theme[] => THEMES.filter((t) => themeOpen(unlocked, t))
 
-/**
- * Every theme's card word (one English word or two, for a five-year-old), and the pose the
- * builder takes visiting a room of it, standing where layout.visitPoint puts them.
- */
-export const THEME_INFO: Record<Theme, { name: string; visit: Pose }> = {
-  disco: { name: 'Disco', visit: 'dance' },
-  play: { name: 'Play', visit: 'play' },
-  ballpit: { name: 'Ball pit', visit: 'jump' },
-  slide: { name: 'Slide', visit: 'slide' },
-  gym: { name: 'Gym', visit: 'bounce' },
-  sleep: { name: 'Sleep', visit: 'sleep' },
-  music: { name: 'Music', visit: 'dance' },
-  crafts: { name: 'Crafts', visit: 'play' },
-  cat: { name: 'Cat', visit: 'sit' },
-  birthday: { name: 'Birthday', visit: 'cheer' },
-  bath: { name: 'Bath', visit: 'sit' },
-  space: { name: 'Space', visit: 'float' },
-  kitchen: { name: 'Kitchen', visit: 'play' },
-  sauna: { name: 'Sauna', visit: 'sit' },
+/** The pose the builder takes visiting a room of each theme, standing where layout.visitPoint puts them. */
+export const THEME_VISIT: Record<Theme, Pose> = {
+  disco: 'dance',
+  play: 'play',
+  ballpit: 'jump',
+  slide: 'slide',
+  gym: 'bounce',
+  sleep: 'sleep',
+  music: 'dance',
+  crafts: 'play',
+  cat: 'sit',
+  birthday: 'cheer',
+  bath: 'sit',
+  space: 'float',
+  kitchen: 'play',
+  sauna: 'sit',
 }
 
 /**

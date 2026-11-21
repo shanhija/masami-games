@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_LOOK, LOCKED_BAGS, LOCKED_GLASSES, LOCKED_SHOES, LOCKED_THEMES, LOCKED_TOOLS, PRESENTS, PRESENT_GEMS, SHAPE_SIZE, THEME_INFO, roomCost, themeOpen } from './catalog'
+import { DEFAULT_LOOK, LOCKED_BAGS, LOCKED_GLASSES, LOCKED_SHOES, LOCKED_THEMES, LOCKED_TOOLS, PRESENTS, PRESENT_GEMS, SHAPE_SIZE, THEME_VISIT, roomCost, themeOpen } from './catalog'
 import { BED, placePoint, shown } from './flights'
 import { DEMOS, demoKeep, demoShot } from './fixtures'
 import { ITEMS, defaultItems, themeItems, type ItemId } from './items'
@@ -727,7 +727,7 @@ describe('rooms', () => {
   it('zoom in and the builder visits, doing the theme thing', () => {
     const s = inRoom(1)
     expect(s.shot).toEqual({ kind: 'room', plot: 0, room: 1 })
-    expect(s.builder).toMatchObject({ at: { kind: 'room', plot: 0, room: 1 }, pose: THEME_INFO.play.visit })
+    expect(s.builder).toMatchObject({ at: { kind: 'room', plot: 0, room: 1 }, pose: THEME_VISIT.play })
     expect(offered(s, { kind: 'builder' })).toBe(true)
     const again = tapOn(s, { kind: 'builder' })
     expect(again).toContainEqual(expect.objectContaining({ kind: 'visit', theme: 'play' }))
@@ -746,7 +746,7 @@ describe('rooms', () => {
     const events = doing(s, { kind: 'theme', theme: 'play' })
     expect(kinds(events)).toEqual(expect.arrayContaining(['theme', 'visit']))
     expect(roomOf(s, 0, 2)).toMatchObject({ theme: 'play', items: ['planeMobile', 'toyShelf', null, 'blockTower'] })
-    expect(s.builder.pose).toBe(THEME_INFO.play.visit)
+    expect(s.builder.pose).toBe(THEME_VISIT.play)
     doing(s, { kind: 'askTheme' })
     expect(s.ask).toEqual({ kind: 'theme', plot: 0, room: 2 })
     doing(s, { kind: 'theme', theme: null })
