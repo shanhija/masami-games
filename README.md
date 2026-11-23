@@ -1,8 +1,8 @@
 # Masami Games
 
-Small browser games made at home for young children, about four to six years old, from their own ideas. Each game starts as a short brief in Finnish, often in the child's own words, and [Claude Code](https://claude.com/claude-code) writes the game from it. The games run in a browser on a tablet or a laptop, and the root page is a directory of big cards: tap one and only that game loads.
+Small browser games made at home for young children, about four to seven years old, from their own ideas. Each game starts as a short brief in Finnish, often in the child's own words, and [Claude Code](https://claude.com/claude-code) writes the game from it. The games run in a browser on a tablet or a laptop, and the root page is a directory of big cards: tap one and only that game loads.
 
-The repo is also an experiment in what a language model can do inside a game for children, not only in writing it. The clearest example is Silly Billy.
+The repo is also an experiment in what a language model can do inside a game for children, not only in writing it. The clearest examples are Silly Billy and Magic House.
 
 ## Silly Billy: say it, and it exists
 
@@ -19,36 +19,44 @@ New friends are made and dressed the same way ("make a new girl", "give her big 
 
 Inventing needs the dev server and Claude on the computer. A static build plays everything that was made at home, but invents nothing new. The brief is [`silly-billy/design.md`](silly-billy/design.md) and the decisions are in [`plans/silly-billy.md`](plans/silly-billy.md).
 
+## Magic House: rooms nobody has seen before
+
+[`magic-house/`](magic-house/README.md) is a house for one to four children of about seven at one screen, each on a zone of the keyboard, a pad on the touch screen or a gamepad. Behind every door is one room of the house with a theme of its own: a cake kitchen, a drum room, a laundry full of socks. Nothing is told at the door. The children look round, work out what the room wants and do it, mostly together and sometimes as a race, in a few minutes; then come fireworks, a present each to wear, and a dressing room before the next door.
+
+The rooms are not written by hand. It takes the idea of [Dissertation](https://github.com/shanhija/dissertation), a party game for grown-ups where Opus makes whatever the players ask for while they wait, and turns it into a game for children:
+
+1. **Designing.** While the children play one room, Opus writes the next as code against the game's building blocks: its theme and colours, its floors, ledges, movers and things, the steps it asks for, and a walkthrough that plays it to its end. It is told how many play, on what, and how the last rooms went, and asked for something unlike every room before.
+2. **Proving.** Bots play the new room in the browser, at every level and on the game's clock, so minutes of play take seconds. It must be possible to finish, take at least a minute even for players who know the way, never trap anyone, and, when it is played together, need every player. What fails goes back to Opus as plain sentences with the numbers, for a fix.
+3. **Dressing.** A second call dresses the room: wallpaper, furniture, props that wobble or spin when a child passes, and lights. It can never change the play.
+4. **Keeping.** A third call makes the presents. Every room that passes is kept in [`magic-house/library/`](magic-house/library/), so the house grows, and a room that bores can be forgotten.
+
+A new room is usually ready before the children have finished the one before. Inventing needs the dev server and Claude on the computer; a static build opens the rooms that were kept. The brief is [`magic-house/design.md`](magic-house/design.md) and the decisions are in [`magic-house/plan.md`](magic-house/plan.md).
+
 ## The other games
 
 - [`rocket-factory/`](rocket-factory/README.md): **Rocket Factory**, a kids' Factorio seen from above. Tap rocks so Beep the robot digs them, press machines onto the board like stickers, draw conveyor belts with a finger, make science bottles for the lab, tickle the munchers who come for the fizz, and fill the rocket to fly to the moon.
 - [`pia-jump/`](pia-jump/README.md): **Pia Jump**, a platformer in true 2D. Run, jump, stomp the grumpy dust bunnies, bump gift boxes and find the five lost kittens, from the garden at sunrise to the roof at night.
 - [`super-me/`](super-me/README.md): **Super Me**. Make your own person in the closet (face, body, clothes, makeup), then jump through Pia Jump's places building bridges, steps, trampolines and ladders out of the blocks you find, and open the presents that hold new things to wear.
-- [`slime-guy/`](slime-guy/README.md): **Slime Guy**, a 3D obstacle course over water. Hide under the spinners, dodge the fans, grow big on slime balls, carry the lost baby slimes home, then bounce up the tower and open the surprise box for something new to wear.
+- [`slime-guy/`](slime-guy/): **Slime Guy**, a 3D obstacle course over water. Hide under the spinners, dodge the fans, grow big on slime balls, carry the lost baby slimes home, then bounce up the tower and open the surprise box for something new to wear.
 - [`monster-lunch/`](monster-lunch/README.md): **Monster Lunch**. Pick a burger or a croissant and what goes inside, carry the plate round a course picking food up off the ground past moving poles, water, colour gates and poop, then fly the dish over the hungry monster in a hot air balloon.
 - [`cat-hat-builder/`](cat-hat-builder/README.md): **Cat Hat Builder**. Drive the truck down a country road, break rocks and pick up logs, sand, clay and gems, let the machines make planks, bricks, glass and rainbow blocks, and build a house of rooms: a disco, a ball pit, a slide, a sauna and more.
 - [`digger-town/`](digger-town/README.md): **Digger Town**. Hop between nine toy machines, dig sand into a dump truck, push it with a bulldozer, roll roads, mix cement, make bricks, lift a house together with the cranes, and build a whole town for the animals. For a four-year-old: one finger and one big button, or tell the machines what to do in Finnish or English, or mouse and keyboard for the harder way.
 - [`castle-builder/`](castle-builder/README.md): **Castle Builder**, a toy castle on a meadow island. Gather wood, stone, ore, wool and flowers, let the workshop people make better things out of them, build the castle piece by piece, and hammer back what the grumpy cloud knocks off.
 - [`chase/`](chase/README.md) and [`foot-chase/`](foot-chase/README.md): a side-view cartoon police chase (jump the rocks, cakes and worms as the police or the robber), and the same chase on foot for two players on one keyboard.
 
-## Coming next
-
-<!-- Teaser: swap in the new game's name, a line about it and its folder when it lands. -->
-
-**A new game is on the way.** It takes the idea of [Dissertation](https://github.com/shanhija/dissertation), a party game for grown-ups where Opus makes whatever the players ask for while they wait, and turns it into a game for children: ask for anything you can think of, and watch it being made. Name, rules and look are still a secret.
-
 ## How it is built
 
 - **One project, one page per game.** A single Vite + React + TypeScript project at the root. Each game is a folder with its own `index.html` and `src/`, and a page of its own in the build. What the games share (React, three.js) is built into chunks the browser keeps from one game to the next.
 - **3D and 2D.** The 3D games draw with [react-three-fiber](https://r3f.docs.pmnd.rs/) and drei; the 2D games draw on the browser's canvas. React draws only the buttons and cards around them.
-- **Pure simulations with tests.** Each game's logic is plain numbers with no drawing, stepped once per frame, so [vitest](https://vitest.dev/) can play it for minutes at a time. The scene only reads it. There are over 2500 tests.
+- **Pure simulations with tests.** Each game's logic is plain numbers with no drawing, stepped once per frame, so [vitest](https://vitest.dev/) can play it for minutes at a time. The scene only reads it. There are over 4500 tests.
 - **A static site.** `npm run build` typechecks and builds the directory and every game into `dist/`, which runs from disk or from any web server.
 
 ## Requirements
 
 - **Node.js 22 or newer**, with npm. Made on Linux with Node 24.
 - **A recent browser**: Chrome, Safari or Firefox, on a laptop or a tablet.
-- **For Silly Billy's inventing**: the [Claude Code CLI](https://claude.com/claude-code) on the same computer, signed in to a Claude subscription (no API key is needed). The dev server finds it on the `PATH`, in the Claude desktop app or in the VS Code extension; `CLAUDE_BIN` names it outright. Without it, Silly Billy plays what it already knows.
+- **For Silly Billy's inventing and Magic House's new rooms**: the [Claude Code CLI](https://claude.com/claude-code) on the same computer, signed in to a Claude subscription (no API key is needed). The dev server finds it on the `PATH`, in the Claude desktop app or in the VS Code extension; `CLAUDE_BIN` names it outright. Without it, Silly Billy plays what it already knows and Magic House the rooms it has kept.
+- **Magic House's recorded sounds**: `npm install` downloads CC0 sound packs from [OpenGameArt](https://opengameart.org/) and builds them (see [`magic-house/sounds/README.md`](magic-house/sounds/README.md)). With no network it says so and goes on; the game then plays synthesised sounds, and `npm run sounds` builds them later.
 - **Optional, for Silly Billy's hearing**: a [whisper.cpp](https://github.com/ggml-org/whisper.cpp) build on a GPU (see [`silly-billy/README.md`](silly-billy/README.md)). Without it the browser's own speech recognizer listens, and there is always a box to type in.
 
 ## Getting started
@@ -73,7 +81,7 @@ npx vitest run <game>    # one game's tests, e.g. npx vitest run silly-billy
 
 ## Players
 
-The directory first asks who is playing. Each child has a profile on the device: a name, an avatar they build from parts (face, hair, eyes, mouth, something fun, a colour) or get as a surprise, and a flag for the language every game plays in for them, Finnish or English. Every game keeps its progress per profile, so two children never play on each other's castle or factory. The pencil on a player changes the name and the avatar, starts any game they have saved in over (it asks "Really?" first), or removes the player. A tab back from a game shows the games straight away as the same player; the chip above them changes player. The first profile made on a device takes over what was saved before there were profiles. Silly Billy's library of things Claude made lives on the laptop and is everyone's; what the page keeps (the rooms, the settings) is per player. The code is [`profiles/`](profiles/src/profiles.ts): not a game, the directory's own.
+The directory first asks who is playing. Each child has a profile on the device: a name, an avatar they build from parts (face, hair, eyes, mouth, something fun, a colour) or get as a surprise, and a flag for the language every game plays in for them, Finnish or English. Every game keeps its progress per profile, so two children never play on each other's castle or factory. The pencil on a player changes the name and the avatar, starts any game they have saved in over (it asks "Really?" first), or removes the player. A tab back from a game shows the games straight away as the same player; the chip above them changes player. The first profile made on a device takes over what was saved before there were profiles. Silly Billy's library of things Claude made and Magic House's rooms live on the laptop and are everyone's; what the pages keep (Silly Billy's rooms and settings, Magic House's levels, presents and rooms played) is per player. The code is [`profiles/`](profiles/src/profiles.ts): not a game, the directory's own.
 
 ## How Claude is used
 
@@ -81,15 +89,15 @@ Claude is used in two ways.
 
 **Claude Code writes the games.** A parent writes a short brief in Finnish (`<game>/design.md`), sometimes just the child's own words, and Claude Code (Opus) builds the game from it, inventing the details the brief leaves open. The children play, say what to change, and the game grows from there. The decisions and the work still open are kept in [`plans/`](plans/), and the standing instructions for the agent are in [`CLAUDE.md`](CLAUDE.md) and [`.cursor/rules/`](.cursor/rules/): one shared project, pure simulations with tests, and every word on screen in simple English for a five-year-old.
 
-**Claude plays a part in Silly Billy.** The dev server runs the Claude Code CLI on the computer, with no tools and from an empty folder, one process per question. Opus understands what the child said and designs whatever is new, as described above. What it makes is kept in [`silly-billy/library/`](silly-billy/library/) as JSON files, code included.
+**Claude plays a part in Silly Billy and Magic House.** The dev server runs the Claude Code CLI on the computer, with no tools and from an empty folder, one process per question. In Silly Billy, Opus understands what the child said and designs whatever is new; in Magic House it designs each new room, dresses it and makes its presents, as described above. The page tries what comes back in a sandbox before anyone plays it. What Opus makes is kept as JSON files, code included, in [`silly-billy/library/`](silly-billy/library/) and [`magic-house/library/`](magic-house/library/).
 
 ## The children's privacy
 
-Silly Billy keeps the children's voice clips, to measure how well different recognizers hear young voices, and a log of everything said and made. Both stay on the computer: they are git-ignored and never pushed. The library of made things is in the repo, and each made thing keeps the one sentence that asked for it. The games keep their saves in the browser, on the device, per player.
+Silly Billy keeps the children's voice clips, to measure how well different recognizers hear young voices, and a log of everything said and made. Both stay on the computer: they are git-ignored and never pushed. The library of made things is in the repo, and each made thing keeps the one sentence that asked for it. Magic House sends Opus no name: only how many play, an age of about seven, the devices they play on and how their rooms went. Its log of every request, trial and play stays on the computer too, git-ignored. The games keep their saves in the browser, on the device, per player.
 
 ## Hosting
 
-[`hosting/Dockerfile`](hosting/Dockerfile) builds one image with the directory and every game: typecheck, every test and the build, then `dist/` (gzipped beside itself) under unprivileged nginx on port 8080 ([`hosting/nginx.conf`](hosting/nginx.conf)). A red test means no image. Any host that runs a container can serve it.
+[`hosting/Dockerfile`](hosting/Dockerfile) builds one image with the directory and every game: Magic House's recorded sounds, typecheck, every test and the build, then `dist/` (gzipped beside itself) under unprivileged nginx on port 8080 ([`hosting/nginx.conf`](hosting/nginx.conf)). The image build fetches the sounds from OpenGameArt and fails without them, and a red test means no image. Any host that runs a container can serve it.
 
 ```
 docker build -f hosting/Dockerfile -t games . && docker run --rm -p 8080:8080 games   # http://localhost:8080

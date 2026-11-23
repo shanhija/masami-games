@@ -7,10 +7,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { ROOM_GEO, WATER_Y } from './rooms'
+import { stepPuffs } from './physics'
 import { nightOf, START_TIME, twilightOf } from './sky'
 import { Sim } from './sim'
 import { actionEntry, makeSim, newLibrary, run, runUntil, step } from './testing'
-import { STEP } from './types'
+import { STEP, type Puff } from './types'
 import { restHeight, waterTop, wetAt } from './world'
 
 const opt = (name: string, kind: 'text' | 'number' | 'item' | 'actor') => ({ name, kind, about: name, optional: true })
@@ -129,6 +130,23 @@ describe('the sky', () => {
     const drops = sim.world.puffs.filter((p) => p.kind === 'drop')
     for (const p of smoke) expect(p.x).toBeGreaterThan(2)
     for (const p of drops) expect(Math.abs(p.x)).toBeLessThan(0.01)
+  })
+})
+
+describe('stepPuffs, shared with another game', () => {
+  it('steps any list of puffs by the wind and the step it is given, light ones blown, heavy ones not, those past their life gone', () => {
+    const puff = (kind: Puff['kind'], gravity: number, born: number): Puff => ({ kind, x: 0, y: 1, z: 0, vx: 0.5, vy: 0, vz: 0.5, color: '#ffffff', size: 0.2, born, life: 1, gravity })
+    const list = { t: 1.5, puffs: [puff('smoke', -1.2, 1), puff('drop', 9.8, 1), puff('star', 0, 0)] }
+    stepPuffs(list, 2, 0.1)
+    expect(list.puffs.map((p) => p.kind)).toEqual(['smoke', 'drop'])
+    const [smoke, drop] = list.puffs
+    expect(smoke!.x).toBeCloseTo(0.2 + 0.05, 9)
+    expect(drop!.x).toBeCloseTo(0.05, 9)
+    expect(drop!.vy).toBeCloseTo(-0.98, 9)
+    expect(smoke!.vx / smoke!.vz).toBeCloseTo(1, 9)
+    expect(smoke!.vx).toBeCloseTo(0.5 * (1 - 1.2 * 0.1), 9)
+    stepPuffs(list, 0, 0)
+    expect(smoke!.x).toBeCloseTo(0.25, 9)
   })
 })
 

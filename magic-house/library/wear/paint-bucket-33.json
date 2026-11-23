@@ -1,0 +1,13 @@
+{
+  "id": "paint-bucket-33",
+  "slot": "back",
+  "form": "A round bucket rides on the back. It is slightly tapered, full of paint, and has a curved wire handle. Paint drips down its side. It is about as wide as the child's back.",
+  "code": "m.cylinder(0.16,0.13,0.32,{at:[0,0,-0.2],color:c.second});\nm.cylinder(0.165,0.165,0.02,{at:[0,0.16,-0.2],color:c.second});\nm.cylinder(0.15,0.15,0.02,{at:[0,0.165,-0.2],color:c.main});\nm.torus(0.16,0.008,{at:[0,0.17,-0.2],rot:[0,Math.PI/2,0],scale:[1,0.8,1],color:'#999999'});\nm.capsule(0.02,0.08,{at:[0.08,0.1,-0.34],color:c.main});\nm.capsule(0.018,0.12,{at:[-0.05,0.08,-0.355],color:c.main});\nm.box(0.2,0.05,0.04,{at:[0,0.05,-0.03],color:c.second});",
+  "guarded": "function __gift(m, c) {__g();\nm.cylinder(0.16,0.13,0.32,{at:[0,0,-0.2],color:c.second});\nm.cylinder(0.165,0.165,0.02,{at:[0,0.16,-0.2],color:c.second});\nm.cylinder(0.15,0.15,0.02,{at:[0,0.165,-0.2],color:c.main});\nm.torus(0.16,0.008,{at:[0,0.17,-0.2],rot:[0,Math.PI/2,0],scale:[1,0.8,1],color:'#999999'});\nm.capsule(0.02,0.08,{at:[0.08,0.1,-0.34],color:c.main});\nm.capsule(0.018,0.12,{at:[-0.05,0.08,-0.355],color:c.main});\nm.box(0.2,0.05,0.04,{at:[0,0.05,-0.03],color:c.second});\n}",
+  "room": "stomp-paint-9",
+  "name": {
+    "en": "Paint Bucket",
+    "fi": "Maaliämpäri"
+  },
+  "made": "2026-11-22T15:03:51.058Z"
+}

@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config'
 
 // '.js' names the .ts files (TypeScript allows it), so loading the config warns of no extensionless import.
 import { GAME_FOLDERS } from './profiles/src/directory.js'
-import { sillyBilly } from './silly-billy/src/server/plugin.js'
+import { gameApi } from './silly-billy/src/server/plugin.js'
 
 /**
  * A tablet reaches the dev server by the laptop's own host name: DEV_HOST in the git-ignored
@@ -20,8 +20,8 @@ export default defineConfig(({ command, mode }) => ({
   base: './',
   // No SPA fallback: each page is its own HTML file, so a wrong URL is a 404, not the directory.
   appType: 'mpa',
-  // Silly Billy's ./api/ (the Claude Code CLI, Whisper, its library on disk): under `vite` serve only, idle until asked.
-  plugins: [react(), sillyBilly()],
+  // Silly Billy's and Magic House's ./api/ (the Claude Code CLI, Silly Billy's Whisper, each one's library on disk): under `vite` serve only, idle until asked.
+  plugins: [react(), gameApi('silly-billy', '/silly-billy/src/server/api.ts'), gameApi('magic-house', '/magic-house/src/server/api.ts')],
   server: {
     // Only the dev server reads the certificate: builds and tests also run in the image build
     // (hosting/Dockerfile), where the laptop's files are not.
@@ -33,8 +33,8 @@ export default defineConfig(({ command, mode }) => ({
           }
         : undefined,
     allowedHosts: DEV_HOST === undefined ? [] : [DEV_HOST],
-    // Silly Billy saves what it makes in its library/: saving must not reload the page.
-    watch: { ignored: ['**/silly-billy/library/**'] },
+    // Silly Billy and Magic House save what they make in their library/: saving must not reload the page.
+    watch: { ignored: ['**/silly-billy/library/**', '**/magic-house/library/**'] },
   },
   build: {
     chunkSizeWarningLimit: 2000,

@@ -1,0 +1,13 @@
+{
+  "id": "sock-basket-44",
+  "slot": "back",
+  "form": "A round laundry basket worn like a backpack, a little wider at the top, with a thick rim and woven bands, socks poking out of the top, and two straps over the shoulders. About as tall as the child's back.",
+  "code": "m.part('basket',{at:[0,-0.02,-0.2]},()=>{\n m.lathe([[0.12,-0.16],[0.155,0.16],[0.14,0.16],[0.105,-0.145],[0,-0.145]],{color:c.main});\n m.torus(0.155,0.018,{at:[0,0.16,0],rot:[Math.PI/2,0,0],color:c.second});\n m.torus(0.142,0.01,{at:[0,0.05,0],rot:[Math.PI/2,0,0],color:c.second});\n m.torus(0.13,0.01,{at:[0,-0.06,0],rot:[Math.PI/2,0,0],color:c.second});\n m.torus(0.05,0.012,{at:[0.155,0.12,0],rot:[0,Math.PI/2,0],color:c.second});\n m.torus(0.05,0.012,{at:[-0.155,0.12,0],rot:[0,Math.PI/2,0],color:c.second});\n m.tube([[-0.05,0.1,0],[-0.06,0.24,-0.02],[-0.12,0.27,-0.04]],0.03,{color:c.second});\n m.sphere(0.035,{at:[-0.12,0.27,-0.04],color:c.second});\n m.tube([[0.04,0.1,0.03],[0.05,0.22,0.04],[0.1,0.26,0.08]],0.03,{color:'#ffffff'});\n m.sphere(0.035,{at:[0.1,0.26,0.08],color:'#ffffff'});\n});\n[0.08,-0.08].forEach(x=>{\n m.tube([[x,-0.06,-0.06],[x,0.07,-0.02],[x,0.1,0.08],[x,0.05,0.2],[x,-0.12,0.18]],0.016,{color:c.second});\n});",
+  "guarded": "function __gift(m, c) {__g();\nm.part('basket',{at:[0,-0.02,-0.2]},()=>{__g();\n m.lathe([[0.12,-0.16],[0.155,0.16],[0.14,0.16],[0.105,-0.145],[0,-0.145]],{color:c.main});\n m.torus(0.155,0.018,{at:[0,0.16,0],rot:[Math.PI/2,0,0],color:c.second});\n m.torus(0.142,0.01,{at:[0,0.05,0],rot:[Math.PI/2,0,0],color:c.second});\n m.torus(0.13,0.01,{at:[0,-0.06,0],rot:[Math.PI/2,0,0],color:c.second});\n m.torus(0.05,0.012,{at:[0.155,0.12,0],rot:[0,Math.PI/2,0],color:c.second});\n m.torus(0.05,0.012,{at:[-0.155,0.12,0],rot:[0,Math.PI/2,0],color:c.second});\n m.tube([[-0.05,0.1,0],[-0.06,0.24,-0.02],[-0.12,0.27,-0.04]],0.03,{color:c.second});\n m.sphere(0.035,{at:[-0.12,0.27,-0.04],color:c.second});\n m.tube([[0.04,0.1,0.03],[0.05,0.22,0.04],[0.1,0.26,0.08]],0.03,{color:'#ffffff'});\n m.sphere(0.035,{at:[0.1,0.26,0.08],color:'#ffffff'});\n});\n[0.08,-0.08].forEach(x=>{__g();\n m.tube([[x,-0.06,-0.06],[x,0.07,-0.02],[x,0.1,0.08],[x,0.05,0.2],[x,-0.12,0.18]],0.016,{color:c.second});\n});\n}",
+  "room": "the-sock-race-3",
+  "name": {
+    "en": "Sock Basket",
+    "fi": "Sukkakori"
+  },
+  "made": "2026-11-22T22:34:18.682Z"
+}

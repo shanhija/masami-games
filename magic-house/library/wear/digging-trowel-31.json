@@ -1,0 +1,13 @@
+{
+  "id": "digging-trowel-31",
+  "slot": "hand",
+  "form": "A garden trowel held upright, with a round wooden handle, a thin collar, and a flat, pointed, leaf-shaped blade on top. It's about half as tall as the child.",
+  "code": "m.capsule(0.03,0.14,{at:[0,0,0],color:c.main});\nm.cylinder(0.035,0.035,0.04,{at:[0,0.11,0],color:c.second});\nm.cylinder(0.012,0.012,0.06,{at:[0,0.15,0],color:c.second});\nm.extrude([[0,0.16],[0.08,0.2],[0.1,0.28],[0.07,0.38],[0,0.46],[-0.07,0.38],[-0.1,0.28],[-0.08,0.2]],0.012,{color:c.second});\nm.box(0.01,0.26,0.02,{at:[0,0.31,0.008],color:c.main});\nm.anchor('hand',[0,0,0]);",
+  "guarded": "function __gift(m, c) {__g();\nm.capsule(0.03,0.14,{at:[0,0,0],color:c.main});\nm.cylinder(0.035,0.035,0.04,{at:[0,0.11,0],color:c.second});\nm.cylinder(0.012,0.012,0.06,{at:[0,0.15,0],color:c.second});\nm.extrude([[0,0.16],[0.08,0.2],[0.1,0.28],[0.07,0.38],[0,0.46],[-0.07,0.38],[-0.1,0.28],[-0.08,0.2]],0.012,{color:c.second});\nm.box(0.01,0.26,0.02,{at:[0,0.31,0.008],color:c.main});\nm.anchor('hand',[0,0,0]);\n}",
+  "room": "mole-tunnel-doors-9",
+  "name": {
+    "en": "Digging Trowel",
+    "fi": "Kaivuulapio"
+  },
+  "made": "2026-11-22T14:45:17.219Z"
+}

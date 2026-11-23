@@ -1,0 +1,13 @@
+{
+  "id": "drum-backpack-41",
+  "slot": "back",
+  "form": "A round bass drum worn on the back lying sideways, its white skins facing left and right, rimmed and with rods round the shell, with two small golden cymbals on short stems above it; about as wide as the child's shoulders.",
+  "code": "const z=-0.24;\nm.cylinder(0.2,0.2,0.2,{at:[0,0,z],rot:[0,0,Math.PI/2],color:c.main});\nm.cylinder(0.19,0.19,0.205,{at:[0,0,z],rot:[0,0,Math.PI/2],color:'#f4f0e6'});\nm.cylinder(0.2,0.2,0.19,{at:[0,0,z],rot:[0,0,Math.PI/2],color:c.main});\nfor(const s of [-1,1]){m.torus(0.2,0.016,{at:[s*0.1,0,z],rot:[0,Math.PI/2,0],color:c.second});}\nfor(let i=0;i<8;i++){const a=i*Math.PI/4;m.cylinder(0.007,0.007,0.2,{at:[0,Math.sin(a)*0.208,z+Math.cos(a)*0.208],rot:[0,0,Math.PI/2],color:c.second});}\nm.box(0.18,0.03,0.04,{at:[0,0.18,-0.02],color:c.second});\nfor(const s of [-1,1]){m.cylinder(0.008,0.008,0.14,{at:[s*0.08,0.26,z],color:'#888888'});m.lathe([[0,0.03],[0.025,0.03],[0.035,0.012],[0.12,0]],{at:[s*0.08,0.33,z],rot:[0,0,-s*0.25],color:'#e8c040'});}",
+  "guarded": "function __gift(m, c) {__g();\nconst z=-0.24;\nm.cylinder(0.2,0.2,0.2,{at:[0,0,z],rot:[0,0,Math.PI/2],color:c.main});\nm.cylinder(0.19,0.19,0.205,{at:[0,0,z],rot:[0,0,Math.PI/2],color:'#f4f0e6'});\nm.cylinder(0.2,0.2,0.19,{at:[0,0,z],rot:[0,0,Math.PI/2],color:c.main});\nfor(const s of [-1,1]){__g();m.torus(0.2,0.016,{at:[s*0.1,0,z],rot:[0,Math.PI/2,0],color:c.second});}\nfor(let i=0;i<8;i++){__g();const a=i*Math.PI/4;m.cylinder(0.007,0.007,0.2,{at:[0,Math.sin(a)*0.208,z+Math.cos(a)*0.208],rot:[0,0,Math.PI/2],color:c.second});}\nm.box(0.18,0.03,0.04,{at:[0,0.18,-0.02],color:c.second});\nfor(const s of [-1,1]){__g();m.cylinder(0.008,0.008,0.14,{at:[s*0.08,0.26,z],color:'#888888'});m.lathe([[0,0.03],[0.025,0.03],[0.035,0.012],[0.12,0]],{at:[s*0.08,0.33,z],rot:[0,0,-s*0.25],color:'#e8c040'});}\n}",
+  "room": "the-drum-room-2",
+  "name": {
+    "en": "Drum Backpack",
+    "fi": "Rumpureppu"
+  },
+  "made": "2026-11-22T22:29:22.222Z"
+}

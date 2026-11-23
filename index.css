@@ -119,6 +119,10 @@ h1 {
   background: #b9c8ff;
 }
 
+.game.magic-house {
+  background: #efb3ff;
+}
+
 .game:hover {
   transform: translateY(-6px);
   box-shadow: 0 16px 0 rgba(42, 47, 69, 0.35);

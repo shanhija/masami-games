@@ -1,0 +1,58 @@
+/* The pause card's own parts (shell/PauseCard.tsx); the card and the shade behind it are the page's (styles.css .pause-card-back, .pause-card). */
+
+.pause-card .big-button.second {
+  background: var(--purple);
+  font-size: clamp(24px, 5vmin, 48px);
+}
+
+.pause-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(8px, 2vmin, 16px);
+}
+
+.pause-card .pause-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 5.5em;
+  padding: 8px 12px 10px;
+  border: 4px solid var(--ink);
+  border-radius: 20px;
+  background: var(--white);
+  box-shadow: 0 5px 0 var(--ink);
+  color: var(--ink);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: clamp(15px, 2.6vmin, 22px);
+  cursor: pointer;
+}
+
+.pause-card .pause-pill.on {
+  background: var(--gold);
+}
+
+.pause-card .pause-pill:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.pause-card .pause-pill:focus-visible {
+  outline: 5px solid var(--white);
+  outline-offset: 3px;
+}
+
+.pause-card .pause-pill-icon {
+  display: flex;
+  height: 30px;
+  align-items: center;
+}
+
+/* The ring a seat's stick walks over the card's buttons, as on the house's doors. */
+.pause-card .ringed {
+  outline: 6px solid var(--white);
+  outline-offset: 4px;
+  box-shadow: 0 0 0 12px var(--gold);
+}

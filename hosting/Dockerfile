@@ -4,7 +4,10 @@
 FROM node:24-alpine AS build
 WORKDIR /repo
 COPY package.json package-lock.json ./
-RUN npm ci
+# npm ci's postinstall fetches and builds Magic House's recorded sounds (magic-house/sounds/README.md),
+# so its sources and script come in first; npm run sounds then fails the image if they did not build.
+COPY magic-house/sounds/ magic-house/sounds/
+RUN npm ci && npm run sounds
 COPY . .
 RUN npm test && npm run build \
   && find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' \) -exec gzip -k9 {} +

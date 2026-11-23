@@ -1,0 +1,13 @@
+{
+  "id": "painter-s-apron-34",
+  "slot": "body",
+  "form": "A thin cloth apron covers the chest and hangs down past the hips. Straps go over the shoulders, and it has a pocket in front and paint splashes all over. It is close to the child's body.",
+  "code": "m.box(0.26,0.26,0.015,{at:[0,0.55,0.11],color:c.main});\nm.extrude([[-0.15,0],[0.15,0],[0.18,-0.2],[-0.18,-0.2]],0.015,{at:[0,0.42,0.115],color:c.main});\nm.box(0.12,0.08,0.01,{at:[0,0.33,0.13],color:c.second});\nm.tube([[0.1,0.67,0.11],[0.12,0.72,0.02],[0.11,0.66,-0.1],[0.12,0.45,-0.11]],0.015,{color:'#ffffff'});\nm.tube([[-0.1,0.67,0.11],[-0.12,0.72,0.02],[-0.11,0.66,-0.1],[-0.12,0.45,-0.11]],0.015,{color:'#ffffff'});\nm.sphere(0.03,{at:[0.06,0.6,0.12],scale:[1,1,0.3],color:c.second});\nm.sphere(0.025,{at:[-0.08,0.5,0.12],scale:[1,1,0.3],color:c.second});\nm.sphere(0.035,{at:[0.1,0.42,0.125],scale:[1,1,0.3],color:c.second});\nm.sphere(0.02,{at:[-0.04,0.26,0.125],scale:[1,1,0.3],color:c.second});",
+  "guarded": "function __gift(m, c) {__g();\nm.box(0.26,0.26,0.015,{at:[0,0.55,0.11],color:c.main});\nm.extrude([[-0.15,0],[0.15,0],[0.18,-0.2],[-0.18,-0.2]],0.015,{at:[0,0.42,0.115],color:c.main});\nm.box(0.12,0.08,0.01,{at:[0,0.33,0.13],color:c.second});\nm.tube([[0.1,0.67,0.11],[0.12,0.72,0.02],[0.11,0.66,-0.1],[0.12,0.45,-0.11]],0.015,{color:'#ffffff'});\nm.tube([[-0.1,0.67,0.11],[-0.12,0.72,0.02],[-0.11,0.66,-0.1],[-0.12,0.45,-0.11]],0.015,{color:'#ffffff'});\nm.sphere(0.03,{at:[0.06,0.6,0.12],scale:[1,1,0.3],color:c.second});\nm.sphere(0.025,{at:[-0.08,0.5,0.12],scale:[1,1,0.3],color:c.second});\nm.sphere(0.035,{at:[0.1,0.42,0.125],scale:[1,1,0.3],color:c.second});\nm.sphere(0.02,{at:[-0.04,0.26,0.125],scale:[1,1,0.3],color:c.second});\n}",
+  "room": "stomp-paint-9",
+  "name": {
+    "en": "Painter's Apron",
+    "fi": "Maaleriesiliina"
+  },
+  "made": "2026-11-22T15:03:51.088Z"
+}

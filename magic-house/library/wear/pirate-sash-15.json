@@ -1,0 +1,13 @@
+{
+  "id": "pirate-sash-15",
+  "slot": "body",
+  "form": "A wide pirate belt round the waist with a big square gold buckle at the front, and a soft cloth sash running across the chest from one shoulder down to the other hip, hugging the body.",
+  "code": "m.cylinder(0.17,0.17,0.07,{at:[0,0.43,0],scale:[1,1,0.66],color:c.main});\nm.box(0.08,0.07,0.02,{at:[0,0.43,0.115],color:'#f2c230'});\nm.box(0.04,0.035,0.022,{at:[0,0.43,0.117],color:c.main});\nm.tube([[0.15,0.68,0.02],[0.08,0.62,0.11],[-0.04,0.52,0.115],[-0.15,0.44,0.05],[-0.1,0.5,-0.11],[0.05,0.6,-0.11],[0.15,0.68,-0.02]],0.03,{color:c.second});",
+  "guarded": "function __gift(m, c) {__g();\nm.cylinder(0.17,0.17,0.07,{at:[0,0.43,0],scale:[1,1,0.66],color:c.main});\nm.box(0.08,0.07,0.02,{at:[0,0.43,0.115],color:'#f2c230'});\nm.box(0.04,0.035,0.022,{at:[0,0.43,0.117],color:c.main});\nm.tube([[0.15,0.68,0.02],[0.08,0.62,0.11],[-0.04,0.52,0.115],[-0.15,0.44,0.05],[-0.1,0.5,-0.11],[0.05,0.6,-0.11],[0.15,0.68,-0.02]],0.03,{color:c.second});\n}",
+  "room": "treasure-crane-4",
+  "name": {
+    "en": "Pirate Sash",
+    "fi": "Merirosvovyö"
+  },
+  "made": "2026-11-22T07:41:22.204Z"
+}

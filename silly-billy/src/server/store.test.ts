@@ -11,6 +11,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { ActionEntry, AvatarEntry, ItemEntry, PhraseEntry, Plan } from '../engine/protocol'
+import { CODE_KINDS } from './codeKinds'
 import { guard } from './guard'
 import { Store, finnishName, safeId } from './store'
 
@@ -96,15 +97,15 @@ describe('store', () => {
     store.save({ entry: action })
     store.save({ entry: item })
     store.save({ entry: avatar })
-    const fresh = { ...action, guarded: (guard('action', action.code) as { guarded: string }).guarded }
+    const fresh = { ...action, guarded: (guard(CODE_KINDS.action, action.code) as { guarded: string }).guarded }
     expect(fs.readFileSync(path.join(dir, 'actions', 'throw.json'), 'utf8')).toBe(`${JSON.stringify(fresh, null, 2)}\n`)
     expect(fs.existsSync(path.join(dir, 'items', 'bicycle.json'))).toBe(true)
     expect(fs.existsSync(path.join(dir, 'avatars', 'ella.json'))).toBe(true)
 
     const data = store.read()
-    expect(data.actions).toEqual([{ ...action, guarded: (guard('action', action.code) as { guarded: string }).guarded }])
-    expect(data.items[0]!.guarded).toBe((guard('model', item.code!) as { guarded: string }).guarded)
-    expect(data.items[0]!.tickGuarded).toBe((guard('tick', item.tick!) as { guarded: string }).guarded)
+    expect(data.actions).toEqual([{ ...action, guarded: (guard(CODE_KINDS.action, action.code) as { guarded: string }).guarded }])
+    expect(data.items[0]!.guarded).toBe((guard(CODE_KINDS.model, item.code!) as { guarded: string }).guarded)
+    expect(data.items[0]!.tickGuarded).toBe((guard(CODE_KINDS.tick, item.tick!) as { guarded: string }).guarded)
     expect(data.avatars).toEqual([avatar])
     expect(warnings).toEqual([])
   })
@@ -129,7 +130,7 @@ describe('store', () => {
     fs.writeFileSync(file, `${JSON.stringify({ ...action, guarded: 'an older guard' }, null, 2)}\n`)
     // A read-only library or a full disk, even for root: a folder where the write's temporary file would go.
     fs.mkdirSync(`${file}.${process.pid}.tmp`)
-    expect(store.read().actions.map((a) => [a.id, a.guarded])).toEqual([['throw', (guard('action', action.code) as { guarded: string }).guarded]])
+    expect(store.read().actions.map((a) => [a.id, a.guarded])).toEqual([['throw', (guard(CODE_KINDS.action, action.code) as { guarded: string }).guarded]])
     expect(warnings).toEqual([expect.stringContaining('library: could not bring actions/throw.json up to date: ')])
     expect(JSON.parse(fs.readFileSync(file, 'utf8')).guarded).toBe('an older guard')
   })
@@ -139,8 +140,8 @@ describe('store', () => {
     store.save({ entry: { ...action, guarded: 'function* () { while (true) {} }' } })
     store.save({ entry: { ...item, tickGuarded: 'function () { while (true) {} }' } })
     const saved = (folder: string, id: string) => JSON.parse(fs.readFileSync(path.join(dir, folder, `${id}.json`), 'utf8')) as Record<string, unknown>
-    expect(saved('actions', 'throw').guarded).toBe((guard('action', action.code) as { guarded: string }).guarded)
-    expect(saved('items', 'bicycle').tickGuarded).toBe((guard('tick', item.tick!) as { guarded: string }).guarded)
+    expect(saved('actions', 'throw').guarded).toBe((guard(CODE_KINDS.action, action.code) as { guarded: string }).guarded)
+    expect(saved('items', 'bicycle').tickGuarded).toBe((guard(CODE_KINDS.tick, item.tick!) as { guarded: string }).guarded)
     expect(() => store.save({ entry: { ...action, id: 'escape', code: 'top.location = "https://example.com"' } })).toThrow(/top is not defined/)
     expect(fs.existsSync(path.join(dir, 'actions', 'escape.json'))).toBe(false)
   })
@@ -251,7 +252,7 @@ describe('store', () => {
     // As in Sami's library of 2026-11-08: actions with no Finnish name, phrases with no Finnish line.
     const old = (e: ActionEntry | ItemEntry) => {
       const { nameFi: _fi, ...rest } = e
-      return { ...rest, guarded: (guard(e.type === 'action' ? 'action' : 'model', e.code!) as { guarded: string }).guarded, ...(e.type === 'item' ? { tickGuarded: (guard('tick', e.tick!) as { guarded: string }).guarded } : {}) }
+      return { ...rest, guarded: (guard(CODE_KINDS[e.type === 'action' ? 'action' : 'model'], e.code!) as { guarded: string }).guarded, ...(e.type === 'item' ? { tickGuarded: (guard(CODE_KINDS.tick, e.tick!) as { guarded: string }).guarded } : {}) }
     }
     fs.mkdirSync(path.join(dir, 'actions'))
     fs.mkdirSync(path.join(dir, 'items'))

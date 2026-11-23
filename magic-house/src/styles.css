@@ -1,0 +1,597 @@
+/* Magic House's own screens around the room (shell/): who plays, the house, the room's surface, the pause card and the cheer, on Silly Billy's sky and meadow (App.tsx sets its colours as the variables used here). Every word wears an ink border, as in the gallery, and faces are drawn as the gallery draws them. The HUD over the room has its own sheet (shell/Hud.css). */
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Fredoka Variable', 'Comic Sans MS', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mh-root {
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ a screen of the shell: sky, meadow, words with an ink border */
+
+.mh-page {
+  --pad-band: 0px;
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 2.4vmin, 26px);
+  padding: 16px 16px calc(16px + var(--pad-band));
+  text-align: center;
+  color: var(--white);
+  font-weight: 600;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 6px var(--ink);
+  text-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 35%, transparent);
+  background:
+    radial-gradient(circle at 7% 87%, var(--pink) 0 1.2vmin, transparent 1.3vmin),
+    radial-gradient(circle at 19% 94%, var(--gold) 0 1.2vmin, transparent 1.3vmin),
+    radial-gradient(circle at 33% 85%, var(--white) 0 1.2vmin, transparent 1.3vmin),
+    radial-gradient(circle at 61% 92%, var(--purple) 0 1.2vmin, transparent 1.3vmin),
+    radial-gradient(circle at 77% 86%, var(--pink) 0 1.2vmin, transparent 1.3vmin),
+    radial-gradient(circle at 92% 93%, var(--gold) 0 1.2vmin, transparent 1.3vmin),
+    radial-gradient(circle at 88% 13%, var(--gold) 0 7vmin, var(--glint) 7vmin 9.5vmin, transparent 9.5vmin),
+    linear-gradient(180deg, var(--sky-high) 0%, var(--sky) 80%, var(--grass) 80%, var(--grass-dark) 100%);
+}
+
+.mh-page h1 {
+  margin: 0;
+  font-size: clamp(40px, 9vmin, 108px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--gold);
+}
+
+.mh-page h2 {
+  margin: 0;
+  font-size: clamp(26px, 5.5vmin, 60px);
+  line-height: 1.1;
+}
+
+.mh-page p {
+  margin: 0;
+  max-width: 28ch;
+  font-size: clamp(20px, 4vmin, 40px);
+  line-height: 1.15;
+}
+
+.mh-page button,
+.pause-card button {
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.big-button,
+.small-button {
+  border: 5px solid var(--ink);
+  border-radius: 999px;
+  background: var(--pink);
+  -webkit-text-stroke: 5px var(--ink);
+  paint-order: stroke fill;
+  box-shadow: 0 6px 0 var(--ink);
+  font-weight: 600;
+}
+
+.big-button {
+  min-width: 6em;
+  padding: 0.25em 1.1em 0.3em;
+  font-size: clamp(28px, 6vmin, 60px);
+}
+
+.small-button {
+  padding: 0.15em 0.8em 0.2em;
+  font-size: clamp(18px, 3.2vmin, 30px);
+  background: var(--purple);
+}
+
+.big-button:active,
+.small-button:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.big-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.big-button:focus-visible,
+.small-button:focus-visible {
+  outline: 5px solid var(--white);
+  outline-offset: 3px;
+}
+
+/* A face as the gallery draws it, in a ring of its seat's colour (white while it has none). */
+.mh-page .avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.mh-page .no-face {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--white);
+}
+
+/* ------------------------------------------------------------------ who plays */
+
+.who .faces {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(10px, 3vmin, 32px);
+}
+
+.who .face-seat {
+  --seat: var(--white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.who .face-ring {
+  display: block;
+  width: clamp(90px, 20vmin, 200px);
+  height: clamp(90px, 20vmin, 200px);
+  box-sizing: border-box;
+  border: 8px solid color-mix(in srgb, var(--white) 55%, transparent);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--white);
+  opacity: 0.75;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.who .face-seat.seated .face-ring {
+  border-color: var(--seat);
+  opacity: 1;
+  box-shadow: 0 0 0 5px var(--ink);
+}
+
+.who .face-seat.next .face-ring {
+  opacity: 1;
+  border-color: var(--white);
+  animation: mh-breathe-face 1.4s ease-in-out infinite;
+}
+
+@keyframes mh-breathe-face {
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.who .face-name {
+  font-size: clamp(20px, 3.6vmin, 36px);
+  line-height: 1;
+}
+
+/* A device's mark: its stick and both buttons, keys as caps in a cross with a and b beside, a pad or a gamepad drawn; faint under a free face for the device it sat at last. */
+.who .device-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
+  -webkit-text-stroke: 0;
+}
+
+.who .device-mark.faint {
+  opacity: 0.5;
+}
+
+.who .device-mark .mark-stick {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 3px;
+}
+
+.who .device-mark .mark-buttons {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+}
+
+.who .device-mark .mark-b kbd {
+  font-size: clamp(11px, 1.8vmin, 17px);
+}
+
+.who .device-mark svg {
+  width: clamp(54px, 9vmin, 90px);
+  height: auto;
+}
+
+.who .device-mark .mark-body {
+  fill: var(--white);
+  stroke: var(--ink);
+  stroke-width: 4;
+}
+
+.who .device-mark .mark-ring {
+  fill: none;
+  stroke: var(--seat);
+  stroke-width: 4;
+}
+
+.who .device-mark .mark-knob,
+.who .device-mark .mark-press {
+  fill: var(--seat);
+  stroke: var(--ink);
+  stroke-width: 3;
+}
+
+.who .device-mark kbd {
+  min-width: 1.4em;
+  padding: 0.05em 0.25em;
+  border: 3px solid var(--ink);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  font-size: clamp(14px, 2.4vmin, 22px);
+}
+
+.who .press {
+  animation: mh-breathe-face 1.4s ease-in-out infinite;
+}
+
+/* Kept in its place when everyone sits, so Play never moves. */
+.who .press.hidden {
+  visibility: hidden;
+}
+
+/* The room a face's mark takes, mark or not, so a face sitting down moves nothing. */
+.who .mark-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(48px, 7vmin, 64px);
+}
+
+/* Above the touch pads the faces and the name are smaller, so all of it fits over the band. */
+.who.with-pads h1 {
+  font-size: clamp(32px, 6.4vmin, 76px);
+}
+
+.who.with-pads .face-ring {
+  width: clamp(80px, 15vmin, 150px);
+  height: clamp(80px, 15vmin, 150px);
+}
+
+.who-pads {
+  position: fixed;
+  inset: auto 0 0 0;
+  height: var(--pad-band);
+  -webkit-text-stroke: 5px var(--ink);
+}
+
+/* ------------------------------------------------------------------ the house */
+
+.house .house-top {
+  position: absolute;
+  inset: max(12px, env(safe-area-inset-top)) 16px auto 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.house .party {
+  display: flex;
+  gap: 10px;
+}
+
+.house .party-face {
+  display: block;
+  width: clamp(48px, 9vmin, 84px);
+  height: clamp(48px, 9vmin, 84px);
+  box-sizing: border-box;
+  border: 5px solid var(--seat);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--white);
+  box-shadow: 0 0 0 4px var(--ink);
+}
+
+/* No new room is coming this time: a soft line under the name for a moment. */
+.house .house-note {
+  margin: 0;
+  padding: 6px 18px;
+  border: 4px solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  font-size: clamp(18px, 3.4vmin, 32px);
+  animation: mh-cheer 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+.house .doors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: clamp(16px, 4vmin, 48px);
+  /* Many kept rooms: the hall scrolls, with room for the ringed door's outline. */
+  max-width: 100%;
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 14px;
+  box-sizing: border-box;
+}
+
+/* A room these players have played: a gold star on its door. */
+.house .door-star {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  width: 34%;
+  aspect-ratio: 1;
+  translate: -50% 0;
+  background: var(--gold);
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  filter: drop-shadow(0 0 2px var(--ink));
+}
+
+.house .door {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+/* A door: an arch in its paint with a knob, framed in ink; the ringed one (a seat's stick on it) glows. */
+.house .door-leaf {
+  position: relative;
+  display: block;
+  width: clamp(90px, 17vmin, 170px);
+  height: clamp(140px, 27vmin, 270px);
+  box-sizing: border-box;
+  border: 6px solid var(--ink);
+  border-radius: 999px 999px 10px 10px;
+  background:
+    linear-gradient(90deg, transparent 47%, color-mix(in srgb, var(--ink) 25%, transparent) 47% 53%, transparent 53%),
+    linear-gradient(180deg, color-mix(in srgb, var(--door) 70%, white), var(--door));
+  box-shadow: 0 8px 0 var(--ink);
+  transition: transform 0.15s;
+}
+
+.house .door-knob {
+  position: absolute;
+  right: 14%;
+  top: 55%;
+  width: 14%;
+  aspect-ratio: 1;
+  border: 4px solid var(--ink);
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.house .door.ringed .door-leaf {
+  outline: 6px solid var(--white);
+  outline-offset: 5px;
+  transform: translateY(-6px);
+}
+
+.house .door:active .door-leaf {
+  transform: translateY(4px);
+}
+
+.house .door-name {
+  max-width: 8em;
+  font-size: clamp(20px, 3.6vmin, 36px);
+  line-height: 1.05;
+}
+
+/* The glowing door for a new room: gold with a halo that breathes and a sparkle that turns; while its room is made it stays shut, a little greyed, with its bar under it. */
+.house .new-door .door-leaf {
+  box-shadow:
+    0 8px 0 var(--ink),
+    0 0 0 0 var(--glint);
+  animation: mh-glow 1.6s ease-in-out infinite;
+}
+
+.house .new-door.making .door-leaf {
+  filter: saturate(0.55);
+  animation: none;
+}
+
+.sparkle {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  width: 34%;
+  aspect-ratio: 1;
+  translate: -50% 0;
+  background: var(--white);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: mh-sparkle 2.4s linear infinite;
+}
+
+.house .new-door.making .sparkle {
+  opacity: 0.5;
+}
+
+.house .new-word {
+  color: var(--gold);
+}
+
+@keyframes mh-glow {
+  50% {
+    box-shadow:
+      0 8px 0 var(--ink),
+      0 0 34px 12px var(--glint);
+  }
+}
+
+@keyframes mh-sparkle {
+  to {
+    rotate: 360deg;
+  }
+}
+
+/* The bar of a room being made: it fills from --from to 95% over --secs (shell/newDoor.ts BAR_MOST), drawn here so nothing re-renders. */
+.wait-bar {
+  display: block;
+  width: clamp(110px, 20vmin, 220px);
+  height: clamp(14px, 2.4vmin, 24px);
+  margin: 8px auto 0;
+  box-sizing: border-box;
+  border: 4px solid var(--ink);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--white);
+}
+
+.wait-fill {
+  display: block;
+  height: 100%;
+  background: var(--gold);
+  transform-origin: left;
+  transform: scaleX(var(--from));
+  animation: mh-fill var(--secs) linear forwards;
+}
+
+@keyframes mh-fill {
+  from {
+    transform: scaleX(var(--from));
+  }
+  to {
+    transform: scaleX(0.95);
+  }
+}
+
+/* ------------------------------------------------------------------ the wait behind the new door */
+
+.waiting .waiting-door {
+  position: relative;
+  width: clamp(110px, 22vmin, 220px);
+  height: clamp(170px, 34vmin, 340px);
+  box-sizing: border-box;
+  border: 6px solid var(--ink);
+  border-radius: 999px 999px 10px 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 70%, white), var(--gold));
+  box-shadow: 0 8px 0 var(--ink);
+  animation: mh-glow 1.6s ease-in-out infinite;
+}
+
+.waiting .wait-bar {
+  width: clamp(220px, 50vmin, 520px);
+  height: clamp(22px, 4vmin, 40px);
+}
+
+.waiting .soon {
+  margin: 0;
+  font-size: clamp(22px, 4vmin, 40px);
+}
+
+/* ------------------------------------------------------------------ the room: its surface, the pause card, the cheer */
+
+.room-surface {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}
+
+.pause-card-back {
+  position: fixed;
+  inset: 0;
+  /* Over the HUD and the helper's bubble (HelperBubble.css, z-index 2), which stay up while the room waits. */
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+  color: var(--white);
+  font-weight: 600;
+}
+
+.pause-card {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 3vmin, 28px);
+  padding: clamp(20px, 5vmin, 48px);
+  border: 6px solid var(--ink);
+  border-radius: 32px;
+  background: var(--sky);
+  box-shadow: 0 10px 0 var(--ink);
+}
+
+.cheer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 30%;
+  text-align: center;
+  pointer-events: none;
+  color: var(--gold);
+  font-weight: 700;
+  font-size: clamp(64px, 16vmin, 180px);
+  paint-order: stroke fill;
+  -webkit-text-stroke: 10px var(--ink);
+  text-shadow: 0 8px 0 color-mix(in srgb, var(--ink) 40%, transparent);
+  animation: mh-cheer 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+@keyframes mh-cheer {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ a column for each player (the dressing room, the quiz) */
+
+.columns {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: clamp(8px, 2vmin, 24px);
+  width: 100%;
+}
+
+.column {
+  --seat: var(--white);
+  flex: 1 1 0;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 2vmin, 20px);
+  padding: clamp(10px, 2.4vmin, 24px);
+  border: 6px solid var(--seat);
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--seat) 30%, transparent);
+  box-shadow: 0 0 0 4px var(--ink);
+}
+
+.column .column-face {
+  display: block;
+  width: clamp(80px, 16vmin, 160px);
+  height: clamp(80px, 16vmin, 160px);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--white);
+}

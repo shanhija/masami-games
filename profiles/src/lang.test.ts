@@ -23,8 +23,21 @@ import { describe, expect, it } from 'vitest'
 /** Games not yet in both languages. Each leaves this list in the commit that makes it so; then the list goes. */
 const PENDING = new Set(['silly-billy'])
 
-/** Files only a developer sees (the `?sheet` pages), or that only a model reads (Silly Billy's dev server, its guard of made code, the API and the scene as the interpreter and the designer are told them). */
-const DEV_ONLY: readonly RegExp[] = [/\/Sheet\.tsx$/, /^silly-billy\/src\/server\//, /^silly-billy\/src\/engine\/(sandbox|apidoc)\.ts$/, /^silly-billy\/src\/brain\/context\.ts$/]
+/**
+ * Files only a developer sees (the `?sheet` pages), or that only a model reads: Silly Billy's dev
+ * server, its guard of made code, the API and the scene as the interpreter and the designer are
+ * told them; Magic House's dev server (its prompts among it) and the reference Opus designs
+ * against, a line beside each call: the builder's, the look's, the bots' and a present's; and what its trial
+ * says back to the designer (the survey of a room as built, the trial's sentences).
+ */
+const DEV_ONLY: readonly RegExp[] = [
+  /\/Sheet\.tsx$/,
+  /^silly-billy\/src\/server\//,
+  /^silly-billy\/src\/engine\/(sandbox|apidoc)\.ts$/,
+  /^silly-billy\/src\/brain\/context\.ts$/,
+  /^magic-house\/src\/server\//,
+  /^magic-house\/src\/(engine\/api|engine\/look|trial\/api|engine\/gift|engine\/survey|trial\/trial)\.ts$/,
+]
 
 /** Literals that look like words and are not: key names, fonts. */
 const NOT_WORDS = new Set(['Enter', 'Escape', 'Space', 'Tab', 'Shift', 'Backspace', 'Control', 'Alt', 'Meta', 'Delete', 'Home', 'End', 'Fredoka', 'Fredoka Variable'])

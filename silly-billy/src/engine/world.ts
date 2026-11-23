@@ -14,6 +14,7 @@ import { anglesOf, apply, child, eulerXYZ, eulerYXZ, handFrame, hugFrame, IDENTI
 import { boundsOf, parseColor } from './kit'
 import { measure, type Library } from './library'
 import { inWater, groundAt, ROOM_GEO, WATER_Y } from './rooms'
+import { PUFF_CAP } from '../scene/puffCap'
 import { terrainOf } from './sky'
 import {
   BODY_KINDS, MOODS, PUFF_KINDS, ROOM_HALF, SLOTS, SOUND_NAMES, restPose,
@@ -24,7 +25,8 @@ import {
 export const CAMERA_FACING = (35 * Math.PI) / 180
 export const GRAVITY = 9.8
 export const TAU = Math.PI * 2
-export const MAX_PUFFS = 600
+/** The most puffs the world keeps, as many as the scene's Effects draws (scene/puffCap.ts). */
+export const MAX_PUFFS = PUFF_CAP
 /** More things than this in a room and making one more takes the oldest loose one away. */
 export const MAX_ITEMS = 160
 /** How long code may leave a thing in the air before it falls. */

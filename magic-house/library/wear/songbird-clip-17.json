@@ -1,0 +1,13 @@
+{
+  "id": "songbird-clip-17",
+  "slot": "hair",
+  "form": "A small round songbird perches on the side of the head. It has an egg-shaped body, a round head with a thin pointed beak, a flat curved wing and a fanned tail. It is about the size of a fist.",
+  "code": "m.part('bird',{at:[0.22,0.15,-0.02]},()=>{m.sphere(0.07,{scale:[0.9,0.85,1.3],color:c.main});m.sphere(0.05,{at:[0,0.06,0.07],color:c.main});m.cone(0.018,0.05,{at:[0,0.06,0.135],rot:[Math.PI/2,0,0],color:'#ffb030'});m.sphere(0.01,{at:[0.04,0.075,0.09],color:'#111111'});m.sphere(0.04,{at:[0.055,0.01,-0.01],scale:[0.3,0.8,1.5],color:c.second});m.extrude([[0,0],[-0.05,-0.1],[0.05,-0.1]],0.015,{at:[0,0,-0.09],rot:[-1.2,0,0],color:c.second});});",
+  "guarded": "function __gift(m, c) {__g();\nm.part('bird',{at:[0.22,0.15,-0.02]},()=>{__g();m.sphere(0.07,{scale:[0.9,0.85,1.3],color:c.main});m.sphere(0.05,{at:[0,0.06,0.07],color:c.main});m.cone(0.018,0.05,{at:[0,0.06,0.135],rot:[Math.PI/2,0,0],color:'#ffb030'});m.sphere(0.01,{at:[0.04,0.075,0.09],color:'#111111'});m.sphere(0.04,{at:[0.055,0.01,-0.01],scale:[0.3,0.8,1.5],color:c.second});m.extrude([[0,0],[-0.05,-0.1],[0.05,-0.1]],0.015,{at:[0,0,-0.09],rot:[-1.2,0,0],color:c.second});});\n}",
+  "room": "the-singing-keys-5",
+  "name": {
+    "en": "Songbird Clip",
+    "fi": "Laululintupinni"
+  },
+  "made": "2026-11-22T13:44:20.883Z"
+}

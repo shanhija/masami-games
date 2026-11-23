@@ -21,9 +21,10 @@ import { Library } from '../engine/library'
 import { createWorld } from '../engine/sim'
 import type { Lang } from '../engine/lang'
 import type { RoomId } from '../engine/types'
-import { contextNames, fromElsewhere, guardScripts, leakedMarkup, listLostKinds, meetRoomWater, tidyPlan } from './api'
+import { contextNames, fromElsewhere, guardScripts, leakedMarkup, listLostKinds, meetRoomWater, tidyPlan, type Deps } from './api'
+import { CODE_KINDS } from './codeKinds'
 import { guard } from './guard'
-import { API_PATH, sillyBilly } from './plugin'
+import { apiPath, gameApi, type ApiModule } from './plugin'
 import { ACTION_SYSTEM, INTERPRET_SYSTEM, ITEM_SYSTEM, PLAN_SCHEMA } from './prompts'
 import { alive, fakeBin, freePort, until } from './test/fakes'
 import { RATE, wav } from '../voice/mic'
@@ -34,6 +35,11 @@ type Handler = (req: http.IncomingMessage, res: http.ServerResponse, next: () =>
 
 /** The repo's root, where Vite's module runner finds /silly-billy/src/server/api.ts. */
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url))
+/** Silly Billy's API as vite.config.ts serves it, and where its page reaches it. */
+const sillyApi = () => gameApi('silly-billy', '/silly-billy/src/server/api.ts')
+const API_PATH = apiPath('silly-billy')
+/** api.ts is what the loader takes it for: a type error here when it is not. */
+const fits: typeof import('./api') extends ApiModule<Deps> ? true : false = true
 /** What the plugin told the pages over Vite's websocket. */
 const told: { event: string; data: unknown }[] = []
 
@@ -126,7 +132,7 @@ async function serve(): Promise<{ base: string; server: http.Server; handler: Ha
     ssrLoadModule: (url: string) => import(path.join(ROOT, url)),
     ws: { send: (event: string, data: unknown) => told.push({ event, data }) },
   }
-  ;(sillyBilly().configureServer as (s: ViteDevServer) => void)(stub as unknown as ViteDevServer)
+  ;(sillyApi().configureServer as (s: ViteDevServer) => void)(stub as unknown as ViteDevServer)
   const http_ = http.createServer((req, res) => {
     req.url = req.url!.slice(API_PATH.length) || '/'
     mounted!(req, res, () => {})
@@ -168,11 +174,12 @@ afterAll(async () => {
 })
 
 describe('the plugin', () => {
-  it('runs only under vite serve', () => {
-    const apply = sillyBilly().apply as (config: object, env: { command: string; mode: string }) => boolean
+  it("runs only under vite serve, at the game's own ./api/", () => {
+    const apply = sillyApi().apply as (config: object, env: { command: string; mode: string }) => boolean
     expect(apply({}, { command: 'serve', mode: 'development' })).toBe(true)
     expect(apply({}, { command: 'serve', mode: 'test' })).toBe(false)
     expect(apply({}, { command: 'build', mode: 'production' })).toBe(false)
+    expect([sillyApi().name, API_PATH, apiPath('some-game'), fits]).toEqual(['silly-billy-api', '/silly-billy/api', '/some-game/api', true])
   })
 
   it('does nothing before the first request', () => {
@@ -285,6 +292,7 @@ describe('the plugin', () => {
     expect([plan.heard, plan.heardFi, plan.say, plan.sayFi]).toEqual([MESSY.heard, MESSY.heardFi, MESSY.say, MESSY.sayFi])
     const call = calls().at(-1)!
     expect(call.argv.slice(call.argv.indexOf('--model'), call.argv.indexOf('--model') + 2)).toEqual(['--model', 'opus'])
+    expect(call.argv[call.argv.indexOf('--effort') + 1]).toBe('low')
     expect(call.argv[call.argv.indexOf('--system-prompt') + 1]).toBe(INTERPRET_SYSTEM)
     expect(call.argv[call.argv.indexOf('--json-schema') + 1]).toBe(JSON.stringify(PLAN_SCHEMA))
     expect(call.prompt).toContain('- steve Eetu kid he')
@@ -368,10 +376,11 @@ describe('the plugin', () => {
     expect(progress.every((p, i) => p > 0 && p < 1 && (i === 0 || p > progress[i - 1]!))).toBe(true)
     const { done } = out.at(-1) as { done: ActionEntry; ms: number }
     expect(done).toMatchObject({ type: 'action', id: 'throw', name: 'throw', nameFi: 'heitä', calls: THROW.calls, about: THROW.about, params: THROW.params, code: CODE, by: 'opus', asked: 'alis heitä pallo stiiville' })
-    expect(done.guarded).toBe((guard('action', CODE) as { guarded: string }).guarded)
+    expect(done.guarded).toBe((guard(CODE_KINDS.action, CODE) as { guarded: string }).guarded)
     expect(Date.parse(done.made)).toBeGreaterThan(0)
     const call = calls().at(-1)!
     expect(call.argv[call.argv.indexOf('--model') + 1]).toBe('opus')
+    expect(call.argv[call.argv.indexOf('--effort') + 1]).toBe('low')
     expect(call.argv[call.argv.indexOf('--system-prompt') + 1]).toBe(ACTION_SYSTEM)
   })
 
@@ -396,8 +405,8 @@ describe('the plugin', () => {
     const out = await invent({ kind: 'item', spec: BIKE, words: 'steve aja pyörällä', context: 'Room: forest' })
     const { done } = out.at(-1) as { done: ItemEntry }
     expect(done).toMatchObject({ type: 'item', id: 'bicycle', nameFi: 'polkupyörä', calls: BIKE.calls, code: MODEL, tick: TICK, rough: BIKE.rough, roughMeta: BIKE.meta, by: 'opus' })
-    expect(done.guarded).toBe((guard('model', MODEL) as { guarded: string }).guarded)
-    expect(done.tickGuarded).toBe((guard('tick', TICK) as { guarded: string }).guarded)
+    expect(done.guarded).toBe((guard(CODE_KINDS.model, MODEL) as { guarded: string }).guarded)
+    expect(done.tickGuarded).toBe((guard(CODE_KINDS.tick, TICK) as { guarded: string }).guarded)
     expect(calls().at(-1)!.argv).toContain(ITEM_SYSTEM)
     expect(calls().at(-1)!.prompt).not.toContain('nameFi')
     answers({})
@@ -430,7 +439,7 @@ describe('the plugin', () => {
     const phrase = { words: 'alis heitä pallo', plan: { ...MESSY, steps: [{ who: 'alice', action: 'throw', args: [] }] }, made: entry.made }
     expect((await post('/library', { phrase })).status).toBe(200)
     const data = (await get('/library')).body as unknown as LibraryData
-    expect(data.actions.map((a) => [a.id, a.guarded === (guard('action', CODE) as { guarded: string }).guarded])).toEqual([['throw', true]])
+    expect(data.actions.map((a) => [a.id, a.guarded === (guard(CODE_KINDS.action, CODE) as { guarded: string }).guarded])).toEqual([['throw', true]])
     expect(data.phrases.map((p) => p.words)).toEqual(['alis heitä pallo'])
     expect(await post('/forget', { type: 'action', id: 'throw' })).toEqual({ status: 200, body: { ok: true, existed: true } })
     const after = (await get('/library')).body as unknown as LibraryData
@@ -446,7 +455,7 @@ describe('the plugin', () => {
     expect(told.map((t) => t.event)).toEqual([LIBRARY_EVENT, LIBRARY_EVENT])
     const [saved, forgot] = told.map((t) => t.data as LibraryNews)
     // As the server keeps it: its id made safe and its code guarded afresh.
-    expect(saved).toMatchObject({ from: 'page-a', entry: { id: 'toss-twice', guarded: (guard('action', CODE) as { guarded: string }).guarded } })
+    expect(saved).toMatchObject({ from: 'page-a', entry: { id: 'toss-twice', guarded: (guard(CODE_KINDS.action, CODE) as { guarded: string }).guarded } })
     expect(forgot).toEqual({ from: 'page-b', forgot: { type: 'action', id: 'toss-twice' } })
   })
 
@@ -510,10 +519,10 @@ describe('the plugin', () => {
 })
 
 describe('the plugin after the server code changes', () => {
-  /** An api.ts that reports which word it was built with, and when its Api is built and closed. */
+  /** An API module that reports which word it was built with, and when its Api is built and closed. */
   const API_STUB = [
     "import { word } from './word'",
-    'const seen = ((globalThis as Record<string, unknown>).__sillyReload ??= { built: [], closed: [] }) as { built: string[]; closed: string[] }',
+    'const seen = ((globalThis as Record<string, unknown>).__apiReload ??= { built: [], closed: [] }) as { built: string[]; closed: string[] }',
     'export function depsFromEnv() { return {} }',
     'export class Api {',
     '  constructor() { seen.built.push(word) }',
@@ -523,14 +532,15 @@ describe('the plugin after the server code changes', () => {
   ].join('\n')
 
   it('closes the old API and builds a fresh one on the next request after a file it uses changed, and only then', async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'silly-billy-reload-'))
-    const src = path.join(root, 'silly-billy', 'src', 'server')
+    // Another game, its API module where that game keeps it: the loader takes both from its caller.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'game-api-reload-'))
+    const src = path.join(root, 'some-game', 'src')
     fs.mkdirSync(src, { recursive: true })
     const write = (file: string, text: string) => fs.writeFileSync(path.join(src, file), text)
     write('api.ts', API_STUB)
     write('word.ts', "export const word = 'one'\n")
     write('other.ts', 'export const other = 1\n')
-    const seen = ((globalThis as Record<string, unknown>).__sillyReload = { built: [] as string[], closed: [] as string[] })
+    const seen = ((globalThis as Record<string, unknown>).__apiReload = { built: [] as string[], closed: [] as string[] })
     // The watcher is Vite's own handling of a changed file, told by hand: a plugin's watchChange hook says when it got there.
     let changed = (_file: string) => {}
     const { createServer } = await import('vite')
@@ -542,12 +552,12 @@ describe('the plugin after the server code changes', () => {
       appType: 'custom',
       cacheDir: path.join(root, '.vite'),
       server: { middlewareMode: true, hmr: false, watch: null },
-      plugins: [sillyBilly(), { name: 'told', watchChange: (file: string) => changed(file) }],
+      plugins: [gameApi('some-game', '/some-game/src/api.ts'), { name: 'told', watchChange: (file: string) => changed(file) }],
     })
     const app = http.createServer(vite.middlewares)
     await new Promise<void>((r) => app.listen(0, '127.0.0.1', r))
     const ask = async () => {
-      const r = await fetch(`http://127.0.0.1:${(app.address() as { port: number }).port}${API_PATH}/status`)
+      const r = await fetch(`http://127.0.0.1:${(app.address() as { port: number }).port}${apiPath('some-game')}/status`)
       return { status: r.status, body: (await r.json()) as { word?: string; error?: string } }
     }
     const change = async (file: string, text?: string) => {
@@ -762,7 +772,7 @@ describe('scripts', () => {
 
   it('guards the code for the page, or says why it is refused, and leaves no code to the designer', () => {
     const [ok] = guardScripts(tidyPlan(withScript("const l = w.make('ladder')\nl.attachTo(w.find('treehouse'), 'front')"), 'fi')).scripts!
-    expect(ok!.guarded).toBe((guard('action', ok!.code) as { guarded: string }).guarded)
+    expect(ok!.guarded).toBe((guard(CODE_KINDS.action, ok!.code) as { guarded: string }).guarded)
     const [bad] = guardScripts(tidyPlan(withScript('window.open()'), 'fi')).scripts!
     expect(bad).toMatchObject({ guarded: null, refused: expect.stringContaining('window') })
     const [none] = guardScripts(tidyPlan(withScript(''), 'fi')).scripts!

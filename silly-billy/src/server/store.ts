@@ -17,7 +17,8 @@ import path from 'node:path'
 
 import { CAST } from '../content/cast'
 import { planUses, slugOf, type Entry, type ForgetRequest, type LibraryData, type PhraseEntry, type SaveRequest } from '../engine/protocol'
-import { guard, type CodeKind } from './guard'
+import { CODE_KINDS, type CodeKind } from './codeKinds'
+import { guard } from './guard'
 
 const FOLDER: Record<Entry['type'], string> = { item: 'items', action: 'actions', avatar: 'avatars' }
 
@@ -43,7 +44,7 @@ export function finnishName(e: { id: string; name: string; nameFi?: unknown; cal
 const playsToday = (p: PhraseEntry | null): boolean => typeof p?.plan?.heardFi === 'string' && p.plan.heardFi.trim() !== ''
 
 function mustGuard(kind: CodeKind, code: string): string {
-  const g = guard(kind, code)
+  const g = guard(CODE_KINDS[kind], code)
   if (!g.ok) throw new Error(g.error)
   return g.guarded
 }

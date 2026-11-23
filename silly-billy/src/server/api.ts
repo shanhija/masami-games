@@ -38,6 +38,7 @@ import {
 import { SLOTS, type Slot } from '../engine/types'
 import type { MicInfo } from '../voice/mic'
 import { Claude, Pool, findClaude, once, type Spec } from './claude'
+import { CODE_KINDS } from './codeKinds'
 import { guard } from './guard'
 import { ACTION_SCHEMA, ACTION_SYSTEM, INTERPRET_SYSTEM, ITEM_SCHEMA, ITEM_SYSTEM, PLAN_SCHEMA, interpretMessage, inventMessage, lacksFinnishName, type ActionDesign, type ItemDesign } from './prompts'
 import { Store, finnishName, safeId } from './store'
@@ -414,7 +415,7 @@ export function guardScripts(plan: Plan): Plan {
     scripts: plan.scripts.map((sc) => {
       const code = unfence(sc.code)
       if (code.trim() === '') return { ...sc, code: '', guarded: null }
-      const g = guard('action', code)
+      const g = guard(CODE_KINDS.action, code)
       return g.ok ? { ...sc, code, guarded: g.guarded } : { ...sc, code, guarded: null, refused: g.error }
     }),
   }
@@ -442,13 +443,13 @@ function entryOf(req: InventRequest, design: ActionDesign | ItemDesign): Made {
   const calls = given ? [...new Set([...req.spec.calls, given.toLowerCase()])] : req.spec.calls
   const base = { id: safeId(req.spec.id), name: req.spec.name, nameFi, calls, about: req.spec.about, by: 'opus' as const, asked: req.words, made: new Date().toISOString() }
   if (req.kind === 'action' || req.kind === 'script') {
-    const g = guard('action', code)
+    const g = guard(CODE_KINDS.action, code)
     return g.ok ? { entry: { type: 'action', ...base, params: req.spec.params, code, guarded: g.guarded } } : { error: g.error, code }
   }
-  const model = guard('model', code)
+  const model = guard(CODE_KINDS.model, code)
   if (!model.ok) return { error: model.error, code }
   const tickCode = 'tick' in design && design.tick?.trim() ? unfence(design.tick) : null
-  const tick = tickCode === null ? null : guard('tick', tickCode)
+  const tick = tickCode === null ? null : guard(CODE_KINDS.tick, tickCode)
   if (tick && !tick.ok) return { error: `in tick: ${tick.error}`, code: `${code}\n\n// tick:\n${tickCode}` }
   return {
     entry: { type: 'item', ...base, code, guarded: model.guarded, tick: tickCode, tickGuarded: tick ? tick.guarded : null, rough: req.spec.rough, roughMeta: req.spec.meta },
@@ -467,7 +468,7 @@ export class Api {
   }
 
   private pool(): Pool {
-    this.interpreter ??= new Pool(this.needClaude(), { model: this.deps.models.interpret, system: INTERPRET_SYSTEM, schema: PLAN_SCHEMA }, POOL, TURNS)
+    this.interpreter ??= new Pool(this.needClaude(), { model: this.deps.models.interpret, effort: 'low', system: INTERPRET_SYSTEM, schema: PLAN_SCHEMA }, POOL, TURNS)
     return this.interpreter
   }
 
@@ -604,8 +605,8 @@ export class Api {
     const claude = this.needClaude()
     const designer: Spec =
       req.kind === 'item'
-        ? { model: this.deps.models.invent, system: ITEM_SYSTEM, schema: ITEM_SCHEMA }
-        : { model: this.deps.models.invent, system: ACTION_SYSTEM, schema: ACTION_SCHEMA }
+        ? { model: this.deps.models.invent, effort: 'low', system: ITEM_SYSTEM, schema: ITEM_SCHEMA }
+        : { model: this.deps.models.invent, effort: 'low', system: ACTION_SYSTEM, schema: ACTION_SCHEMA }
 
     res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store' })
     const line = (l: InventLine) => {

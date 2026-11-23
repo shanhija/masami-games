@@ -1,0 +1,13 @@
+{
+  "id": "meadow-grass-belt-25",
+  "slot": "body",
+  "form": "A soft round belt hugs the hips, with tall thin grass blades sticking out and up round it like tufts of the meadow, and a few small fireflies glowing among the blades.",
+  "code": "m.torus(0.15,0.025,{at:[0,0.4,0],rot:[Math.PI/2,0,0],scale:[1.15,0.7,1],color:c.main});\nfor(let i=0;i<22;i++){const a=i/22*Math.PI*2;const x=Math.sin(a)*0.18,z=Math.cos(a)*0.12;const h=0.12+Math.random()*0.08;\nm.cone(0.018,h,{at:[x,0.4-h/2+0.02,z],rot:[Math.PI,0,0],color:c.second});}\nfor(let i=0;i<5;i++){const a=i/5*Math.PI*2+0.3;m.sphere(0.02,{at:[Math.sin(a)*0.21,0.33,Math.cos(a)*0.15],color:'#d8ff5a',glow:true});}",
+  "guarded": "function __gift(m, c) {__g();\nm.torus(0.15,0.025,{at:[0,0.4,0],rot:[Math.PI/2,0,0],scale:[1.15,0.7,1],color:c.main});\nfor(let i=0;i<22;i++){__g();const a=i/22*Math.PI*2;const x=Math.sin(a)*0.18,z=Math.cos(a)*0.12;const h=0.12+Math.random()*0.08;\nm.cone(0.018,h,{at:[x,0.4-h/2+0.02,z],rot:[Math.PI,0,0],color:c.second});}\nfor(let i=0;i<5;i++){__g();const a=i/5*Math.PI*2+0.3;m.sphere(0.02,{at:[Math.sin(a)*0.21,0.33,Math.cos(a)*0.15],color:'#d8ff5a',glow:true});}\n}",
+  "room": "firefly-chase-7",
+  "name": {
+    "en": "Meadow Grass Belt",
+    "fi": "Niittyvyö"
+  },
+  "made": "2026-11-22T14:15:50.237Z"
+}

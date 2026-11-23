@@ -1,0 +1,13 @@
+{
+  "id": "clothespin-clips-43",
+  "slot": "hair",
+  "form": "Two big wooden clothespins clipped into the hair, one on each side of the head: each two long thin flat prongs held together by a small round metal spring in the middle, about as long as the child's hand.",
+  "code": "[1,-1].forEach(s=>{\n m.part('pin',{at:[0.23*s,0.12,-0.03],rot:[0,0,-0.45*s]},()=>{\n  m.box(0.025,0.2,0.03,{at:[-0.016,0,0],color:c.main});\n  m.box(0.025,0.2,0.03,{at:[0.016,0,0],color:c.main});\n  m.torus(0.026,0.007,{at:[0,0.01,0],rot:[0,Math.PI/2,0],color:'#c0c0c8'});\n  m.box(0.06,0.012,0.032,{at:[0,0.09,0],color:c.second});\n });\n});",
+  "guarded": "function __gift(m, c) {__g();\n[1,-1].forEach(s=>{__g();\n m.part('pin',{at:[0.23*s,0.12,-0.03],rot:[0,0,-0.45*s]},()=>{__g();\n  m.box(0.025,0.2,0.03,{at:[-0.016,0,0],color:c.main});\n  m.box(0.025,0.2,0.03,{at:[0.016,0,0],color:c.main});\n  m.torus(0.026,0.007,{at:[0,0.01,0],rot:[0,Math.PI/2,0],color:'#c0c0c8'});\n  m.box(0.06,0.012,0.032,{at:[0,0.09,0],color:c.second});\n });\n});\n}",
+  "room": "the-sock-race-3",
+  "name": {
+    "en": "Clothespin Clips",
+    "fi": "Pyykkipojat"
+  },
+  "made": "2026-11-22T22:34:18.652Z"
+}

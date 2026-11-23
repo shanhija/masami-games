@@ -8,7 +8,7 @@
 // '.js': vite.config.ts reads this file too, and its loader wants the extension.
 import type { Words } from './lang.js'
 
-export const GAME_FOLDERS = ['chase', 'foot-chase', 'castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'monster-lunch', 'digger-town', 'silly-billy'] as const
+export const GAME_FOLDERS = ['chase', 'foot-chase', 'castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'monster-lunch', 'digger-town', 'silly-billy', 'magic-house'] as const
 export type GameFolder = (typeof GAME_FOLDERS)[number]
 
 /** What a card says: the game's name, one line about it, and how many play. */
@@ -33,4 +33,5 @@ export const DIRECTORY: Record<GameFolder, Card> = {
   'monster-lunch': { name: { en: 'Monster Lunch', fi: 'Hirviön lounas' }, blurb: { en: 'Make lunch. Feed the monster!', fi: 'Tee lounas. Ruoki hirviö!' }, players: ONE },
   'digger-town': { name: { en: 'Digger Town', fi: 'Kaivurikylä' }, blurb: { en: 'Dig, dump and build. Talk to the machines!', fi: 'Kaiva, kippaa ja rakenna. Puhu koneille!' }, players: ONE },
   'silly-billy': { name: { en: 'Silly Billy', fi: 'Hassu Billy' }, blurb: { en: 'Tell them what to do. They learn new tricks!', fi: 'Kerro, mitä tehdä. Ne oppivat uusia temppuja!' }, players: ONE },
+  'magic-house': { name: { en: 'Magic House', fi: 'Taikatalo' }, blurb: { en: 'Open a door. Find out what the room wants!', fi: 'Avaa ovi. Keksi, mitä huone haluaa!' }, players: { en: '1 to 4 players', fi: '1–4 pelaajaa' } },
 }

@@ -1,0 +1,13 @@
+{
+  "id": "big-drumstick-39",
+  "slot": "hand",
+  "form": "A long wooden drumstick, a thin round shaft that tapers gently to a narrow neck and ends in a small round bead tip, about half a metre long, almost half the child's height.",
+  "code": "m.lathe([[0,0],[0.02,0.004],[0.022,0.04],[0.017,0.38],[0.008,0.44],[0,0.45]],{color:c.main});\nm.sphere(0.024,{at:[0,0.46,0],scale:[1,1.3,1],color:c.second});\nm.cylinder(0.024,0.024,0.03,{at:[0,0.08,0],color:c.second});\nm.cylinder(0.024,0.024,0.03,{at:[0,0.16,0],color:c.second});\nm.anchor('hand',[0,0.12,0]);",
+  "guarded": "function __gift(m, c) {__g();\nm.lathe([[0,0],[0.02,0.004],[0.022,0.04],[0.017,0.38],[0.008,0.44],[0,0.45]],{color:c.main});\nm.sphere(0.024,{at:[0,0.46,0],scale:[1,1.3,1],color:c.second});\nm.cylinder(0.024,0.024,0.03,{at:[0,0.08,0],color:c.second});\nm.cylinder(0.024,0.024,0.03,{at:[0,0.16,0],color:c.second});\nm.anchor('hand',[0,0.12,0]);\n}",
+  "room": "the-drum-room-2",
+  "name": {
+    "en": "Big Drumstick",
+    "fi": "Iso rumpukapula"
+  },
+  "made": "2026-11-22T22:29:22.176Z"
+}

@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ActorApi, Args, WorldApi } from './api'
-import { compileAction, compileModel, compileTick, describeError, GUARD_LIMIT, GUARD_MS, GuardError, resetGuard } from './sandbox'
+import { Budget, compile, compileAction, compileModel, compileTick, describeError, GUARD_LIMIT, GUARD_MS, GuardError, resetGuard } from './sandbox'
 import { Kit } from './kit'
 import { guardedAction } from './testing'
 
@@ -129,5 +129,81 @@ describe('sandbox', () => {
     expect(it.x).toBe(0.5)
     expect(() => compileAction(guardedAction('__g();yield )('))).toThrow(SyntaxError)
     expect(() => compileModel('42')).toThrow(/not a function/)
+  })
+})
+
+describe('another game on the sandbox', () => {
+  /** A room's code as the guard makes it: it builds once and hands back what runs every step. */
+  const ROOM = 'function __room(r, w) {__g();\nfor (let i = 0; i < 10; i++) {__g(); r.n++ }\nreturn () => {__g(); r.n++ }\n}'
+
+  it('compiles any guarded function against a budget of its own, which weighs a call or a run of calls by its turns', () => {
+    const budget = new Budget(null)
+    const room = compile(ROOM, 'room', budget, {}) as (r: { n: number }, w: object) => () => void
+    const r = { n: 0 }
+    budget.start(1000, 'the room took too many turns to build')
+    const step = room(r, {})
+    expect([r.n, budget.spent]).toEqual([10, 11])
+    // What the code made counts against the same budget, run after run.
+    budget.start(5, 'a step took too many turns')
+    step()
+    step()
+    expect([r.n, budget.spent]).toEqual([12, 2])
+    // Past the caller's limit, GuardError says the caller's words, and the line is the designer's.
+    budget.start(3, 'a step took too many turns')
+    for (let i = 0; i < 3; i++) step()
+    let err: unknown = null
+    try {
+      step()
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(GuardError)
+    expect(describeError(err)).toBe('GuardError: a step took too many turns (line 2)')
+    // A run with no limit only counts.
+    budget.start(Infinity, 'never said')
+    for (let i = 0; i < 2000; i++) step()
+    expect(budget.spent).toBe(2000)
+  })
+
+  it('stops made code that runs before its budget was started', () => {
+    const room = compile(ROOM, 'room', new Budget(null), {}) as (r: { n: number }, w: object) => unknown
+    expect(() => room({ n: 0 }, {})).toThrow('made code ran before its budget was started')
+  })
+
+  it('counts turns only, never looking at the clock, when the budget has none', () => {
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => 1e9 * Math.random())
+    try {
+      const budget = new Budget(null)
+      const loop = compile('function __loop() {__g();\nlet n = 0\nfor (let i = 0; i < 50000; i++) {__g(); n++ }\nreturn n\n}', 'loop', budget, {}) as () => number
+      budget.start(100_000, 'too many turns')
+      const before = spy.mock.calls.length
+      const n = loop()
+      expect([n, spy.mock.calls.length - before]).toEqual([50000, 0])
+      // A budget with a clock stops the same code once its turns take too long in real time.
+      let clock = 0
+      spy.mockImplementation(() => (clock += 100))
+      const timed = new Budget({ ms: 250, message: 'it took too long' })
+      const again = compile('function __loop() {__g();\nlet n = 0\nfor (let i = 0; i < 50000; i++) {__g(); n++ }\nreturn n\n}', 'loop', timed, {}) as () => number
+      timed.start(100_000, 'too many turns')
+      expect(() => again()).toThrow('it took too long')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('hands made code globals of its own: a Math whose random is the world’s seeded one, and no Date', () => {
+    let seed = 7
+    const seeded = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+    const math = Object.freeze({ ...Object.fromEntries(Object.getOwnPropertyNames(Math).map((k) => [k, Math[k as keyof Math]])), random: seeded }) as Math
+    const budget = new Budget(null)
+    const roll = compile('function __roll(n) {__g();\nreturn [Math.floor(Math.random() * n), Math.max(2, 3), Math.PI, typeof Date, typeof window]\n}', 'roll', budget, { Math: math, Date: undefined }) as (n: number) => unknown[]
+    budget.start(10, 'too many turns')
+    const first = roll(1e9)
+    seed = 7
+    expect(roll(1e9)).toEqual(first)
+    expect(first).toEqual([Math.floor(((7 * 16807) / 2147483647) * 1e9), 3, Math.PI, 'undefined', 'undefined'])
+    // Silly Billy's own code still has the page's Math and Date.
+    resetGuard()
+    expect(compileModel('function __model(m) {__g();\nreturn [typeof Date, Math.random === m.random]\n}')({ random: Math.random } as unknown as Kit)).toEqual(['function', true])
   })
 })

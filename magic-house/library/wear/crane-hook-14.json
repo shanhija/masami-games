@@ -1,0 +1,13 @@
+{
+  "id": "crane-hook-14",
+  "slot": "hand",
+  "form": "The crane's lifting hook, held by its rope: a thick rope at the top runs into a rounded pulley block with a wheel, and under it hangs a curved steel hook that tapers to a point. It is about half a metre tall.",
+  "code": "m.anchor('hand',[0,0.42,0]);\nm.cylinder(0.02,0.02,0.2,{at:[0,0.4,0],color:'#c8a46a'});\nm.box(0.14,0.14,0.08,{at:[0,0.24,0],color:c.main});\nm.torus(0.05,0.018,{at:[0,0.25,0.045],color:c.second});\nm.cylinder(0.025,0.025,0.06,{at:[0,0.14,0],color:'#888888'});\nm.tube([[0,0.11,0],[0,0.03,0],[-0.03,-0.04,0],[0,-0.09,0],[0.06,-0.08,0],[0.08,-0.02,0]],0.022,{color:'#9aa0a6'});\nm.cone(0.022,0.05,{at:[0.08,0.01,0],color:'#9aa0a6'});",
+  "guarded": "function __gift(m, c) {__g();\nm.anchor('hand',[0,0.42,0]);\nm.cylinder(0.02,0.02,0.2,{at:[0,0.4,0],color:'#c8a46a'});\nm.box(0.14,0.14,0.08,{at:[0,0.24,0],color:c.main});\nm.torus(0.05,0.018,{at:[0,0.25,0.045],color:c.second});\nm.cylinder(0.025,0.025,0.06,{at:[0,0.14,0],color:'#888888'});\nm.tube([[0,0.11,0],[0,0.03,0],[-0.03,-0.04,0],[0,-0.09,0],[0.06,-0.08,0],[0.08,-0.02,0]],0.022,{color:'#9aa0a6'});\nm.cone(0.022,0.05,{at:[0.08,0.01,0],color:'#9aa0a6'});\n}",
+  "room": "treasure-crane-4",
+  "name": {
+    "en": "Crane Hook",
+    "fi": "Nosturin koukku"
+  },
+  "made": "2026-11-22T07:41:22.187Z"
+}

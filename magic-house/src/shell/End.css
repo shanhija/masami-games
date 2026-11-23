@@ -1,0 +1,170 @@
+/* The end (shell/End.tsx): its title over the fireworks, a card under each kid in the band below the stage, and Next in the top right corner. Words wear an ink border, as on every screen of the house. */
+
+.end-title,
+.end-card,
+.end-next {
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--white);
+  paint-order: stroke fill;
+}
+
+.end-title {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  pointer-events: none;
+  color: var(--gold);
+  font-size: clamp(36px, 8vmin, 90px);
+  line-height: 1;
+  -webkit-text-stroke: 8px var(--ink);
+  text-shadow: 0 6px 0 color-mix(in srgb, var(--ink) 40%, transparent);
+  animation: mh-cheer 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+.end-cards {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, var(--grass) 0%, var(--grass-dark) 100%);
+  border-top: 5px solid var(--ink);
+}
+
+.end-card {
+  --seat: var(--white);
+  position: absolute;
+  top: 10px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  border: 6px solid var(--seat);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--seat) 35%, var(--sky));
+  box-shadow: 0 0 0 4px var(--ink);
+  cursor: pointer;
+  -webkit-text-stroke: 5px var(--ink);
+}
+
+.end-card:focus-visible {
+  outline: 5px solid var(--white);
+  outline-offset: 4px;
+}
+
+.end-face {
+  display: block;
+  flex: 0 0 auto;
+  width: clamp(40px, 7vmin, 64px);
+  height: clamp(40px, 7vmin, 64px);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--white);
+}
+
+.end-face .avatar,
+.end-face .no-face {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.end-word {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: clamp(22px, 4.2vmin, 40px);
+  line-height: 1.1;
+  text-align: center;
+}
+
+/* An opened present, drawn in its kid's colours over its name. */
+.end-picture {
+  display: block;
+  flex: 1 1 0;
+  min-height: 40px;
+  width: 80%;
+  max-width: 140px;
+}
+
+.end-picture .icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.end-card.opened .end-face {
+  width: clamp(32px, 5vmin, 48px);
+  height: clamp(32px, 5vmin, 48px);
+}
+
+.end-word.name {
+  color: var(--gold);
+  animation: mh-cheer 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+.end-word.kind {
+  font-size: clamp(16px, 2.8vmin, 26px);
+}
+
+.end-key {
+  display: inline-block;
+  min-width: 1.4em;
+  padding: 0 0.25em;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--white);
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  font-family: inherit;
+  font-size: 0.7em;
+  line-height: 1.3;
+}
+
+/* A wrapped present in the seat's colour, wobbling: open me. */
+.end-box {
+  position: relative;
+  flex: 0 0 auto;
+  width: clamp(30px, 5.5vmin, 52px);
+  height: clamp(30px, 5.5vmin, 52px);
+  border: 4px solid var(--ink);
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, transparent 40%, var(--white) 40% 60%, transparent 60%),
+    linear-gradient(0deg, transparent 40%, var(--white) 40% 60%, transparent 60%),
+    var(--seat);
+  animation: mh-wobble 1.2s ease-in-out infinite;
+}
+
+@keyframes mh-wobble {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0);
+  }
+  70% {
+    transform: rotate(-9deg);
+  }
+  80% {
+    transform: rotate(8deg);
+  }
+  90% {
+    transform: rotate(-4deg);
+  }
+}
+
+.end-next {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  cursor: pointer;
+  animation: mh-cheer 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}

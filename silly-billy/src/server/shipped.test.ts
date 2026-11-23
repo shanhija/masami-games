@@ -16,7 +16,8 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import type { ActionEntry, ItemEntry, PhraseEntry } from '../engine/protocol'
-import { guard, type CodeKind } from './guard'
+import { CODE_KINDS, type CodeKind } from './codeKinds'
+import { guard } from './guard'
 import { Store } from './store'
 
 const LIBRARY = fileURLToPath(new URL('../../library/', import.meta.url))
@@ -41,7 +42,7 @@ function files(folder: string): Map<string, string> {
 }
 
 function expectGuarded(file: string, kind: CodeKind, code: string, guarded: string | null) {
-  const g = guard(kind, code)
+  const g = guard(CODE_KINDS[kind], code)
   expect(g.ok ? null : g.error, `${file}: the guard refuses its ${kind} code`).toBe(null)
   expect(guarded === (g.ok ? g.guarded : null), `${file}: its ${kind} code is not as today's guard makes it`).toBe(true)
 }

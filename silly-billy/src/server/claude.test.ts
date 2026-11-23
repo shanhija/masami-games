@@ -28,7 +28,7 @@ let dir: string
 let claude: Claude
 const logs: string[] = []
 const calls = (): Call[] => (fs.existsSync(process.env.FAKE_CLAUDE_LOG!) ? fs.readFileSync(process.env.FAKE_CLAUDE_LOG!, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Call) : [])
-const spec = (schema: Record<string, unknown>): Spec => ({ model: 'haiku', system: 'You are a test.', schema })
+const spec = (schema: Record<string, unknown>): Spec => ({ model: 'haiku', effort: 'low', system: 'You are a test.', schema })
 const opts = (more: Partial<AskOpts> = {}): AskOpts => ({ timeoutMs: 5000, onText: null, signal: null, ...more })
 
 beforeAll(() => {
@@ -127,6 +127,37 @@ describe('once', () => {
     const missing = new Claude(path.join(dir, 'no-such-claude'), () => {})
     await expect(once(missing, spec(ACTION_SCHEMA), 'Hop.', opts())).rejects.toThrow(/the CLI failed to start/)
     missing.close()
+  })
+
+  it('thinks as hard as its spec asks', async () => {
+    await once(claude, { ...spec(ACTION_SCHEMA), effort: 'max' }, 'Make a hop.', opts())
+    const [call] = calls()
+    expect(call!.argv.slice(call!.argv.indexOf('--effort'), call!.argv.indexOf('--effort') + 2)).toEqual(['--effort', 'max'])
+  })
+})
+
+describe('the fake CLI', () => {
+  const object = (properties: string[]) => ({ type: 'object', properties: Object.fromEntries(properties.map((p) => [p, { type: 'string' }])), required: properties })
+
+  it("answers any game's schema by the first of its properties the answers file names, and says when nothing does", async () => {
+    const room = { place: 'a kitchen', room: 'r.box(1, 1)', walk: 'yield* bots[0].goTo(w.exit)' }
+    const fix = { room: 'r.box(2, 1)' }
+    const gift = { gift: 'm.box(1, 1, 1)' }
+    fs.writeFileSync(process.env.FAKE_CLAUDE_ANSWERS!, JSON.stringify({ byProperty: { place: room, room: fix, gift } }))
+    try {
+      expect((await once(claude, spec(object(['place', 'room', 'walk'])), 'Build a room.', opts())).data).toEqual(room)
+      expect((await once(claude, spec(object(['room'])), 'Mend the room.', opts())).data).toEqual(fix)
+      expect((await once(claude, spec(object(['about', 'gift'])), 'Make a present.', opts())).data).toEqual(gift)
+      await expect(once(claude, spec(object(['quiz'])), 'Ask a sum.', opts())).rejects.toThrow('the fake CLI has no answer for a schema with quiz')
+      // A list answers in turn, across processes, and then keeps its last.
+      fs.rmSync(`${process.env.FAKE_CLAUDE_STATE}.room`, { force: true })
+      fs.writeFileSync(process.env.FAKE_CLAUDE_ANSWERS!, JSON.stringify({ byProperty: { room: [{ room: 'const = 1' }, fix] } }))
+      const turns: unknown[] = []
+      for (let i = 0; i < 3; i++) turns.push((await once(claude, spec(object(['room'])), 'Mend the room.', opts())).data)
+      expect(turns).toEqual([{ room: 'const = 1' }, fix, fix])
+    } finally {
+      fs.writeFileSync(process.env.FAKE_CLAUDE_ANSWERS!, JSON.stringify({ plan: PLAN, code: CODE, bad: 'const = 1' }))
+    }
   })
 })
 

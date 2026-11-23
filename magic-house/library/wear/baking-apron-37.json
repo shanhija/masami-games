@@ -1,0 +1,13 @@
+{
+  "id": "baking-apron-37",
+  "slot": "body",
+  "form": "A flat cloth apron over the front of the body, from the chest down to the knees. It has a rounded bib, a neck strap, waist ties that run round the sides, and a big pocket with a frosting edge.",
+  "code": "m.extrude([[-0.1,0.66],[0.1,0.66],[0.11,0.5],[0.18,0.44],[0.18,0.2],[0.15,0.17],[-0.15,0.17],[-0.18,0.2],[-0.18,0.44],[-0.11,0.5]],0.015,{at:[0,0,0.115],color:c.main});\nm.tube([[-0.09,0.66,0.11],[-0.07,0.73,0.04],[0,0.75,-0.03],[0.07,0.73,0.04],[0.09,0.66,0.11]],0.012,{color:c.second});\nm.tube([[-0.17,0.45,0.11],[-0.17,0.45,-0.05],[0,0.45,-0.11],[0.17,0.45,-0.05],[0.17,0.45,0.11]],0.012,{color:c.second});\nm.box(0.18,0.1,0.01,{at:[0,0.3,0.128],color:c.second});\nfor(let i=0;i<7;i++)m.sphere(0.015,{at:[-0.09+i*0.03,0.35,0.13],color:'#ffffff'});",
+  "guarded": "function __gift(m, c) {__g();\nm.extrude([[-0.1,0.66],[0.1,0.66],[0.11,0.5],[0.18,0.44],[0.18,0.2],[0.15,0.17],[-0.15,0.17],[-0.18,0.2],[-0.18,0.44],[-0.11,0.5]],0.015,{at:[0,0,0.115],color:c.main});\nm.tube([[-0.09,0.66,0.11],[-0.07,0.73,0.04],[0,0.75,-0.03],[0.07,0.73,0.04],[0.09,0.66,0.11]],0.012,{color:c.second});\nm.tube([[-0.17,0.45,0.11],[-0.17,0.45,-0.05],[0,0.45,-0.11],[0.17,0.45,-0.05],[0.17,0.45,0.11]],0.012,{color:c.second});\nm.box(0.18,0.1,0.01,{at:[0,0.3,0.128],color:c.second});\nfor(let i=0;i<7;i++){__g();m.sphere(0.015,{at:[-0.09+i*0.03,0.35,0.13],color:'#ffffff'});}\n}",
+  "room": "the-cake-kitchen-1",
+  "name": {
+    "en": "Baking Apron",
+    "fi": "Leivontaessu"
+  },
+  "made": "2026-11-22T22:20:53.849Z"
+}

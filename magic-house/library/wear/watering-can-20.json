@@ -1,0 +1,13 @@
+{
+  "id": "watering-can-20",
+  "slot": "hand",
+  "form": "A round barrel can with a long thin spout. The spout rises forward from the bottom to a flared sprinkler head. A curved handle arches over the top. About 0.45 m tall, half the child's height up to the waist.",
+  "code": "m.cylinder(0.12,0.13,0.22,{at:[0,0,0],color:c.main});\nm.cylinder(0.13,0.13,0.02,{at:[0,-0.11,0],color:c.second});\nm.cylinder(0.06,0.11,0.04,{at:[0,0.13,0],color:c.second});\nm.torus(0.1,0.018,{at:[0,0.14,-0.01],rot:[0,Math.PI/2,0],color:c.second});\nm.tube([[0,-0.06,0.1],[0,0.02,0.2],[0,0.12,0.28]],0.018,{color:c.main});\nm.cylinder(0.05,0.02,0.05,{at:[0,0.14,0.3],rot:[0.8,0,0],color:c.second});\nm.cylinder(0.05,0.05,0.005,{at:[0,0.16,0.32],rot:[0.8,0,0],color:'#dddddd'});\nm.anchor('hand',[0,0.24,-0.01]);",
+  "guarded": "function __gift(m, c) {__g();\nm.cylinder(0.12,0.13,0.22,{at:[0,0,0],color:c.main});\nm.cylinder(0.13,0.13,0.02,{at:[0,-0.11,0],color:c.second});\nm.cylinder(0.06,0.11,0.04,{at:[0,0.13,0],color:c.second});\nm.torus(0.1,0.018,{at:[0,0.14,-0.01],rot:[0,Math.PI/2,0],color:c.second});\nm.tube([[0,-0.06,0.1],[0,0.02,0.2],[0,0.12,0.28]],0.018,{color:c.main});\nm.cylinder(0.05,0.02,0.05,{at:[0,0.14,0.3],rot:[0.8,0,0],color:c.second});\nm.cylinder(0.05,0.05,0.005,{at:[0,0.16,0.32],rot:[0.8,0,0],color:'#dddddd'});\nm.anchor('hand',[0,0.24,-0.01]);\n}",
+  "room": "thirsty-flowers-6",
+  "name": {
+    "en": "Watering Can",
+    "fi": "Kastelukannu"
+  },
+  "made": "2026-11-22T13:51:15.327Z"
+}

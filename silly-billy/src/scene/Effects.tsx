@@ -14,27 +14,41 @@ import {
   MeshStandardMaterial,
   Object3D,
   OctahedronGeometry,
+  Quaternion,
   Shape,
   SphereGeometry,
   Vector2,
+  Vector3,
+  type Camera,
   type Material,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 
-import { PUFF_KINDS, type Puff, type PuffKind, type World } from '../engine/types'
+import { PUFF_KINDS, type Puff, type PuffKind } from '../engine/types'
 import { heart } from './face'
-import { FACE_CAMERA, colorOf } from './look'
-import type { SceneSource } from './Stage'
+import { colorOf } from './look'
+import { PUFF_CAP } from './puffCap'
 
 /**
  * The puffs: every kind its own little shape in one instanced mesh, so 600 of them draw in
  * a dozen calls. The sim moves them; here each pops in, lives its way (smoke swells, fire
  * flickers, hearts beat, leaves and confetti tumble, flat things turn to the camera) and
- * shrinks away at the end of its life. A puff's size is how big it is across.
+ * shrinks away at the end of its life. A puff's size is how big it is across. They read only
+ * the world's clock and its puffs (PuffSource), so another game's scene can hand its own. A flat
+ * puff turns to the live camera, so it reads from any view: Silly Billy's fixed diorama angle and
+ * Magic House's side view alike.
  */
 
-/** As many as the sim keeps at once. */
-const CAP = 600
+/** What is read of a puff: its kind, where it is, its colour and size, when it was born and how long it lives; the way it flies across tells puffs from one burst apart. */
+export type PuffSeen = Pick<Puff, 'kind' | 'x' | 'y' | 'z' | 'vx' | 'vz' | 'color' | 'size' | 'born' | 'life'>
+
+/** What the puffs read every frame: the world as it is now (a new one may come any frame), its clock in seconds and its puffs. Silly Billy's Stage hands its SceneSource. */
+export interface PuffSource {
+  readonly world: { readonly t: number; readonly puffs: readonly PuffSeen[] }
+}
+
+/** As many as the sim keeps at once (puffCap.ts). */
+const CAP = PUFF_CAP
 
 /** How a kind turns: toward the camera (flat shapes), tumbling, spinning upright, or not at all. */
 type Turn = 'face' | 'tumble' | 'spin' | 'none'
@@ -118,13 +132,17 @@ const KINDS: Record<PuffKind, Kind> = {
   fire: { geometry: new ConeGeometry(0.4, 1, 6), material: shine(), turn: 'spin', size: (k, age, seed) => fade(k, age) * (1 - 0.5 * k) * (1 + 0.25 * Math.sin(age * 28 + seed * 11)), tall: 1.5 },
 }
 
-/** A number of its own for every puff, the same all its life, so puffs from one burst turn apart. */
-const seedOf = (p: Puff) => {
-  const v = Math.sin(p.born * 12.9898 + p.size * 78.233 + p.life * 37.719 + p.vx * 3.1 + p.vz * 5.7) * 43758.5453
+/** A number of its own for every puff, the same all its life, so puffs from one burst turn apart: from the way it flies across, which the drag never turns (it slows vx and vz alike) and the wind never touches (it moves x, never vx). */
+const seedOf = (p: PuffSeen) => {
+  const v = Math.sin(p.born * 12.9898 + p.size * 78.233 + p.life * 37.719 + Math.atan2(p.vz, p.vx) * 3.1) * 43758.5453
   return v - Math.floor(v)
 }
 
 const scratch = new Object3D()
+/** The camera's turn this frame, and a flat puff's own little rock round the line it is seen along. */
+const facing = new Quaternion()
+const rock = new Quaternion()
+const ALONG = new Vector3(0, 0, 1)
 const colours = new Map<string, Color>()
 /** A puff's colour, kept for next time; made code may throw a new colour every frame, so the store starts over when it is full. */
 function colour(c: string): Color {
@@ -155,7 +173,8 @@ class PuffLayer {
     }
   }
 
-  update(world: World) {
+  update(world: PuffSource['world'], camera: Camera) {
+    camera.getWorldQuaternion(facing)
     for (const kind of PUFF_KINDS) this.counts[kind] = 0
     for (const p of world.puffs) {
       const kind = KINDS[p.kind]
@@ -166,7 +185,8 @@ class PuffLayer {
       scratch.position.set(p.x, p.y, p.z)
       switch (kind.turn) {
         case 'face':
-          scratch.rotation.set(FACE_CAMERA[0], FACE_CAMERA[1], 0.35 * Math.sin(age * 5 + seed * 6), FACE_CAMERA[3])
+          // Turned as the camera is, so it faces it square, then rocked round the line of sight.
+          scratch.quaternion.copy(facing).multiply(rock.setFromAxisAngle(ALONG, 0.35 * Math.sin(age * 5 + seed * 6)))
           break
         case 'tumble':
           scratch.rotation.set(age * (3 + 4 * seed), age * 2 + seed * 6, age * (2 + 3 * seed), 'XYZ')
@@ -199,9 +219,9 @@ class PuffLayer {
   }
 }
 
-export function Effects({ source }: { source: SceneSource }) {
+export function Effects({ source }: { source: PuffSource }) {
   const layer = useMemo(() => new PuffLayer(), [])
   useEffect(() => () => layer.dispose(), [layer])
-  useFrame(() => layer.update(source.world))
+  useFrame(({ camera }) => layer.update(source.world, camera))
   return <primitive object={layer.root} />
 }

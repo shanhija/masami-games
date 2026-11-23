@@ -1,0 +1,528 @@
+{
+  "rooms": [
+    {
+      "id": "the-cake-kitchen-1",
+      "party": 1,
+      "roll": {
+        "kind": "together",
+        "view": "side"
+      },
+      "theme": "A cake kitchen",
+      "task": "Bring the fruit to the bowl, jump on the mixer, bake the cake and put it on the table.",
+      "name": {
+        "en": "The Cake Kitchen",
+        "fi": "Kakkukeittiö"
+      },
+      "shell": {
+        "walls": {
+          "color": "#fde8c8",
+          "second": "#f7c9a0",
+          "pattern": "checks"
+        },
+        "floor": {
+          "color": "#c98a5a",
+          "second": "#b5774a",
+          "pattern": "stripes"
+        },
+        "ceiling": {
+          "color": "#fff4e0",
+          "second": "#ffe7c2",
+          "pattern": "plain"
+        },
+        "trim": "#e2574c",
+        "light": 1
+      },
+      "botSecs": {
+        "1": 70.1,
+        "2": 73.9,
+        "3": 83.4
+      },
+      "made": "2026-11-22T22:20:27.033Z"
+    },
+    {
+      "id": "the-drum-room-2",
+      "party": 3,
+      "roll": {
+        "kind": "together",
+        "view": "side"
+      },
+      "theme": "A music room with big drums",
+      "task": "All three stand on the three drums at once and keep the song going, as the drums jump to new places.",
+      "name": {
+        "en": "The Drum Room",
+        "fi": "Rumpuhuone"
+      },
+      "shell": {
+        "walls": {
+          "color": "#c8f0d8",
+          "second": "#9fd8b8",
+          "pattern": "zigzag"
+        },
+        "floor": {
+          "color": "#e0a030",
+          "second": "#c88820",
+          "pattern": "stripes"
+        },
+        "ceiling": {
+          "color": "#f4fff8",
+          "second": "#d8f4e4",
+          "pattern": "plain"
+        },
+        "trim": "#8a4fb8",
+        "light": 1
+      },
+      "botSecs": {
+        "1": 77.5,
+        "2": 84.5,
+        "3": 96.5
+      },
+      "made": "2026-11-22T22:28:47.597Z"
+    },
+    {
+      "id": "the-sock-race-3",
+      "party": 4,
+      "roll": {
+        "kind": "contest",
+        "view": "side"
+      },
+      "theme": "A laundry room full of clean socks",
+      "task": "Race to grab socks off the shelves and drop them into your own coloured basket.",
+      "name": {
+        "en": "The Sock Race",
+        "fi": "Sukkakisa"
+      },
+      "shell": {
+        "walls": {
+          "color": "#d8ecff",
+          "second": "#ffffff",
+          "pattern": "spots"
+        },
+        "floor": {
+          "color": "#9fb8c8",
+          "second": "#c8dae4",
+          "pattern": "checks"
+        },
+        "ceiling": {
+          "color": "#f4faff",
+          "second": "#d8ecff",
+          "pattern": "plain"
+        },
+        "trim": "#ffffff",
+        "light": 1
+      },
+      "botSecs": {
+        "1": 73.4,
+        "2": 80,
+        "3": 86.6
+      },
+      "made": "2026-11-22T22:33:45.977Z"
+    }
+  ],
+  "gifts": [
+    {
+      "id": "apple-apron-1",
+      "slot": "body",
+      "name": {
+        "en": "Apple Apron",
+        "fi": "Omenaesiliina"
+      },
+      "room": "apple-basket-1"
+    },
+    {
+      "id": "apple-basket-2",
+      "slot": "back",
+      "name": {
+        "en": "Apple Basket",
+        "fi": "Omenakori"
+      },
+      "room": "apple-basket-1"
+    },
+    {
+      "id": "apple-picker-3",
+      "slot": "hand",
+      "name": {
+        "en": "Apple Picker",
+        "fi": "Omenapoimuri"
+      },
+      "room": "apple-basket-1"
+    },
+    {
+      "id": "castle-tower-crown-4",
+      "slot": "head",
+      "name": {
+        "en": "Castle Tower Crown",
+        "fi": "Tornikruunu"
+      },
+      "room": "gate-keepers-2"
+    },
+    {
+      "id": "gate-key-5",
+      "slot": "hand",
+      "name": {
+        "en": "Gate Key",
+        "fi": "Portin avain"
+      },
+      "room": "gate-keepers-2"
+    },
+    {
+      "id": "portcullis-shield-6",
+      "slot": "back",
+      "name": {
+        "en": "Portcullis Shield",
+        "fi": "Porttikilpi"
+      },
+      "room": "gate-keepers-2"
+    },
+    {
+      "id": "gate-keeper-tabard-7",
+      "slot": "body",
+      "name": {
+        "en": "Gate Keeper Tabard",
+        "fi": "Portinvartijan viitta"
+      },
+      "room": "gate-keepers-2"
+    },
+    {
+      "id": "snowman-top-hat-8",
+      "slot": "head",
+      "name": {
+        "en": "Snowman Top Hat",
+        "fi": "Lumiukon silinteri"
+      },
+      "room": "snowman-tower-3"
+    },
+    {
+      "id": "carrot-nose-9",
+      "slot": "face",
+      "name": {
+        "en": "Carrot Nose",
+        "fi": "Porkkananenä"
+      },
+      "room": "snowman-tower-3"
+    },
+    {
+      "id": "snowman-scarf-10",
+      "slot": "body",
+      "name": {
+        "en": "Snowman Scarf",
+        "fi": "Lumiukon kaulahuivi"
+      },
+      "room": "snowman-tower-3"
+    },
+    {
+      "id": "twig-arm-11",
+      "slot": "hand",
+      "name": {
+        "en": "Twig Arm",
+        "fi": "Oksakäsi"
+      },
+      "room": "snowman-tower-3"
+    },
+    {
+      "id": "pirate-hat-12",
+      "slot": "head",
+      "name": {
+        "en": "Pirate Hat",
+        "fi": "Merirosvohattu"
+      },
+      "room": "treasure-crane-4"
+    },
+    {
+      "id": "treasure-chest-13",
+      "slot": "back",
+      "name": {
+        "en": "Treasure Chest",
+        "fi": "Aarrearkku"
+      },
+      "room": "treasure-crane-4"
+    },
+    {
+      "id": "crane-hook-14",
+      "slot": "hand",
+      "name": {
+        "en": "Crane Hook",
+        "fi": "Nosturin koukku"
+      },
+      "room": "treasure-crane-4"
+    },
+    {
+      "id": "pirate-sash-15",
+      "slot": "body",
+      "name": {
+        "en": "Pirate Sash",
+        "fi": "Merirosvovyö"
+      },
+      "room": "treasure-crane-4"
+    },
+    {
+      "id": "piano-key-crown-16",
+      "slot": "head",
+      "name": {
+        "en": "Piano Key Crown",
+        "fi": "Kosketinkruunu"
+      },
+      "room": "the-singing-keys-5"
+    },
+    {
+      "id": "songbird-clip-17",
+      "slot": "hair",
+      "name": {
+        "en": "Songbird Clip",
+        "fi": "Laululintupinni"
+      },
+      "room": "the-singing-keys-5"
+    },
+    {
+      "id": "wind-up-key-18",
+      "slot": "back",
+      "name": {
+        "en": "Wind Up Key",
+        "fi": "Vetoavain"
+      },
+      "room": "the-singing-keys-5"
+    },
+    {
+      "id": "music-note-wand-19",
+      "slot": "hand",
+      "name": {
+        "en": "Music Note Wand",
+        "fi": "Nuottisauva"
+      },
+      "room": "the-singing-keys-5"
+    },
+    {
+      "id": "watering-can-20",
+      "slot": "hand",
+      "name": {
+        "en": "Watering Can",
+        "fi": "Kastelukannu"
+      },
+      "room": "thirsty-flowers-6"
+    },
+    {
+      "id": "back-bloom-21",
+      "slot": "back",
+      "name": {
+        "en": "Back Bloom",
+        "fi": "Selkäkukka"
+      },
+      "room": "thirsty-flowers-6"
+    },
+    {
+      "id": "petal-skirt-22",
+      "slot": "body",
+      "name": {
+        "en": "Petal Skirt",
+        "fi": "Terälehtihame"
+      },
+      "room": "thirsty-flowers-6"
+    },
+    {
+      "id": "firefly-jar-23",
+      "slot": "hand",
+      "name": {
+        "en": "Firefly Jar",
+        "fi": "Tulikärpäspurkki"
+      },
+      "room": "firefly-chase-7"
+    },
+    {
+      "id": "firefly-wings-24",
+      "slot": "back",
+      "name": {
+        "en": "Firefly Wings",
+        "fi": "Tulikärpäsen siivet"
+      },
+      "room": "firefly-chase-7"
+    },
+    {
+      "id": "meadow-grass-belt-25",
+      "slot": "body",
+      "name": {
+        "en": "Meadow Grass Belt",
+        "fi": "Niittyvyö"
+      },
+      "room": "firefly-chase-7"
+    },
+    {
+      "id": "mail-satchel-26",
+      "slot": "body",
+      "name": {
+        "en": "Mail Satchel",
+        "fi": "Postilaukku"
+      },
+      "room": "little-postman-8"
+    },
+    {
+      "id": "big-letter-27",
+      "slot": "hand",
+      "name": {
+        "en": "Big Letter",
+        "fi": "Iso kirje"
+      },
+      "room": "little-postman-8"
+    },
+    {
+      "id": "mailbox-backpack-28",
+      "slot": "back",
+      "name": {
+        "en": "Mailbox Backpack",
+        "fi": "Postilaatikkoreppu"
+      },
+      "room": "little-postman-8"
+    },
+    {
+      "id": "mole-snout-29",
+      "slot": "face",
+      "name": {
+        "en": "Mole Snout",
+        "fi": "Myyrän kärsä"
+      },
+      "room": "mole-tunnel-doors-9"
+    },
+    {
+      "id": "log-backpack-30",
+      "slot": "back",
+      "name": {
+        "en": "Log Backpack",
+        "fi": "Pölkkyreppu"
+      },
+      "room": "mole-tunnel-doors-9"
+    },
+    {
+      "id": "digging-trowel-31",
+      "slot": "hand",
+      "name": {
+        "en": "Digging Trowel",
+        "fi": "Kaivuulapio"
+      },
+      "room": "mole-tunnel-doors-9"
+    },
+    {
+      "id": "paint-roller-32",
+      "slot": "hand",
+      "name": {
+        "en": "Paint Roller",
+        "fi": "Maalitela"
+      },
+      "room": "stomp-paint-9"
+    },
+    {
+      "id": "paint-bucket-33",
+      "slot": "back",
+      "name": {
+        "en": "Paint Bucket",
+        "fi": "Maaliämpäri"
+      },
+      "room": "stomp-paint-9"
+    },
+    {
+      "id": "painter-s-apron-34",
+      "slot": "body",
+      "name": {
+        "en": "Painter's Apron",
+        "fi": "Maaleriesiliina"
+      },
+      "room": "stomp-paint-9"
+    },
+    {
+      "id": "chef-hat-35",
+      "slot": "head",
+      "name": {
+        "en": "Chef Hat",
+        "fi": "Kokin hattu"
+      },
+      "room": "the-cake-kitchen-1"
+    },
+    {
+      "id": "big-whisk-36",
+      "slot": "hand",
+      "name": {
+        "en": "Big Whisk",
+        "fi": "Iso vatkain"
+      },
+      "room": "the-cake-kitchen-1"
+    },
+    {
+      "id": "baking-apron-37",
+      "slot": "body",
+      "name": {
+        "en": "Baking Apron",
+        "fi": "Leivontaessu"
+      },
+      "room": "the-cake-kitchen-1"
+    },
+    {
+      "id": "cake-backpack-38",
+      "slot": "back",
+      "name": {
+        "en": "Cake Backpack",
+        "fi": "Kakkureppu"
+      },
+      "room": "the-cake-kitchen-1"
+    },
+    {
+      "id": "big-drumstick-39",
+      "slot": "hand",
+      "name": {
+        "en": "Big Drumstick",
+        "fi": "Iso rumpukapula"
+      },
+      "room": "the-drum-room-2"
+    },
+    {
+      "id": "bandleader-hat-40",
+      "slot": "head",
+      "name": {
+        "en": "Bandleader Hat",
+        "fi": "Rumpalin hattu"
+      },
+      "room": "the-drum-room-2"
+    },
+    {
+      "id": "drum-backpack-41",
+      "slot": "back",
+      "name": {
+        "en": "Drum Backpack",
+        "fi": "Rumpureppu"
+      },
+      "room": "the-drum-room-2"
+    },
+    {
+      "id": "sock-hat-42",
+      "slot": "head",
+      "name": {
+        "en": "Sock Hat",
+        "fi": "Sukkapipo"
+      },
+      "room": "the-sock-race-3"
+    },
+    {
+      "id": "clothespin-clips-43",
+      "slot": "hair",
+      "name": {
+        "en": "Clothespin Clips",
+        "fi": "Pyykkipojat"
+      },
+      "room": "the-sock-race-3"
+    },
+    {
+      "id": "sock-basket-44",
+      "slot": "back",
+      "name": {
+        "en": "Sock Basket",
+        "fi": "Sukkakori"
+      },
+      "room": "the-sock-race-3"
+    },
+    {
+      "id": "giant-sock-45",
+      "slot": "hand",
+      "name": {
+        "en": "Giant Sock",
+        "fi": "Jättisukka"
+      },
+      "room": "the-sock-race-3"
+    }
+  ]
+}

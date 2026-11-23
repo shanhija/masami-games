@@ -8,7 +8,7 @@
 import { pointIn, proportions, rootFrame } from './body'
 import type { Library } from './library'
 import { inWater, ROOM_GEO } from './rooms'
-import { skyOf, terrainOf } from './sky'
+import { terrainOf } from './sky'
 import { ROOM_HALF, STEP, type Item, type World } from './types'
 import { addPuffs, bottomOf, GRAVITY, hash01, infoFor, PLACED_HOLD, solidsOf, supportAt, TAU, waterTop, wetAt, type Side, type Solid } from './world'
 
@@ -244,11 +244,14 @@ function bump(w: World, side: Side, it: Item, r: number, mid: number, bodies: Ca
 /** How fast the wind at its strongest pushes light puffs along, m/s (along +x, the way the rain leans in the scene). */
 export const WIND_SPEED = 2.5
 
-/** Puffs move, fall or rise by their own pull, slow down, drift with the wind when they are light, and go when their life is over. */
-export function stepPuffs(w: World): void {
-  const dt = STEP
+/**
+ * Puffs move, fall or rise by their own pull, slow down, drift with the wind when they are light, and
+ * go when their life is over: one step of `dt` seconds, `wind` m/s along +x. It reads and writes only
+ * the clock and the puffs, so another game steps its own the same way (Magic House's sim and its
+ * props' puffs).
+ */
+export function stepPuffs(w: Pick<World, 't' | 'puffs'>, wind: number, dt: number): void {
   const drag = 1 - 1.2 * dt
-  const wind = skyOf(w).wind * WIND_SPEED
   let n = 0
   for (const p of w.puffs) {
     if (w.t - p.born > p.life) continue

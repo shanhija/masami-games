@@ -11,12 +11,13 @@ import { LANGS, type Lang } from './lang'
  * last picked on this device under PICKED_KEY, and a game's own keys under
  * `profile/<id>/<game>/<key>`, so a game never reads another child's save and one game of one
  * child clears without touching the rest. sessionStorage holds the pick of this tab under
- * PICKED_KEY too, so two tabs can play as two children. Silly Billy's library lives on the
- * dev server and is everyone's; only what its page keeps in the browser is per profile.
+ * PICKED_KEY too, so two tabs can play as two children. Silly Billy's and Magic House's
+ * libraries live on the dev server and are everyone's; only what their pages keep in the
+ * browser is per profile.
  */
 
 /** The games that keep saves, by folder, in the gallery's order. Police Chase and Foot Chase keep nothing. */
-export const SAVING_GAMES = ['castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'monster-lunch', 'digger-town', 'silly-billy'] as const
+export const SAVING_GAMES = ['castle-builder', 'pia-jump', 'cat-hat-builder', 'rocket-factory', 'super-me', 'slime-guy', 'monster-lunch', 'digger-town', 'silly-billy', 'magic-house'] as const
 export type SavingGame = (typeof SAVING_GAMES)[number]
 
 /** One child on this device: the name, the avatar they made, and the language every game plays in for them. */
@@ -27,10 +28,12 @@ export interface Profile {
   lang: Lang
 }
 
-/** What a game page gets when it starts: the player's saves of it and the language it plays in. */
+/** What a game page gets when it starts: the player's saves of it, the language it plays in, and the player (for their face, and to tell them from the others on the device). */
 export interface GameEntry {
   saves: GameSaves
   lang: Lang
+  /** Null only where the browser keeps no site data: there are no players there. */
+  profile: Profile | null
 }
 
 /** The language of a new player, and of a page with nobody picked yet (Sami, 2026-11-21). */
@@ -76,6 +79,7 @@ const SAVES_BEFORE_PROFILES: Record<SavingGame, Readonly<Record<string, string>>
   'monster-lunch': { ruokapeli: 'monster-lunch' },
   'digger-town': { 'digger-town': 'digger-town', 'digger-town-old': 'digger-town-old', 'digger-town-broken': 'digger-town-broken' },
   'silly-billy': { 'silly-billy-rooms-1': 'silly-billy-rooms-1', 'silly-billy-settings': 'silly-billy-settings' },
+  'magic-house': {},
 }
 
 /**
@@ -239,11 +243,11 @@ export function profileSaves(id: string, game: SavingGame): GameSaves {
 }
 
 /**
- * What a game page that keeps saves calls before it starts: the saves of the profile playing in
- * its tab, which then stays this tab's pick, and that player's language. With nobody picked it
+ * What a game page that keeps saves calls before it starts: the profile playing in its tab,
+ * which then stays this tab's pick, with its saves and its language. With nobody picked it
  * sends the page to the gallery to pick someone and returns null, so a game never starts on
  * nobody's saves. A browser that keeps no site data at all has no profiles either: there the
- * game plays on saves kept in memory only, in FIRST_LANG.
+ * game plays as nobody, on saves kept in memory only, in FIRST_LANG.
  */
 export function enterGame(game: SavingGame): GameEntry | null {
   let profile: Profile | null
@@ -251,14 +255,14 @@ export function enterGame(game: SavingGame): GameEntry | null {
     profile = pickedProfile()
   } catch (e) {
     console.warn('This browser keeps no site data, so this visit is not remembered:', e)
-    return { saves: memorySaves(), lang: FIRST_LANG }
+    return { saves: memorySaves(), lang: FIRST_LANG, profile: null }
   }
   if (profile === null) {
     location.replace('../index.html')
     return null
   }
   pickProfile(profile.id)
-  return { saves: profileSaves(profile.id, game), lang: profile.lang }
+  return { saves: profileSaves(profile.id, game), lang: profile.lang, profile }
 }
 
 /**

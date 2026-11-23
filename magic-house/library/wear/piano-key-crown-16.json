@@ -1,0 +1,13 @@
+{
+  "id": "piano-key-crown-16",
+  "slot": "head",
+  "form": "A round band sits on the head above the brow. Flat key blocks stand up all the way round it, long keys taking turns with short ones, and the short keys have small glowing tips. It is about as tall as a hand.",
+  "code": "m.torus(0.275,0.02,{at:[0,0.13,0],rot:[Math.PI/2,0,0],color:c.second});\nfor(let i=0;i<16;i++){const a=i/16*Math.PI*2;const x=Math.sin(a)*0.275,z=Math.cos(a)*0.275;if(i%2==0){m.box(0.07,0.14,0.025,{at:[x,0.2,z],rot:[0,a,0],color:c.main});}else{m.box(0.045,0.09,0.03,{at:[x*1.02,0.2,z*1.02],rot:[0,a,0],color:c.second});m.sphere(0.018,{at:[x*1.02,0.255,z*1.02],color:'#ffe680',glow:true});}}",
+  "guarded": "function __gift(m, c) {__g();\nm.torus(0.275,0.02,{at:[0,0.13,0],rot:[Math.PI/2,0,0],color:c.second});\nfor(let i=0;i<16;i++){__g();const a=i/16*Math.PI*2;const x=Math.sin(a)*0.275,z=Math.cos(a)*0.275;if(i%2==0){m.box(0.07,0.14,0.025,{at:[x,0.2,z],rot:[0,a,0],color:c.main});}else{m.box(0.045,0.09,0.03,{at:[x*1.02,0.2,z*1.02],rot:[0,a,0],color:c.second});m.sphere(0.018,{at:[x*1.02,0.255,z*1.02],color:'#ffe680',glow:true});}}\n}",
+  "room": "the-singing-keys-5",
+  "name": {
+    "en": "Piano Key Crown",
+    "fi": "Kosketinkruunu"
+  },
+  "made": "2026-11-22T13:44:20.870Z"
+}

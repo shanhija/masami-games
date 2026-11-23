@@ -1,0 +1,313 @@
+/* The dressing room (shell/DressingRoom.tsx): a column for each player over Silly Billy's sky, their kid standing in its spot (drawn by one canvas laid over the whole screen, scene/DressingKids.tsx), and under it the slots, the things, which colour to paint and the colour grid, the thumb and Ready. Cells are capped by the screen's height so four columns fit a laptop and two a tablet. The ring of a seat moved by its stick is its seat's colour; what is chosen has a gold border. */
+
+.mh-page.dressing {
+  justify-content: flex-start;
+  gap: clamp(4px, 1.2vh, 12px);
+  padding: clamp(6px, 1.4vh, 16px) 16px;
+}
+
+.dressing h2 {
+  font-size: clamp(22px, 4.2vh, 44px);
+}
+
+.dressing .columns {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.dressing .dress-column {
+  min-width: 0;
+  max-width: 560px;
+  justify-content: flex-start;
+  gap: clamp(3px, 0.9vh, 10px);
+  padding: clamp(6px, 1.2vh, 14px);
+  border-radius: 22px;
+}
+
+.dress-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.dressing .dress-head .column-face {
+  width: clamp(32px, 5.5vh, 56px);
+  height: clamp(32px, 5.5vh, 56px);
+  flex: none;
+}
+
+.dress-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(18px, 3.2vh, 32px);
+  -webkit-text-stroke: 5px var(--ink);
+}
+
+.kid-spot {
+  flex: 1 1 0;
+  min-height: 70px;
+  width: 100%;
+}
+
+.dress-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+
+.dress-row .row-word {
+  font-size: clamp(13px, 2.2vh, 20px);
+  line-height: 1.1;
+  -webkit-text-stroke: 4px var(--ink);
+}
+
+.dress-row .room-name {
+  color: var(--gold);
+}
+
+.dress-row .cells {
+  --cell-most: min(84px, 7.5vh);
+  display: grid;
+  grid-template-columns: repeat(var(--across), minmax(0, var(--cell-most)));
+  justify-content: center;
+  gap: clamp(3px, 0.6vh, 6px);
+  width: 100%;
+}
+
+.dress-row.slots .cells {
+  --cell-most: min(72px, 7.5vh);
+}
+
+/* The things lie in at most --lines lines (choose.ts itemsAcross: a slot with more lays more to a line, each smaller), and the row keeps the height of that many whatever slot is shown, so the kid above keeps its size as the ring walks the slots. */
+.dress-row.items .cells {
+  min-height: calc(var(--lines) * var(--cell-most) + (var(--lines) - 1) * clamp(3px, 0.6vh, 6px));
+  align-content: start;
+}
+
+.dress-row.unused {
+  visibility: hidden;
+}
+
+/* One grid of the house's colours for whichever colour the paint row chose: swatches of at least about 44 px, so a child's finger hits them (fewer a line in narrow columns, choose.ts ACROSS). */
+.dress-row.colours .cells {
+  --cell-most: max(44px, min(56px, 6vh));
+}
+
+/* The grid keeps the height of the colours' lines (--lines) while it shows the fewer patterns, so the thumbs and Ready stay put. */
+.dress-row.colours .cells {
+  min-height: calc(var(--lines) * var(--cell-most) + (var(--lines) - 1) * clamp(3px, 0.6vh, 6px));
+  align-content: start;
+}
+
+/* A pattern's swatch fills its round cell or paint swatch. */
+.dressing .colours.patterns .cell {
+  overflow: hidden;
+  padding: 0;
+}
+
+.swatch-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.paint-swatch:has(.swatch-art) {
+  overflow: hidden;
+}
+
+/* What the grid paints: a pill for each, with the colour or pattern it has now and its word. */
+.dress-row.paints .cells {
+  --cell-most: 180px;
+}
+
+.dressing .paints .cell {
+  aspect-ratio: auto;
+  min-height: 44px;
+  flex-direction: row;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.dressing .paints .cell-word {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: clamp(11px, 1.8vh, 16px);
+}
+
+.paint-swatch {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: var(--swatch);
+}
+
+.dress-row.thumbs .cells {
+  --across: 2;
+  --cell-most: min(84px, 7vh);
+  gap: 16px;
+}
+
+.dressing .cell {
+  position: relative;
+  box-sizing: border-box;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: var(--white);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+}
+
+.dressing .cell .icon {
+  width: 86%;
+  height: 86%;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.dressing .cell .icon circle,
+.dressing .cell .icon line {
+  stroke: var(--ink);
+  opacity: 0.55;
+}
+
+.dressing .slots .cell {
+  aspect-ratio: 0.84;
+  padding-bottom: 1px;
+}
+
+.dressing .cell-word {
+  font-size: clamp(8px, 1.3vh, 13px);
+  line-height: 1;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.dressing .colours .cell {
+  border-radius: 50%;
+  background: var(--swatch);
+}
+
+.dressing .cell .loading {
+  width: 40%;
+  height: 40%;
+  border-radius: 50%;
+  border: 3px dotted var(--ink);
+  opacity: 0.4;
+}
+
+.dressing .cell.chosen {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--ink);
+}
+
+.dressing .colours .cell.chosen::after {
+  content: '';
+  position: absolute;
+  inset: 30%;
+  border-radius: 50%;
+  background: var(--white);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.dressing .ringed {
+  outline: 4px solid var(--white);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 9px var(--seat);
+  z-index: 1;
+  animation: dress-ring 1s ease-in-out infinite alternate;
+}
+
+@keyframes dress-ring {
+  to {
+    outline-offset: 4px;
+  }
+}
+
+.thumb-icon {
+  width: 80%;
+  height: 80%;
+  fill: #2fc46a;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+
+.thumbs .cell:last-child .thumb-icon {
+  fill: #ff8a3d;
+  transform: rotate(180deg);
+}
+
+.dressing .dress-ready {
+  min-width: 0;
+  font-size: clamp(20px, 4vh, 40px);
+  background: var(--purple);
+}
+
+.dressing .dress-ready.chosen {
+  background: #2fc46a;
+}
+
+.dressing .is-ready .cells {
+  opacity: 0.55;
+}
+
+.dressing-kids {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* The thumbs and Ready at the foot of a column; in the narrow columns of three or four players they share one line and the words go, so the kid and the cells keep their size. */
+.dress-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(3px, 0.9vh, 10px);
+  width: 100%;
+}
+
+.dressing.seats-3 .dress-foot,
+.dressing.seats-4 .dress-foot {
+  flex-direction: row;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dressing.seats-3 .dress-foot .dress-row.thumbs,
+.dressing.seats-4 .dress-foot .dress-row.thumbs {
+  width: auto;
+}
+
+.dressing.seats-3 .dress-row.thumbs .cells,
+.dressing.seats-4 .dress-row.thumbs .cells {
+  gap: 6px;
+  width: auto;
+  grid-template-columns: repeat(2, 48px);
+}
+
+.dressing.seats-3 .thumbs .row-word,
+.dressing.seats-4 .thumbs .row-word,
+.dressing.seats-3 .paints .cell-word,
+.dressing.seats-4 .paints .cell-word {
+  display: none;
+}
+
+.dressing.seats-3 .dress-ready,
+.dressing.seats-4 .dress-ready {
+  padding-left: 0.5em;
+  padding-right: 0.5em;
+  font-size: clamp(18px, 3vh, 30px);
+}

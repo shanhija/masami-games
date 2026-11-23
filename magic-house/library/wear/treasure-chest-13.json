@@ -1,0 +1,13 @@
+{
+  "id": "treasure-chest-13",
+  "slot": "back",
+  "form": "A small treasure chest worn as a backpack: a box body with a half-round curved lid on top, metal bands over both, and a gold lock at the back, held on by two thin straps over the shoulders. It is about as wide as the child's back.",
+  "code": "m.box(0.34,0.2,0.2,{at:[0,-0.04,-0.12],color:c.main});\nm.cylinder(0.1,0.1,0.34,{at:[0,0.06,-0.12],rot:[0,0,Math.PI/2],color:c.main});\nfor(const x of [-0.12,0.12]){m.box(0.03,0.205,0.205,{at:[x,-0.04,-0.12],color:c.second});m.cylinder(0.105,0.105,0.03,{at:[x,0.06,-0.12],rot:[0,0,Math.PI/2],color:c.second});}\nm.box(0.06,0.07,0.02,{at:[0,0.04,-0.23],color:'#f2c230'});\nm.sphere(0.012,{at:[0,0.035,-0.245],color:'#333333'});\nfor(const x of [-0.1,0.1]){m.tube([[x,0.05,-0.02],[x,0.1,0.02],[x,0.06,0.1],[x,-0.1,0.1],[x,-0.12,0]],0.012,{color:c.second});}",
+  "guarded": "function __gift(m, c) {__g();\nm.box(0.34,0.2,0.2,{at:[0,-0.04,-0.12],color:c.main});\nm.cylinder(0.1,0.1,0.34,{at:[0,0.06,-0.12],rot:[0,0,Math.PI/2],color:c.main});\nfor(const x of [-0.12,0.12]){__g();m.box(0.03,0.205,0.205,{at:[x,-0.04,-0.12],color:c.second});m.cylinder(0.105,0.105,0.03,{at:[x,0.06,-0.12],rot:[0,0,Math.PI/2],color:c.second});}\nm.box(0.06,0.07,0.02,{at:[0,0.04,-0.23],color:'#f2c230'});\nm.sphere(0.012,{at:[0,0.035,-0.245],color:'#333333'});\nfor(const x of [-0.1,0.1]){__g();m.tube([[x,0.05,-0.02],[x,0.1,0.02],[x,0.06,0.1],[x,-0.1,0.1],[x,-0.12,0]],0.012,{color:c.second});}\n}",
+  "room": "treasure-crane-4",
+  "name": {
+    "en": "Treasure Chest",
+    "fi": "Aarrearkku"
+  },
+  "made": "2026-11-22T07:41:22.172Z"
+}

@@ -81,13 +81,22 @@ export class Sounds {
     if (this.bus) this.fade(this.bus, on ? DUCKED : 1, 0.2)
   }
 
-  play(name: SoundName) {
+  /** A sound by its name, at `level` of its own loudness (Magic House's props play theirs quieter, under the room's). Only full-level sounds are one sound when played twice within DEDUP: a quieter one never takes a full one's place (the props space their own). */
+  play(name: SoundName, level = 1) {
     const ctx = this.ctx
     if (!ctx) return
     const t = ctx.currentTime
-    if (t - (this.last[name] ?? -1) < DEDUP) return
-    this.last[name] = t
-    const out = this.master!
+    if (level === 1) {
+      if (t - (this.last[name] ?? -1) < DEDUP) return
+      this.last[name] = t
+    }
+    let out: AudioNode = this.master!
+    if (level !== 1) {
+      const under = ctx.createGain()
+      under.gain.value = level
+      under.connect(out)
+      out = under
+    }
     const tone = (type: OscillatorType, f0: number, f1: number, dt: number, dur: number, vol: number, to: AudioNode = out) => this.tone(type, f0, f1, t + dt, dur, vol, to)
     const noise = (type: BiquadFilterType, f0: number, f1: number, dt: number, attack: number, dur: number, vol: number) => this.noise(type, f0, f1, t + dt, attack, dur, vol, out)
     switch (name) {

@@ -1,0 +1,325 @@
+/* The quiz while the new door waits (shell/Waiting.tsx, quiz/QuizColumn.tsx): the door and its bar at the top, a column for each player (styles.css .column), the way back to the house at the bottom. */
+
+.waiting.quizzing {
+  justify-content: space-between;
+  gap: clamp(6px, 1.6vmin, 18px);
+}
+
+.quiz-head {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 2.4vmin, 24px);
+}
+
+.waiting .waiting-door.small {
+  width: clamp(44px, 8vmin, 80px);
+  height: clamp(66px, 12vmin, 120px);
+  border-width: 4px;
+  flex: none;
+}
+
+.quiz-head-words {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.quiz-head-words h2 {
+  font-size: clamp(22px, 4.2vmin, 44px);
+}
+
+.quiz-head-words .wait-bar {
+  margin: 0;
+}
+
+.waiting.quizzing .columns {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.quiz-column {
+  justify-content: space-between;
+  min-width: 0;
+  /* A word's size goes by the column's width (cqw), so a long one fits whole. */
+  container-type: inline-size;
+}
+
+.quiz-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.quiz-column .column-face {
+  width: clamp(44px, 9vmin, 86px);
+  height: clamp(44px, 9vmin, 86px);
+  box-shadow: 0 0 0 4px var(--ink);
+  border: 4px solid var(--seat);
+  box-sizing: border-box;
+}
+
+.quiz-stars {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: clamp(24px, 4.6vmin, 46px);
+}
+
+/* A star, drawn as the new door's sparkle is: a gold five-pointed shape with an ink edge. */
+.quiz-column .star {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  background: var(--gold);
+  clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  filter: drop-shadow(0 0 1px var(--ink));
+}
+
+.quiz-ask {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 1vmin, 10px);
+  min-height: 0;
+  width: 100%;
+}
+
+.quiz-word {
+  font-size: clamp(18px, min(6.4vmin, 150cqw / var(--letters)), 72px);
+  line-height: 1.05;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+.quiz-say {
+  font-size: clamp(22px, 4vmin, 40px);
+}
+
+.quiz-sum {
+  font-size: clamp(36px, 7.4vmin, 80px);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.quiz-heaps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.quiz-plus {
+  font-size: clamp(28px, 5vmin, 52px);
+}
+
+/* Things to count: in a wrapping heap, each as big as fits five across. */
+.quiz-things {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.quiz-things img {
+  width: clamp(40px, 10vmin, 96px);
+  height: clamp(40px, 10vmin, 96px);
+  object-fit: contain;
+}
+
+/* Taken away: faded and slipping off. */
+.quiz-things img.gone {
+  opacity: 0.28;
+  transform: translateY(6px) rotate(-12deg);
+}
+
+.quiz-object {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.quiz-object.big {
+  width: clamp(110px, 24vmin, 240px);
+  height: clamp(110px, 24vmin, 240px);
+  max-width: 100%;
+}
+
+.quiz-choices {
+  display: flex;
+  justify-content: center;
+  gap: clamp(6px, 1.4vmin, 14px);
+  width: 100%;
+}
+
+.mh-page .quiz-choice {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 150px;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  box-sizing: border-box;
+  border: 5px solid var(--ink);
+  border-radius: 22px;
+  background: var(--white);
+  color: var(--ink);
+  -webkit-text-stroke: 0;
+  text-shadow: none;
+  box-shadow: 0 6px 0 var(--ink);
+  transition:
+    transform 0.15s,
+    opacity 0.3s;
+}
+
+.mh-page .quiz-choice:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+/* The seat's stick rings a choice in the seat's colour. */
+.mh-page .quiz-choice.ringed {
+  outline: 6px solid var(--seat);
+  outline-offset: 3px;
+  transform: translateY(-4px);
+}
+
+.mh-page .quiz-choice.right {
+  background: var(--gold);
+  animation: mh-glow 1.2s ease-in-out infinite;
+}
+
+.mh-page .quiz-choice.missed,
+.mh-page .quiz-choice.faded {
+  opacity: 0.35;
+}
+
+.quiz-number {
+  font-size: clamp(30px, 6.4vmin, 66px);
+  line-height: 1;
+}
+
+/* Words to pick: one under another, each as wide as the column, so a long word keeps whole. */
+.quiz-choices.words {
+  flex-direction: column;
+  align-items: center;
+}
+
+.mh-page .quiz-choices.words .quiz-choice {
+  flex: none;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: auto;
+  padding: 0.25em 0.4em;
+  border-radius: 999px;
+}
+
+.quiz-choice-word {
+  font-size: clamp(14px, min(3.6vmin, 120cqw / var(--letters)), 36px);
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.quiz-yes {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  translate: -50% 0;
+  color: var(--gold);
+  font-size: clamp(22px, 4vmin, 40px);
+  white-space: nowrap;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 5px var(--ink);
+  animation: mh-cheer 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+/* Beside a word to pick, not over the one above it. */
+.quiz-choices.words .quiz-yes {
+  left: auto;
+  right: 0.4em;
+  bottom: auto;
+  top: 50%;
+  translate: 0 -50%;
+}
+
+/* The puff: eight little stars flying out from the middle and fading. */
+.quiz-puff {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+}
+
+.quiz-puff .star {
+  position: absolute;
+  left: -0.5em;
+  top: -0.5em;
+  font-size: clamp(14px, 2.6vmin, 26px);
+  animation: mh-puff 0.8s ease-out forwards;
+}
+
+@keyframes mh-puff {
+  from {
+    transform: rotate(var(--turn)) translateY(0) scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: rotate(var(--turn)) translateY(-3.4em) scale(1);
+    opacity: 0;
+  }
+}
+
+.quiz-open {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  color: var(--gold);
+}
+
+/* Back to the house: b held fills it from the left. */
+.mh-page .quiz-house {
+  --hold: 0;
+  background:
+    linear-gradient(90deg, var(--gold) calc(var(--hold) * 100%), transparent calc(var(--hold) * 100%)),
+    var(--pink);
+  font-size: clamp(22px, 4vmin, 40px);
+}
+
+/* A narrow column (four players on a laptop): the three pictures or numbers go two above one, each half the column wide, so a picture is big enough to tell what it is. */
+@container (max-width: 340px) {
+  .quiz-choices:not(.words) {
+    flex-wrap: wrap;
+  }
+
+  .mh-page .quiz-choices:not(.words) .quiz-choice {
+    flex: 0 0 calc(50% - clamp(6px, 1.4vmin, 14px));
+    max-width: none;
+  }
+
+  /* The question gives the choices the room they take: smaller things to count, a smaller sum and picture. */
+  .quiz-things img {
+    width: min(10vmin, 26cqw);
+    height: min(10vmin, 26cqw);
+  }
+
+  .quiz-sum {
+    font-size: clamp(32px, 20cqw, 60px);
+  }
+
+  .quiz-object.big {
+    width: min(24vmin, 70cqw);
+    height: min(24vmin, 70cqw);
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "gate-key-5",
+  "slot": "hand",
+  "form": "A big old castle key: a round ring bow on top, a long thin round shaft, and square teeth sticking out to one side at the bottom; held by the shaft, about half a metre long.",
+  "code": "m.torus(0.08,0.022,{at:[0,0.42,0],color:c.main});\nm.sphere(0.03,{at:[0,0.33,0],color:c.second});\nm.cylinder(0.018,0.018,0.42,{at:[0,0.12,0],color:c.main});\nm.box(0.07,0.03,0.025,{at:[0.04,-0.04,0],color:c.main});\nm.box(0.06,0.03,0.025,{at:[0.035,-0.1,0],color:c.main});\nm.box(0.02,0.09,0.025,{at:[0.075,-0.07,0],color:c.main});\nm.sphere(0.022,{at:[0,0.42,0],color:c.second,glow:true});\nm.anchor('hand',[0,0.15,0]);",
+  "guarded": "function __gift(m, c) {__g();\nm.torus(0.08,0.022,{at:[0,0.42,0],color:c.main});\nm.sphere(0.03,{at:[0,0.33,0],color:c.second});\nm.cylinder(0.018,0.018,0.42,{at:[0,0.12,0],color:c.main});\nm.box(0.07,0.03,0.025,{at:[0.04,-0.04,0],color:c.main});\nm.box(0.06,0.03,0.025,{at:[0.035,-0.1,0],color:c.main});\nm.box(0.02,0.09,0.025,{at:[0.075,-0.07,0],color:c.main});\nm.sphere(0.022,{at:[0,0.42,0],color:c.second,glow:true});\nm.anchor('hand',[0,0.15,0]);\n}",
+  "room": "gate-keepers-2",
+  "name": {
+    "en": "Gate Key",
+    "fi": "Portin avain"
+  },
+  "made": "2026-11-22T06:45:03.041Z"
+}

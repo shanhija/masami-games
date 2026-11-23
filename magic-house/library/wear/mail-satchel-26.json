@@ -1,0 +1,13 @@
+{
+  "id": "mail-satchel-26",
+  "slot": "body",
+  "form": "A postman's shoulder bag. A thin strap runs from the left shoulder across the chest to a deep bag at the right hip, which has a rounded flap, a buckle, and letters peeking out of the top. The bag is about as big as the child's tummy.",
+  "code": "m.tube([[0.2,0.46,0.1],[0.05,0.56,0.13],[-0.1,0.68,0.08],[-0.13,0.73,-0.02],[-0.08,0.66,-0.12],[0.1,0.52,-0.12],[0.2,0.46,-0.02]],0.015,{color:c.second});\nm.box(0.22,0.18,0.08,{at:[0.13,0.42,0.15],color:c.main});\nm.box(0.05,0.1,0.004,{at:[0.08,0.52,0.15],rot:[0,0,0.2],color:'#ffffff'});\nm.box(0.05,0.1,0.004,{at:[0.15,0.52,0.16],rot:[0,0,-0.15],color:'#ff6060'});\nm.extrude([[-0.11,0],[0.11,0],[0.11,-0.07],[0.06,-0.1],[-0.06,-0.1],[-0.11,-0.07]],0.01,{at:[0.13,0.51,0.195],color:c.second});\nm.box(0.035,0.03,0.01,{at:[0.13,0.42,0.205],color:'#e8c040'});",
+  "guarded": "function __gift(m, c) {__g();\nm.tube([[0.2,0.46,0.1],[0.05,0.56,0.13],[-0.1,0.68,0.08],[-0.13,0.73,-0.02],[-0.08,0.66,-0.12],[0.1,0.52,-0.12],[0.2,0.46,-0.02]],0.015,{color:c.second});\nm.box(0.22,0.18,0.08,{at:[0.13,0.42,0.15],color:c.main});\nm.box(0.05,0.1,0.004,{at:[0.08,0.52,0.15],rot:[0,0,0.2],color:'#ffffff'});\nm.box(0.05,0.1,0.004,{at:[0.15,0.52,0.16],rot:[0,0,-0.15],color:'#ff6060'});\nm.extrude([[-0.11,0],[0.11,0],[0.11,-0.07],[0.06,-0.1],[-0.06,-0.1],[-0.11,-0.07]],0.01,{at:[0.13,0.51,0.195],color:c.second});\nm.box(0.035,0.03,0.01,{at:[0.13,0.42,0.205],color:'#e8c040'});\n}",
+  "room": "little-postman-8",
+  "name": {
+    "en": "Mail Satchel",
+    "fi": "Postilaukku"
+  },
+  "made": "2026-11-22T14:25:13.783Z"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "apple-apron-1",
+  "slot": "body",
+  "form": "A thin cloth apron hanging from the waist to the knees in front, with a deep front pocket holding two red apples, a waist band right round the body and two shoulder straps. It covers the front of the child from chest to knee.",
+  "code": "m.box(0.3,0.42,0.012,{at:[0,0.4,0.112],color:c.main});\nm.box(0.22,0.14,0.012,{at:[0,0.62,0.112],color:c.main});\nm.box(0.24,0.12,0.03,{at:[0,0.34,0.125],color:c.second});\nm.sphere(0.04,{at:[-0.05,0.4,0.13],color:'#d42020'});\nm.sphere(0.04,{at:[0.05,0.405,0.13],color:'#d42020'});\nm.tube([[-0.05,0.44,0.13],[-0.05,0.46,0.13]],0.005,{color:'#6b4423'});\nm.tube([[0.05,0.445,0.13],[0.05,0.465,0.13]],0.005,{color:'#6b4423'});\nm.torus(0.135,0.014,{at:[0,0.55,0],rot:[Math.PI/2,0,0],scale:[1.2,0.8,1],color:c.second});\nm.tube([[-0.1,0.69,0.11],[-0.1,0.74,0],[-0.1,0.6,-0.11],[-0.12,0.55,-0.11]],0.012,{color:c.second});\nm.tube([[0.1,0.69,0.11],[0.1,0.74,0],[0.1,0.6,-0.11],[0.12,0.55,-0.11]],0.012,{color:c.second});",
+  "guarded": "function __gift(m, c) {__g();\nm.box(0.3,0.42,0.012,{at:[0,0.4,0.112],color:c.main});\nm.box(0.22,0.14,0.012,{at:[0,0.62,0.112],color:c.main});\nm.box(0.24,0.12,0.03,{at:[0,0.34,0.125],color:c.second});\nm.sphere(0.04,{at:[-0.05,0.4,0.13],color:'#d42020'});\nm.sphere(0.04,{at:[0.05,0.405,0.13],color:'#d42020'});\nm.tube([[-0.05,0.44,0.13],[-0.05,0.46,0.13]],0.005,{color:'#6b4423'});\nm.tube([[0.05,0.445,0.13],[0.05,0.465,0.13]],0.005,{color:'#6b4423'});\nm.torus(0.135,0.014,{at:[0,0.55,0],rot:[Math.PI/2,0,0],scale:[1.2,0.8,1],color:c.second});\nm.tube([[-0.1,0.69,0.11],[-0.1,0.74,0],[-0.1,0.6,-0.11],[-0.12,0.55,-0.11]],0.012,{color:c.second});\nm.tube([[0.1,0.69,0.11],[0.1,0.74,0],[0.1,0.6,-0.11],[0.12,0.55,-0.11]],0.012,{color:c.second});\n}",
+  "room": "apple-basket-1",
+  "name": {
+    "en": "Apple Apron",
+    "fi": "Omenaesiliina"
+  },
+  "made": "2026-11-22T06:38:13.044Z"
+}

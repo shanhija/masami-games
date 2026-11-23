@@ -1,0 +1,13 @@
+{
+  "id": "petal-skirt-22",
+  "slot": "body",
+  "form": "A thin band around the hips. Twelve long rounded petals hang from it, flaring slightly outward like an upside-down flower. It reaches about knee height.",
+  "code": "m.torus(0.17,0.02,{at:[0,0.41,0],rot:[Math.PI/2,0,0],scale:[1,0.65,1],color:c.second});\nfor(let i=0;i<12;i++){const a=i/12*Math.PI*2;const x=Math.sin(a)*0.17,z=Math.cos(a)*0.11;m.part('p'+i,{at:[x,0.32,z],rot:[0,Math.atan2(x,z),0]},()=>{m.sphere(1,{rot:[-0.3,0,0],scale:[0.06,0.1,0.02],color:i%2?c.main:c.second});});}",
+  "guarded": "function __gift(m, c) {__g();\nm.torus(0.17,0.02,{at:[0,0.41,0],rot:[Math.PI/2,0,0],scale:[1,0.65,1],color:c.second});\nfor(let i=0;i<12;i++){__g();const a=i/12*Math.PI*2;const x=Math.sin(a)*0.17,z=Math.cos(a)*0.11;m.part('p'+i,{at:[x,0.32,z],rot:[0,Math.atan2(x,z),0]},()=>{__g();m.sphere(1,{rot:[-0.3,0,0],scale:[0.06,0.1,0.02],color:i%2?c.main:c.second});});}\n}",
+  "room": "thirsty-flowers-6",
+  "name": {
+    "en": "Petal Skirt",
+    "fi": "Terälehtihame"
+  },
+  "made": "2026-11-22T13:51:15.364Z"
+}

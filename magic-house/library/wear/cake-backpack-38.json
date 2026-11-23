@@ -1,0 +1,13 @@
+{
+  "id": "cake-backpack-38",
+  "slot": "back",
+  "form": "A round two-layer cake worn like a backpack, about as wide as the shoulders. It has cream between the layers and around the top, a red cherry on top, and straps over the shoulders.",
+  "code": "const z=-0.27;\nm.cylinder(0.17,0.17,0.12,{at:[0,-0.12,z],color:c.main});\nm.cylinder(0.175,0.175,0.03,{at:[0,-0.045,z],color:'#fff8f0'});\nm.cylinder(0.17,0.17,0.12,{at:[0,0.03,z],color:c.main});\nm.cylinder(0.175,0.175,0.03,{at:[0,0.105,z],color:c.second});\nfor(let i=0;i<10;i++){const a=i*Math.PI/5;m.sphere(0.03,{at:[Math.sin(a)*0.15,0.13,z+Math.cos(a)*0.15],color:'#ffffff'});}\nm.sphere(0.045,{at:[0,0.17,z],color:'#d0102a'});\nm.tube([[0,0.21,z],[0.02,0.26,z],[0.05,0.28,z]],0.006,{color:'#3a7a20'});\nconst sp=['#ff5fa0','#4fc3ff','#ffd23f','#7be04a'];for(let i=0;i<8;i++){const a=i*0.8;m.box(0.025,0.008,0.008,{at:[Math.sin(a)*0.08,0.122,z+Math.cos(a)*0.08],rot:[0,a,0],color:sp[i%4]});}\nfor(const x of [-0.09,0.09]){m.tube([[x,0.08,-0.1],[x,0.1,0.02],[x,0.08,0.18],[x,-0.08,0.2],[x,-0.2,0.12],[x,-0.2,-0.1]],0.015,{color:c.second});}",
+  "guarded": "function __gift(m, c) {__g();const __k = (k, l) => { if (typeof k === 'object' && k !== null || typeof k === 'function' || typeof k === 'string' && (k[0] === '_' && k[1] === '_' || k === 'constructor' || k === 'prototype' || k === 'getPrototypeOf' || k === 'setPrototypeOf' || k === 'getOwnPropertyDescriptor' || k === 'getOwnPropertyDescriptors' || k === 'getOwnPropertyNames' || k === 'defineProperty' || k === 'defineProperties' || k === 'eval' || k === 'Function')) throw new TypeError((typeof k === 'string' ? 'made code cannot use the key ' + k : 'made code cannot use a thing as a key') + ' (line ' + l + ')'); return k };\nconst z=-0.27;\nm.cylinder(0.17,0.17,0.12,{at:[0,-0.12,z],color:c.main});\nm.cylinder(0.175,0.175,0.03,{at:[0,-0.045,z],color:'#fff8f0'});\nm.cylinder(0.17,0.17,0.12,{at:[0,0.03,z],color:c.main});\nm.cylinder(0.175,0.175,0.03,{at:[0,0.105,z],color:c.second});\nfor(let i=0;i<10;i++){__g();const a=i*Math.PI/5;m.sphere(0.03,{at:[Math.sin(a)*0.15,0.13,z+Math.cos(a)*0.15],color:'#ffffff'});}\nm.sphere(0.045,{at:[0,0.17,z],color:'#d0102a'});\nm.tube([[0,0.21,z],[0.02,0.26,z],[0.05,0.28,z]],0.006,{color:'#3a7a20'});\nconst sp=['#ff5fa0','#4fc3ff','#ffd23f','#7be04a'];for(let i=0;i<8;i++){__g();const a=i*0.8;m.box(0.025,0.008,0.008,{at:[Math.sin(a)*0.08,0.122,z+Math.cos(a)*0.08],rot:[0,a,0],color:sp[__k((i%4), 9)]});}\nfor(const x of [-0.09,0.09]){__g();m.tube([[x,0.08,-0.1],[x,0.1,0.02],[x,0.08,0.18],[x,-0.08,0.2],[x,-0.2,0.12],[x,-0.2,-0.1]],0.015,{color:c.second});}\n}",
+  "room": "the-cake-kitchen-1",
+  "name": {
+    "en": "Cake Backpack",
+    "fi": "Kakkureppu"
+  },
+  "made": "2026-11-22T22:20:53.869Z"
+}

@@ -15,7 +15,7 @@ import { useLang, type CastNames, type Lang } from './lang'
 import type { LibAction, Library, LibItem } from './library'
 import { holdFrame, placeIn } from './attach'
 import { stepEffects } from './effects'
-import { stepPhysics, stepPuffs } from './physics'
+import { stepPhysics, stepPuffs, WIND_SPEED } from './physics'
 import { groundAt, inWater, insideRoom, ROOM_GEO, WATER_Y } from './rooms'
 import { needsSettling, reaction, Runtime, settleDown, stepTask } from './runtime'
 import { describeError, resetGuard } from './sandbox'
@@ -799,7 +799,7 @@ export class Sim {
     for (const it of [...side.worn.values()]) this.tick(it)
     stepPhysics(w, lib, side)
     this.carry()
-    stepPuffs(w)
+    stepPuffs(w, skyOf(w).wind * WIND_SPEED, STEP)
     for (const a of w.actors) {
       if (a.bubble !== null && w.t > a.bubble.until) a.bubble = null
       if (a.mood !== 'happy' && w.t > a.moodUntil) a.mood = 'happy'

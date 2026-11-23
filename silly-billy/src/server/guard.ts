@@ -1,36 +1,38 @@
 /**
  * The loop guard for made code. The designer writes only a function's body; here it is wrapped
- * in its function, parsed with Vite's parser as strict code (as the page will run it), and
- * `__g();` goes at the start of every loop body and every function body, so the page can stop
- * code that runs too long without yielding (engine/sandbox.ts counts the calls). Nothing is
- * put on a new line: the designer's line N is line N + 1 of the guarded function, whose header
- * is line 1. A syntax error comes back as one line naming the line in the designer's code.
+ * in the function its game names (a MadeFunction: the header line and the names the code may
+ * use), parsed with Vite's parser as strict code (as the page will run it), and `__g();` goes
+ * at the start of every loop body and every function body, so the page can count what the code
+ * spends and stop code that runs too long (engine/sandbox.ts counts the calls). Nothing is put
+ * on a new line: the designer's line N is line N + 1 of the guarded function, whose header is
+ * line 1. A syntax error comes back as one line naming the line in the designer's code.
  *
  * Made code runs in the page itself, so the guard also keeps it to what it needs: its own names,
- * its function's parameters and the plain JavaScript in GLOBALS. Everything else is out of
+ * its function's parameters and the plain JavaScript its game allows. Everything else is out of
  * reach: the page (window, top, document), code made from text (eval, the Function
  * constructor, import(), WebAssembly), which would run without the guard, the guard itself,
  * and the prototypes the page shares. A name that leads there is refused like a syntax error,
  * and a key worked out as the code runs (`o[k]`) goes through `__k` on the header line, which
  * refuses the same keys and names the designer's line of the key.
+ *
+ * Silly Billy's own three functions and the names they may use are in codeKinds.ts.
  */
 
 import { parseAst } from 'vite'
 
-/** Which function the code is the body of. */
-export type CodeKind = 'action' | 'model' | 'tick'
-
-const HEAD: Record<CodeKind, string> = {
-  action: 'function* __action(me, args, w) {',
-  model: 'function __model(m) {',
-  tick: 'function __tick(it, w, dt) {',
+/**
+ * The function made code is the body of, as its game names it. `header` is the first line up
+ * to the opening brace, its name starting with __ so made code cannot reach it:
+ * 'function* __action(me, args, w) {'. `allowed` is the plain JavaScript the code may use
+ * besides its own names and the header's parameters (Math, JSON, Array...).
+ */
+export interface MadeFunction {
+  header: string
+  allowed: ReadonlySet<string>
 }
 
-/** The plain JavaScript made code may use besides its own names and its parameters. */
-const GLOBALS = new Set([
-  'Math', 'Number', 'String', 'Boolean', 'Array', 'Object', 'JSON', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Symbol', 'Date',
-  'Error', 'TypeError', 'RangeError', 'Infinity', 'NaN', 'undefined', 'isFinite', 'isNaN', 'parseInt', 'parseFloat', 'console',
-])
+/** A header the guard can keep the designer's lines under: one line, a name starting with __, plain parameters, the opening brace. */
+const HEADER = /^function\*? __[\w$]+\([\w$, ]*\) \{$/
 
 /** Keys that lead to a constructor (and from there to code made from text) or to a shared prototype, besides every key starting with __ (__proto__, __defineGetter__...). */
 const HIDDEN = ['constructor', 'prototype', 'getPrototypeOf', 'setPrototypeOf', 'getOwnPropertyDescriptor', 'getOwnPropertyDescriptors', 'getOwnPropertyNames', 'defineProperty', 'defineProperties', 'eval', 'Function']
@@ -154,14 +156,15 @@ class Refused extends Error {
 
 /**
  * Walks the wrapped function with its scopes and throws Refused at the first name made code may
- * not use. Returns the keys worked out as the code runs, which `__k` must check.
+ * not use: its own names, its parameters and `allowed` are all it has. Returns the keys worked
+ * out as the code runs, which `__k` must check.
  */
-function reach(fn: Node): Node[] {
+function reach(fn: Node, allowed: ReadonlySet<string>): Node[] {
   const keys: Node[] = []
   const refuse = (node: AstNode, why: string): never => {
     throw new Refused(node.start, why)
   }
-  const isGlobal = (name: string, scope: Scope) => !scope.has(name) && GLOBALS.has(name)
+  const isGlobal = (name: string, scope: Scope) => !scope.has(name) && allowed.has(name)
 
   /** A key written out: `o.key`, `{ key: 1 }`, `o['key']`. */
   const key = (node: Node) => {
@@ -200,7 +203,7 @@ function reach(fn: Node): Node[] {
       case 'Identifier': {
         const name = node.name as string
         if (name.startsWith('__')) refuse(node, `NotAllowed: ${name}, names starting with __ belong to the game`)
-        if (!scope.has(name) && !GLOBALS.has(name)) refuse(node, `ReferenceError: ${name} is not defined (made code has its own names, its args and plain JavaScript like Math)`)
+        if (!scope.has(name) && !allowed.has(name)) refuse(node, `ReferenceError: ${name} is not defined (made code has its own names, its args and plain JavaScript like Math)`)
         return
       }
       case 'Literal':
@@ -313,9 +316,14 @@ function reach(fn: Node): Node[] {
   return keys
 }
 
-/** Wraps the body in its function and guards it: the function's whole text, or the syntax error (or the name it may not use) with the designer's line. */
-export function guard(kind: CodeKind, code: string): Guarded {
-  const src = `${HEAD[kind]}\n${code}\n}`
+/**
+ * Wraps the body in its function and guards it: the function's whole text, or the syntax error
+ * (or the name it may not use) with the designer's line. Throws on a header it cannot keep the
+ * designer's lines under: that is the game's mistake, not the designer's.
+ */
+export function guard(made: MadeFunction, code: string): Guarded {
+  if (!HEADER.test(made.header)) throw new Error(`a made function's header is one line like 'function __name(a, b) {', not ${JSON.stringify(made.header)}`)
+  const src = `${made.header}\n${code}\n}`
   let program: { body: Node[] }
   try {
     program = parseAst(src, { sourceType: 'module', showSemanticErrors: true }) as unknown as { body: Node[] }
@@ -330,7 +338,7 @@ export function guard(kind: CodeKind, code: string): Guarded {
 
   let keys: Node[]
   try {
-    keys = reach(fn)
+    keys = reach(fn, made.allowed)
   } catch (err) {
     if (!(err instanceof Refused)) throw err
     return { ok: false, error: `${err.message} (line ${lineOf(src, err.at)})` }

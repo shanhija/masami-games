@@ -1,0 +1,13 @@
+{
+  "id": "chef-hat-35",
+  "slot": "head",
+  "form": "A tall soft chef's hat: a round band sits around the head, and a big puffy top made of balls swells out above it, taller than the head itself.",
+  "code": "m.cylinder(0.27,0.27,0.12,{at:[0,0.17,0],color:c.second});\nm.cylinder(0.26,0.25,0.18,{at:[0,0.3,0],color:c.main});\nm.sphere(0.2,{at:[0,0.45,0],scale:[1.2,0.8,1.2],color:c.main});\nfor(let i=0;i<6;i++){const a=i*Math.PI/3;m.sphere(0.13,{at:[Math.sin(a)*0.17,0.44,Math.cos(a)*0.17],color:c.main});}\nm.sphere(0.14,{at:[0,0.55,0],color:c.main});",
+  "guarded": "function __gift(m, c) {__g();\nm.cylinder(0.27,0.27,0.12,{at:[0,0.17,0],color:c.second});\nm.cylinder(0.26,0.25,0.18,{at:[0,0.3,0],color:c.main});\nm.sphere(0.2,{at:[0,0.45,0],scale:[1.2,0.8,1.2],color:c.main});\nfor(let i=0;i<6;i++){__g();const a=i*Math.PI/3;m.sphere(0.13,{at:[Math.sin(a)*0.17,0.44,Math.cos(a)*0.17],color:c.main});}\nm.sphere(0.14,{at:[0,0.55,0],color:c.main});\n}",
+  "room": "the-cake-kitchen-1",
+  "name": {
+    "en": "Chef Hat",
+    "fi": "Kokin hattu"
+  },
+  "made": "2026-11-22T22:20:53.811Z"
+}

@@ -31,6 +31,10 @@ temp/
 # made (the library's JSON files are kept) and its voice clips, kept for measuring the recognizers
 silly-billy/library/*.jsonl
 silly-billy/library/voice/
+# Magic House's log of every request, trial and play stays on the laptop too, with its line of
+# rooms, its system prompts and the dev server's lock (the rooms and presents in its library are kept)
+magic-house/library/*.jsonl
+magic-house/library/*.lock
 
 # Each computer's own tool settings
 .claude/settings.local.json
@@ -39,3 +43,8 @@ silly-billy/library/voice/
 
 # Python
 __pycache__/
+
+# Magic House's recorded sounds, built by `npm install` (and `npm run sounds`) from the CC0 packs named in
+# magic-house/sounds/sources.json; the downloads stay in node_modules/.cache/magic-house-sounds
+/public/magic-house/recorded/
+/public/magic-house/recorded.part/

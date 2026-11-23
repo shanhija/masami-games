@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest'
 import { ACTION_EXAMPLE, ITEM_EXAMPLE } from '../engine/apidoc'
 import type { Kit } from '../engine/kit'
 import { compileAction, compileModel, describeError, resetGuard } from '../engine/sandbox'
-import { guard, type CodeKind } from './guard'
+import { CODE_KINDS, type CodeKind } from './codeKinds'
+import { guard } from './guard'
 
 const LIMIT = 1000
 
@@ -17,7 +18,7 @@ class Stopped extends Error {}
 
 /** Compiles guarded code the way the page does (strict, the guard as __g) with a guard that throws after LIMIT calls. */
 function compile(kind: CodeKind, code: string) {
-  const g = guard(kind, code)
+  const g = guard(CODE_KINDS[kind], code)
   if (!g.ok) throw new Error(g.error)
   let count = 0
   const counter = () => {
@@ -28,7 +29,7 @@ function compile(kind: CodeKind, code: string) {
 }
 
 const guarded = (kind: CodeKind, code: string) => {
-  const g = guard(kind, code)
+  const g = guard(CODE_KINDS[kind], code)
   if (!g.ok) throw new Error(g.error)
   return g.guarded
 }
@@ -90,9 +91,35 @@ describe('guard', () => {
     expect(guarded('tick', 'it.yaw += dt')).toBe('function __tick(it, w, dt) {__g();\nit.yaw += dt\n}')
   })
 
+  it("wraps the code in any game's function, with that game's names", () => {
+    // Another game's functions: a room built once, its walkthrough a generator, a present's model; and no Date.
+    const noDate = new Set([...CODE_KINDS.tick.allowed].filter((n) => n !== 'Date'))
+    const room = { header: 'function __room(r, w) {', allowed: noDate }
+    const walk = { header: 'function* __walk(bots, w) {', allowed: noDate }
+    const gift = { header: 'function __gift(m, c) {', allowed: noDate }
+    expect(guard(room, 'r.box(1, 1)\nfor (const p of w.players) r.start(p, 0, 0)')).toEqual({ ok: true, guarded: 'function __room(r, w) {__g();\nr.box(1, 1)\nfor (const p of w.players) {__g();r.start(p, 0, 0)}\n}' })
+    expect(guard(walk, 'yield* bots[0].goTo(w.exit)')).toEqual({ ok: true, guarded: 'function* __walk(bots, w) {__g();\nyield* bots[0].goTo(w.exit)\n}' })
+    expect(guard(gift, "m.box(1, 1, 1, { color: c.main })\nreturn { slot: 'head' }").ok).toBe(true)
+    // Its names and parameters are its own: Date is out here and in for Silly Billy, and a parameter of one function is nothing in another.
+    expect(guard(room, 'r.seed = Date.now()')).toEqual({ ok: false, error: 'ReferenceError: Date is not defined (made code has its own names, its args and plain JavaScript like Math) (line 1)' })
+    expect(guard(CODE_KINDS.tick, 'it.state.t = Date.now()').ok).toBe(true)
+    expect(guard(room, 'r.box(1, 1)\nm.box(1, 1, 1)')).toMatchObject({ ok: false, error: expect.stringMatching(/^ReferenceError: m is not defined .*\(line 2\)$/) })
+    expect(guard(room, 'r.box(1, 1)\nyield')).toMatchObject({ ok: false, error: expect.stringMatching(/\(line 2\)$/) })
+    expect(guard(room, 'Math.random = () => 0.5')).toEqual({ ok: false, error: 'NotAllowed: made code cannot change Math (line 1)' })
+    // A key worked out as it runs is checked under any header, the lines kept.
+    const keyed = (guard(room, 'const k = "a"\nreturn ({ a: 1 })[k]') as { guarded: string }).guarded.split('\n')
+    expect([keyed[0]!.startsWith('function __room(r, w) {__g();const __k = (k, l) => {'), keyed[2]]).toEqual([true, 'return ({ a: 1 })[__k((k), 2)]'])
+  })
+
+  it("throws on a header it cannot keep the designer's lines under: the game's mistake, not the designer's", () => {
+    for (const header of ['function __room(r, w)', 'function __room(r,\nw) {', 'function room(r, w) {', 'function (r, w) {', '(r, w) => {', 'function __room({ a }, w) {']) {
+      expect(() => guard({ header, allowed: CODE_KINDS.action.allowed }, 'r.x = 1'), header).toThrow("a made function's header is one line")
+    }
+  })
+
   it('names the designer line of a syntax error', () => {
     const at = (code: string) => {
-      const g = guard('action', code)
+      const g = guard(CODE_KINDS.action, code)
       return g.ok ? 'ok' : g.error
     }
     expect(at('const a = 1\nconst b = 2\nconst c = ;')).toBe('SyntaxError: Unexpected token (line 3)')
@@ -101,7 +128,7 @@ describe('guard', () => {
     expect(at('const a = 1\nlet b = 2\nconst a = 3')).toMatch(/^SyntaxError: Identifier `a` has already been declared \(line [13]\)$/)
     expect(at('yield\nw.during(1, (k) => {\n  yield\n})')).toMatch(/^SyntaxError: .*yield.* \(line 3\)$/)
     expect(at('with (me) {}')).toMatch(/\(line 1\)$/)
-    expect(guard('model', 'm.box(1, 1, 1)\nreturn { carry: "hand" }').ok).toBe(true)
+    expect(guard(CODE_KINDS.model, 'm.box(1, 1, 1)\nreturn { carry: "hand" }').ok).toBe(true)
   })
 
   it('stops a loop that never yields, of every kind', () => {
@@ -149,7 +176,7 @@ describe('guard', () => {
 
 describe('what made code may reach', () => {
   const refused = (code: string, kind: CodeKind = 'action') => {
-    const g = guard(kind, code)
+    const g = guard(CODE_KINDS[kind], code)
     return g.ok ? 'passed' : g.error
   }
 
@@ -196,7 +223,7 @@ describe('what made code may reach', () => {
   })
 
   it('checks a key worked out as the code runs, and lets every other key through', () => {
-    const run = (code: string) => (compileModel((guard('model', code) as { guarded: string }).guarded) as (m: object) => unknown)({})
+    const run = (code: string) => (compileModel((guard(CODE_KINDS.model, code) as { guarded: string }).guarded) as (m: object) => unknown)({})
     // The real sandbox, as the page compiles it.
     expect(() => run("const k = 'constr' + 'uctor'\nreturn ({})[k][k]('while (true) {}')")).toThrow('made code cannot use the key constructor')
     expect(() => run("const k = '_'.repeat(2) + 'proto' + '_'.repeat(2)\nreturn ({})[k]")).toThrow('made code cannot use the key __proto__')
@@ -204,7 +231,7 @@ describe('what made code may reach', () => {
     expect(() => run("const k = 'constr' + 'uctor'\nconst { [k]: F } = () => 1\nreturn F")).toThrow('made code cannot use the key constructor')
     expect(() => run("const k = 'proto' + 'type'\nconst A = Array\nreturn A[k]")).toThrow('made code cannot use the key prototype')
     expect(run("const o = { a: 1, b: [5, 6] }\nconst k = 'a'\no[k] += 1\nconst s = Symbol('s')\no[s] = 3\nconst i = o.b.length - 1\nreturn o[k] + o.b[i] + o[s] + 'xy'[i ? 1 : 0].length + (o?.[k] ?? 0)")).toBe(2 + 6 + 3 + 1 + 2)
-    const out = (guard('model', 'const k = "a"\nreturn ({ a: 1 })[k]') as { guarded: string }).guarded
+    const out = (guard(CODE_KINDS.model, 'const k = "a"\nreturn ({ a: 1 })[k]') as { guarded: string }).guarded
     expect(out.split('\n')[0]).toMatch(/^function __model\(m\) \{__g\(\);const __k = \(k, l\) => \{.*\};$/)
     expect(out.split('\n')[2]).toBe('return ({ a: 1 })[__k((k), 2)]')
     // Code without such a key is guarded exactly as before.
@@ -221,11 +248,11 @@ describe('what made code may reach', () => {
       }
       return 'did not throw'
     }
-    const model = (code: string) => () => compileModel((guard('model', code) as { guarded: string }).guarded)({} as Kit)
+    const model = (code: string) => () => compileModel((guard(CODE_KINDS.model, code) as { guarded: string }).guarded)({} as Kit)
     expect(said(model("const parts = ['constr', 'uctor']\nconst k = parts.join('')\nconst f = () => 1\nconst c = f[k]\nreturn c"))).toBe('TypeError: made code cannot use the key constructor (line 4)')
     expect(said(model("const k = 'constr' + 'uctor'\nconst {\n  [k]: F,\n} = () => 1\nreturn F"))).toBe('TypeError: made code cannot use the key constructor (line 3)')
     expect(said(model('const o = {}\nreturn o[[1]]'))).toBe('TypeError: made code cannot use a thing as a key (line 2)')
-    const action = compileAction((guard('action', "yield\nconst k = 'proto' + 'type'\nconst A = [].concat\nme.say(String(A[k]))") as { guarded: string }).guarded)
+    const action = compileAction((guard(CODE_KINDS.action, "yield\nconst k = 'proto' + 'type'\nconst A = [].concat\nme.say(String(A[k]))") as { guarded: string }).guarded)
     const steps = action({} as never, {} as never, {} as never)
     resetGuard()
     steps.next()
@@ -235,7 +262,7 @@ describe('what made code may reach', () => {
   })
 
   it('checks a key with a comma in it as the one key it is', () => {
-    const run = (code: string) => compileModel((guard('model', code) as { guarded: string }).guarded)({} as Kit)
+    const run = (code: string) => compileModel((guard(CODE_KINDS.model, code) as { guarded: string }).guarded)({} as Kit)
     // Parentheses the key's own range leaves out: unwrapped, `__k(x, y)` would check and use x.
     expect(run("const o = { a: 1, b: 2 }\nconst x = 'a', y = 'b'\nreturn o[(x, y)]")).toBe(2)
     expect(run("const o = { a: 1, b: 2 }\nconst x = 'a', y = 'b'\nconst { [(x, y)]: v } = o\nreturn v")).toBe(2)

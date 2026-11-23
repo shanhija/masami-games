@@ -2,7 +2,8 @@
  * The Claude Code CLI, driven headless on the laptop's own subscription (belay-that's way), so
  * no API key is needed. Every process runs from an empty temporary folder with no tools, no MCP
  * servers and only the (empty) project's settings, so nothing of the repo or the user's
- * CLAUDE.md reaches the models; answers are structured output against a JSON schema. A Session
+ * CLAUDE.md reaches the models; answers are structured output against a JSON schema, at the
+ * effort the Spec asks (Silly Billy's are all low). A Session
  * is one process for a number of turns; a Pool starts the next process as soon as one ends, so
  * an ask meets a process that is already up (the interpreter: a fresh one for every command);
  * `once` is a process for one answer (the designer, one per invention).
@@ -36,9 +37,13 @@ export function findClaude(env: NodeJS.ProcessEnv, home: string): string | null 
   return null
 }
 
-/** What a process is for: the model, its system prompt and the schema it answers in. */
+/** How hard the model thinks before it answers: the CLI's --effort, from quickest to most thorough. */
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
+/** What a process is for: the model, how hard it thinks, its system prompt and the schema it answers in. */
 export interface Spec {
   model: string
+  effort: Effort
   system: string
   schema: Record<string, unknown>
 }
@@ -113,10 +118,10 @@ export class Claude {
   }
 
   spawn(spec: Spec): ChildProcess {
-    this.dir ??= fs.mkdtempSync(path.join(os.tmpdir(), 'silly-billy-claude-'))
+    this.dir ??= fs.mkdtempSync(path.join(os.tmpdir(), 'claude-cli-'))
     const args = [
       '-p', '--model', spec.model, '--tools', '', '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence',
-      '--system-prompt', spec.system, '--json-schema', JSON.stringify(spec.schema), '--effort', 'low',
+      '--system-prompt', spec.system, '--json-schema', JSON.stringify(spec.schema), '--effort', spec.effort,
       '--output-format', 'stream-json', '--input-format', 'stream-json', '--verbose', '--include-partial-messages',
     ]
     const child = spawn(this.bin, args, { cwd: this.dir, stdio: ['pipe', 'pipe', 'pipe'] })

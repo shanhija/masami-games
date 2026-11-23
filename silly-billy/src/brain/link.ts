@@ -7,8 +7,8 @@
 import { LIBRARY_EVENT, PAGE_HEADER, type HearReply, type InterpretReply, type InventLine, type LibraryData, type LibraryNews, type Status } from '../engine/protocol'
 import type { Link } from './contract'
 
-/** The server's { error } as an Error, or the HTTP status when the reply says nothing. */
-async function failure(res: Response): Promise<Error> {
+/** The server's { error } as an Error, or the HTTP status when the reply says nothing. Magic House's page reads its server's failures the same way (magic-house/src/library/api.ts). */
+export async function failure(res: Response): Promise<Error> {
   const text = await res.text()
   const said = /^\s*\{/.test(text) ? (JSON.parse(text) as { error?: string }).error : undefined
   return new Error(said ?? `${res.status} ${res.statusText}`.trim())

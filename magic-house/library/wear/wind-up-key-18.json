@@ -1,0 +1,13 @@
+{
+  "id": "wind-up-key-18",
+  "slot": "back",
+  "form": "A big wind-up key, like the one that winds the music box, sticks out of the back. It has a thin round shaft with a collar, and two large round loops make the bow. It is about as wide as the shoulders.",
+  "code": "m.cylinder(0.025,0.025,0.26,{at:[0,0,-0.13],rot:[Math.PI/2,0,0],color:c.second});\nm.cylinder(0.05,0.05,0.03,{at:[0,0,-0.02],rot:[Math.PI/2,0,0],color:c.second});\nm.sphere(0.045,{at:[0,0,-0.27],color:c.second});\nm.torus(0.1,0.025,{at:[0,0.13,-0.3],rot:[0,Math.PI/2,0],color:c.main});\nm.torus(0.1,0.025,{at:[0,-0.13,-0.3],rot:[0,Math.PI/2,0],color:c.main});\nm.sphere(0.02,{at:[0,0.13,-0.3],color:'#ffe680',glow:true});\nm.sphere(0.02,{at:[0,-0.13,-0.3],color:'#ffe680',glow:true});",
+  "guarded": "function __gift(m, c) {__g();\nm.cylinder(0.025,0.025,0.26,{at:[0,0,-0.13],rot:[Math.PI/2,0,0],color:c.second});\nm.cylinder(0.05,0.05,0.03,{at:[0,0,-0.02],rot:[Math.PI/2,0,0],color:c.second});\nm.sphere(0.045,{at:[0,0,-0.27],color:c.second});\nm.torus(0.1,0.025,{at:[0,0.13,-0.3],rot:[0,Math.PI/2,0],color:c.main});\nm.torus(0.1,0.025,{at:[0,-0.13,-0.3],rot:[0,Math.PI/2,0],color:c.main});\nm.sphere(0.02,{at:[0,0.13,-0.3],color:'#ffe680',glow:true});\nm.sphere(0.02,{at:[0,-0.13,-0.3],color:'#ffe680',glow:true});\n}",
+  "room": "the-singing-keys-5",
+  "name": {
+    "en": "Wind Up Key",
+    "fi": "Vetoavain"
+  },
+  "made": "2026-11-22T13:44:20.894Z"
+}

@@ -160,10 +160,12 @@ describe('a game page', () => {
     expect(replace).toHaveBeenCalledWith('../index.html')
   })
 
-  it("plays on the picked profile's saves in that profile's language, and keeps that profile for its tab", () => {
+  it("plays as the picked profile, on its saves in its language, and keeps that profile for its tab", () => {
     const masami = addProfile('Masami', avatar, 'fi')
+    addProfile('Pia', avatar, 'en')
     local.setItem('masami-profile', masami.id)
-    const { saves, lang } = enterGame('pia-jump')!
+    const { saves, lang, profile } = enterGame('pia-jump')!
+    expect(profile).toEqual(masami)
     expect(lang).toBe('fi')
     saves.setItem('pia-jump', 'two kittens')
     expect(profileSaves(masami.id, 'pia-jump').getItem('pia-jump')).toBe('two kittens')
@@ -171,13 +173,14 @@ describe('a game page', () => {
     expect(replace).not.toHaveBeenCalled()
   })
 
-  it('plays on saves in memory where the browser keeps no site data', () => {
+  it('plays as nobody, on saves in memory, where the browser keeps no site data', () => {
     const blocked = () => {
       throw new Error('blocked')
     }
     vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked })
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const { saves, lang } = enterGame('castle-builder')!
+    const { saves, lang, profile } = enterGame('castle-builder')!
+    expect(profile).toBeNull()
     saves.setItem('castle-builder', 'a castle')
     expect(saves.getItem('castle-builder')).toBe('a castle')
     expect(lang).toBe('en')

@@ -1,0 +1,13 @@
+{
+  "id": "twig-arm-11",
+  "slot": "hand",
+  "form": "A snowman's stick arm: a long thin crooked twig with two small side forks, topped by a round woolly mitten. About twice real size, 0.55 m tall, held near its lower end.",
+  "code": "m.anchor('hand',[0,-0.17,0]);\nm.tube([[0,-0.27,0],[0.02,-0.1,0],[-0.01,0.05,0],[0.02,0.2,0]],0.014,{color:c.main});\nm.tube([[0.01,-0.02,0],[0.08,0.06,0],[0.11,0.08,0]],0.008,{color:c.main});\nm.tube([[0,0.1,0],[-0.07,0.17,0],[-0.09,0.21,0]],0.007,{color:c.main});\nm.sphere(0.06,{at:[0.02,0.26,0],scale:[1,1.25,0.7],color:c.second});\nm.sphere(0.025,{at:[0.08,0.24,0],scale:[1,1.4,0.8],color:c.second});\nm.cylinder(0.05,0.05,0.03,{at:[0.02,0.19,0],color:c.main});",
+  "guarded": "function __gift(m, c) {__g();\nm.anchor('hand',[0,-0.17,0]);\nm.tube([[0,-0.27,0],[0.02,-0.1,0],[-0.01,0.05,0],[0.02,0.2,0]],0.014,{color:c.main});\nm.tube([[0.01,-0.02,0],[0.08,0.06,0],[0.11,0.08,0]],0.008,{color:c.main});\nm.tube([[0,0.1,0],[-0.07,0.17,0],[-0.09,0.21,0]],0.007,{color:c.main});\nm.sphere(0.06,{at:[0.02,0.26,0],scale:[1,1.25,0.7],color:c.second});\nm.sphere(0.025,{at:[0.08,0.24,0],scale:[1,1.4,0.8],color:c.second});\nm.cylinder(0.05,0.05,0.03,{at:[0.02,0.19,0],color:c.main});\n}",
+  "room": "snowman-tower-3",
+  "name": {
+    "en": "Twig Arm",
+    "fi": "Oksakäsi"
+  },
+  "made": "2026-11-22T07:15:16.633Z"
+}

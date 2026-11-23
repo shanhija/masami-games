@@ -1,0 +1,13 @@
+{
+  "id": "paint-roller-32",
+  "slot": "hand",
+  "form": "A thin handle runs up to a bent metal wire, which holds a fat round roller sideways across the top. The handle has a round grip at its end. The roller is about twice real size and reaches above the child's head.",
+  "code": "m.capsule(0.03,0.2,{at:[0,0.12,0],color:c.second});\nm.cylinder(0.012,0.012,0.2,{at:[0,0.33,0],color:'#999999'});\nm.tube([[0,0.42,0],[0,0.48,0],[0.15,0.52,0],[0.15,0.58,0]],0.012,{color:'#999999'});\nm.cylinder(0.065,0.065,0.3,{at:[0,0.58,0],rot:[0,0,Math.PI/2],color:c.main});\nm.cylinder(0.02,0.02,0.32,{at:[0,0.58,0],rot:[0,0,Math.PI/2],color:'#999999'});\nm.anchor('hand',[0,0.12,0]);",
+  "guarded": "function __gift(m, c) {__g();\nm.capsule(0.03,0.2,{at:[0,0.12,0],color:c.second});\nm.cylinder(0.012,0.012,0.2,{at:[0,0.33,0],color:'#999999'});\nm.tube([[0,0.42,0],[0,0.48,0],[0.15,0.52,0],[0.15,0.58,0]],0.012,{color:'#999999'});\nm.cylinder(0.065,0.065,0.3,{at:[0,0.58,0],rot:[0,0,Math.PI/2],color:c.main});\nm.cylinder(0.02,0.02,0.32,{at:[0,0.58,0],rot:[0,0,Math.PI/2],color:'#999999'});\nm.anchor('hand',[0,0.12,0]);\n}",
+  "room": "stomp-paint-9",
+  "name": {
+    "en": "Paint Roller",
+    "fi": "Maalitela"
+  },
+  "made": "2026-11-22T15:03:51.028Z"
+}

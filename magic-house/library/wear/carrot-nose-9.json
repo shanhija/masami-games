@@ -1,0 +1,13 @@
+{
+  "id": "carrot-nose-9",
+  "slot": "face",
+  "form": "A carrot nose: a long, thin cone pointing straight forward from the middle of the face, below the eyes, with a few thin ridge rings and a little leafy tuft at its base. About as long as half the head.",
+  "code": "m.cone(0.04,0.15,{at:[0,-0.03,0.31],rot:[Math.PI/2,0,0],color:c.main});\nfor(let i=0;i<3;i++){m.torus(0.033-i*0.009,0.005,{at:[0,-0.03,0.27+i*0.03],color:c.second});}\nm.cone(0.015,0.05,{at:[0.03,-0.0,0.245],rot:[0.6,0,-0.6],color:c.second});\nm.cone(0.015,0.05,{at:[-0.03,-0.0,0.245],rot:[0.6,0,0.6],color:c.second});",
+  "guarded": "function __gift(m, c) {__g();\nm.cone(0.04,0.15,{at:[0,-0.03,0.31],rot:[Math.PI/2,0,0],color:c.main});\nfor(let i=0;i<3;i++){__g();m.torus(0.033-i*0.009,0.005,{at:[0,-0.03,0.27+i*0.03],color:c.second});}\nm.cone(0.015,0.05,{at:[0.03,-0.0,0.245],rot:[0.6,0,-0.6],color:c.second});\nm.cone(0.015,0.05,{at:[-0.03,-0.0,0.245],rot:[0.6,0,0.6],color:c.second});\n}",
+  "room": "snowman-tower-3",
+  "name": {
+    "en": "Carrot Nose",
+    "fi": "Porkkananenä"
+  },
+  "made": "2026-11-22T07:15:16.613Z"
+}

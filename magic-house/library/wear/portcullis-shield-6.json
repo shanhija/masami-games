@@ -1,0 +1,13 @@
+{
+  "id": "portcullis-shield-6",
+  "slot": "back",
+  "form": "A flat shield shaped like a castle gate with a round arched top, carried on the back, with a criss cross grid of thick iron bars and pointed spikes along its bottom edge; about as tall as the child's back.",
+  "code": "const pts=[[-0.18,-0.25],[0.18,-0.25],[0.18,0.08]];for(let i=0;i<=8;i++){const a=i/8*Math.PI;pts.push([Math.cos(a)*0.18,0.08+Math.sin(a)*0.18]);}pts.push([-0.18,-0.25]);\nm.extrude(pts,0.04,{at:[0,0,-0.14],color:c.main});\nfor(let i=-2;i<=2;i++){const h=i==0?0.5:(Math.abs(i)==1?0.46:0.36);m.box(0.025,h,0.03,{at:[i*0.07,-0.25+h/2,-0.18],color:c.second});m.cone(0.016,0.05,{at:[i*0.07,-0.27,-0.18],rot:[Math.PI,0,0],color:c.second});}\nfor(let j=0;j<3;j++)m.box(0.36,0.025,0.03,{at:[0,-0.17+j*0.13,-0.19],color:c.second});",
+  "guarded": "function __gift(m, c) {__g();\nconst pts=[[-0.18,-0.25],[0.18,-0.25],[0.18,0.08]];for(let i=0;i<=8;i++){__g();const a=i/8*Math.PI;pts.push([Math.cos(a)*0.18,0.08+Math.sin(a)*0.18]);}pts.push([-0.18,-0.25]);\nm.extrude(pts,0.04,{at:[0,0,-0.14],color:c.main});\nfor(let i=-2;i<=2;i++){__g();const h=i==0?0.5:(Math.abs(i)==1?0.46:0.36);m.box(0.025,h,0.03,{at:[i*0.07,-0.25+h/2,-0.18],color:c.second});m.cone(0.016,0.05,{at:[i*0.07,-0.27,-0.18],rot:[Math.PI,0,0],color:c.second});}\nfor(let j=0;j<3;j++){__g();m.box(0.36,0.025,0.03,{at:[0,-0.17+j*0.13,-0.19],color:c.second});}\n}",
+  "room": "gate-keepers-2",
+  "name": {
+    "en": "Portcullis Shield",
+    "fi": "Porttikilpi"
+  },
+  "made": "2026-11-22T06:45:03.048Z"
+}

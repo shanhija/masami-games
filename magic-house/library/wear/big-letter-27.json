@@ -1,0 +1,13 @@
+{
+  "id": "big-letter-27",
+  "slot": "hand",
+  "form": "A large flat envelope held up by its bottom edge. It is a thin rectangle with a triangle flap folded down over the front, a red heart seal where the flap ends, and a stamp in the corner. It is about as wide as the child's shoulders.",
+  "code": "m.box(0.44,0.3,0.02,{color:c.main});\nm.extrude([[-0.22,0.15],[0.22,0.15],[0,-0.03]],0.006,{at:[0,0,0.013],color:c.second});\nm.sphere(0.03,{at:[0,-0.03,0.02],scale:[1,1,0.4],color:'#d02030'});\nm.box(0.07,0.08,0.006,{at:[0.16,0.09,0.02],color:'#e8c040'});\nm.box(0.05,0.06,0.006,{at:[0.16,0.09,0.024],color:'#3070d0'});\nm.anchor('hand',[0,-0.13,0]);",
+  "guarded": "function __gift(m, c) {__g();\nm.box(0.44,0.3,0.02,{color:c.main});\nm.extrude([[-0.22,0.15],[0.22,0.15],[0,-0.03]],0.006,{at:[0,0,0.013],color:c.second});\nm.sphere(0.03,{at:[0,-0.03,0.02],scale:[1,1,0.4],color:'#d02030'});\nm.box(0.07,0.08,0.006,{at:[0.16,0.09,0.02],color:'#e8c040'});\nm.box(0.05,0.06,0.006,{at:[0.16,0.09,0.024],color:'#3070d0'});\nm.anchor('hand',[0,-0.13,0]);\n}",
+  "room": "little-postman-8",
+  "name": {
+    "en": "Big Letter",
+    "fi": "Iso kirje"
+  },
+  "made": "2026-11-22T14:25:13.807Z"
+}
